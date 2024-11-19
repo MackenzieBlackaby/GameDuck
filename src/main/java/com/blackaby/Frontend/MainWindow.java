@@ -1,6 +1,7 @@
 package com.blackaby.Frontend;
 
 import javax.swing.*;
+import java.awt.*;
 
 /**
  * This class is the main window for the GameDuck application.
@@ -9,6 +10,8 @@ import javax.swing.*;
  * It is a subclass of DuckWindow.
  */
 public class MainWindow extends DuckWindow {
+
+    private DuckDisplay display;
 
     /**
      * The menu items for the menu bar.
@@ -27,6 +30,7 @@ public class MainWindow extends DuckWindow {
      */
     public MainWindow() {
         super("GameDuck");
+        // Initialising the menu bar
         JMenuBar menuBar = new JMenuBar();
         menuBar.setBackground(Styling.BACKGROUND_COLOR);
         menuBar.setForeground(Styling.MENU_FOREGROUND_COLOR);
@@ -35,6 +39,13 @@ public class MainWindow extends DuckWindow {
             addMenu(menuBar, items);
         }
         setJMenuBar(menuBar);
+
+        // Main section of the window
+        setLayout(new BoxLayout(getContentPane(), BoxLayout.Y_AXIS));
+
+        // Display
+        display = new DuckDisplay();
+        add(display);
 
         setVisible(true);
     }
@@ -66,6 +77,7 @@ public class MainWindow extends DuckWindow {
         menu.setForeground(Styling.MENU_FOREGROUND_COLOR);
         menu.setFont(Styling.MENU_FONT);
         for (int i = 1; i < items.length; i++) {
+            // If the item is a empty string add a separator
             if (items[i].equals("")) {
                 menu.addSeparator();
             } else {

@@ -41,11 +41,15 @@ public class MainWindow extends DuckWindow {
         setJMenuBar(menuBar);
 
         // Main section of the window
-        setLayout(new BoxLayout(getContentPane(), BoxLayout.Y_AXIS));
+        setLayout(new BorderLayout());
 
         // Display
         display = new DuckDisplay();
-        add(display);
+        add(display, BorderLayout.CENTER);
+
+        // Black bars on the side
+        add(new PillarFiller(), BorderLayout.WEST);
+        add(new PillarFiller(), BorderLayout.EAST);
 
         setVisible(true);
     }

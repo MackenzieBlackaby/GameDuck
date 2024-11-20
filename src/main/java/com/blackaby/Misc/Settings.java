@@ -1,7 +1,5 @@
 package com.blackaby.Misc;
 
-import java.awt.Color;
-
 import com.blackaby.Backend.Emulation.Graphics.GBColor;
 
 public class Settings {

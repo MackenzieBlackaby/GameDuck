@@ -2,6 +2,8 @@ package com.blackaby.Frontend;
 
 import javax.swing.*;
 
+import com.blackaby.Backend.Emulation.DuckEmulation;
+
 import java.awt.*;
 
 /**
@@ -57,6 +59,9 @@ public class MainWindow extends DuckWindow {
         c.fill = GridBagConstraints.NONE;
         c.anchor = GridBagConstraints.CENTER;
         add(display, c);
+
+        DuckEmulation emulation = new DuckEmulation(display);
+        emulation.start();
 
         setVisible(true);
     }

@@ -4,6 +4,7 @@ import java.awt.*;
 import java.awt.image.*;
 import javax.swing.*;
 import com.blackaby.Backend.Emulation.Misc.Specifics;
+import com.blackaby.Backend.Emulation.Graphics.GBImage;
 
 public class DuckDisplay extends JPanel {
     private BufferedImage image;
@@ -18,18 +19,66 @@ public class DuckDisplay extends JPanel {
     /**
      * Sets a pixel at the specified coordinates
      * 
+     * @param x       X coordinate
+     * @param y       Y coordinate
+     * @param color   Color to set
+     * @param repaint Whether to repaint the component after setting the pixel
+     */
+    public void setPixel(int x, int y, Color color, boolean repaint) {
+        if (image != null && x >= 0 && x < image.getWidth() && y >= 0 && y < image.getHeight()) {
+            image.setRGB(x, y, color.getRGB());
+            if (repaint) {
+                repaint();
+            }
+        }
+    }
+
+    /**
+     * Sets a pixel at the specified coordinates
+     * 
      * @param x     X coordinate
      * @param y     Y coordinate
      * @param color Color to set
      */
     public void setPixel(int x, int y, Color color) {
-        if (image != null && x >= 0 && x < image.getWidth() && y >= 0 && y < image.getHeight()) {
-            image.setRGB(x, y, color.getRGB());
-            repaint(); // Request a repaint to show the new pixel
-        }
+        setPixel(x, y, color, true);
     }
 
+    /**
+     * Sets a pixel at the specified coordinates
+     * 
+     * @param x        X coordinate
+     * @param y        Y coordinate
+     * @param hexColor Hexadecimal color to set
+     * @param repaint  Whether to repaint the component after setting the pixel
+     */
+    public void setPixel(int x, int y, String hexColor, boolean repaint) {
+        setPixel(x, y, Color.decode(hexColor), repaint);
+    }
 
+    /**
+     * Sets a pixel at the specified coordinates
+     * 
+     * @param x        X coordinate
+     * @param y        Y coordinate
+     * @param hexColor Hexadecimal color to set
+     */
+    public void setPixel(int x, int y, String hexColor) {
+        setPixel(x, y, hexColor, true);
+    }
+
+    /**
+     * Sets the image to the specified GBImage
+     * 
+     * @param image GBImage to set
+     */
+    public void setImage(GBImage image) {
+        for (int x = 0; x < Specifics.GB_DISPLAY_WIDTH; x++) {
+            for (int y = 0; y < Specifics.GB_DISPLAY_HEIGHT; y++) {
+                setPixel(x, y, image.getPixelColor(x, y), false);
+            }
+        }
+    }
 
     @Override
     protected void paintComponent(Graphics g) {

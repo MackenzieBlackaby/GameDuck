@@ -1,6 +1,7 @@
 package com.blackaby.Backend.Emulation.Graphics;
 
 import com.blackaby.Backend.Emulation.Misc.Specifics;
+import java.awt.Color;
 
 /**
  * This class represents an image on the GameBoy screen.
@@ -44,6 +45,21 @@ public class GBImage {
     public GBColor getPixel(int x, int y) {
         if (x >= 0 && x < Specifics.GB_DISPLAY_WIDTH && y >= 0 && y < Specifics.GB_DISPLAY_HEIGHT) {
             return pixels[x][y];
+        }
+        return null;
+    }
+
+    /**
+     * Returns the Color at the specified coordinates
+     * 
+     * @param x X coordinate
+     * @param y Y coordinate
+     * @return Color at the specified coordinates
+     */
+    public Color getPixelColor(int x, int y) {
+        GBColor color = getPixel(x, y);
+        if (color != null) {
+            return color.toColor();
         }
         return null;
     }

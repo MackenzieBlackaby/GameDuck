@@ -28,8 +28,15 @@ public class DuckCPU {
     /**
      * This method queues an instruction
      */
-    public void queueInstruction(Duckstruction instruction) {
-        instructionQueue.add(instruction);
+    public void queueInstruction(int opcode, int... values) {
+        InstructionType type = InstructionType.fromOpcode(opcode);
+        switch (type) {
+            case DEBUG_DISPLAY:
+                instructionQueue.add(new DebugDisplay(boundEmulator.getDisplay()));
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown opcode: " + opcode);
+        }
     }
 
     /**

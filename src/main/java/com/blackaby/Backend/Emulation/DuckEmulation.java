@@ -2,8 +2,6 @@ package com.blackaby.Backend.Emulation;
 
 import com.blackaby.Backend.Emulation.CPU.*;
 import com.blackaby.Frontend.DuckDisplay;
-import com.blackaby.Backend.Emulation.CPU.Instructions.*;
-
 
 /**
  * This class represents the emulation of the GameBoy
@@ -46,7 +44,7 @@ public class DuckEmulation {
      * This method starts the emulation
      */
     public void start() {
-        cpu.queueInstruction(new DebugDisplay(display));
+        cpu.queueInstruction(0xFF);
         cpu.executeNextInstruction();
     }
 }

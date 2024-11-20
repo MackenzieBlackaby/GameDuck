@@ -9,12 +9,14 @@ import com.blackaby.Misc.Settings;
  */
 public class DebugDisplay extends GDuckstruction {
 
+    private static final int PILLAR_WIDTH = 4;
+
     public DebugDisplay(DuckDisplay bound) {
         super(bound);
     }
 
     private String getColor(int currentX) {
-        switch (currentX % 4) {
+        switch ((currentX / PILLAR_WIDTH) % 4) {
             case 0:
                 return Settings.GB_COLOR_0;
             case 1:

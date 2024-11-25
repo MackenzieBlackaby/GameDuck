@@ -10,11 +10,12 @@ package com.blackaby.Backend.Emulation.CPU.Instructions;
 public enum InstructionType {
 
     // Debug instructions
-    DEBUG_DISPLAY(0xFF, "Debug Display Test"),
-    DEBUG_CONSOLE(0xFE, "Debug Console Test"),;
+    DEBUG_DISPLAY(0xFF, "Debug Display Test", 0),
+    DEBUG_CONSOLE(0xFE, "Debug Console Test", 0),;
 
     private final int opcode;
     private final String description;
+    private final int operandCount;
 
     /**
      * Constructor for InstructionType.
@@ -22,9 +23,10 @@ public enum InstructionType {
      * @param opcode      The opcode of the instruction.
      * @param description The description of the instruction.
      */
-    InstructionType(int opcode, String description) {
+    InstructionType(int opcode, String description, int operandCount) {
         this.opcode = opcode;
         this.description = description;
+        this.operandCount = operandCount;
     }
 
     /**
@@ -43,6 +45,15 @@ public enum InstructionType {
      */
     public String getDescription() {
         return description;
+    }
+
+    /**
+     * This method returns the number of operands that the instruction takes.
+     * 
+     * @return The number of operands that the instruction takes.
+     */
+    public int getOperandCount() {
+        return operandCount;
     }
 
     /**

@@ -63,6 +63,7 @@ public class MainWindow extends DuckWindow {
 
         // Begin the emulation
         emulation = new DuckEmulation(display);
+        emulation.startEmulation("test.rom");
 
         setVisible(true);
     }

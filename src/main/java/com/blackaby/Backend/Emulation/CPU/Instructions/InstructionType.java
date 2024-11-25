@@ -10,7 +10,8 @@ package com.blackaby.Backend.Emulation.CPU.Instructions;
 public enum InstructionType {
 
     // Debug instructions
-    DEBUG_DISPLAY(0xFF, "Debug Display Test"),;
+    DEBUG_DISPLAY(0xFF, "Debug Display Test"),
+    DEBUG_CONSOLE(0xFE, "Debug Console Test"),;
 
     private final int opcode;
     private final String description;

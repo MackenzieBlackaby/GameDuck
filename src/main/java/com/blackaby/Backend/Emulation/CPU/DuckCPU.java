@@ -17,12 +17,22 @@ import com.blackaby.Backend.Emulation.CPU.Instructions.*;
  */
 public class DuckCPU {
 
+    public enum Register {
+        PC,
+        SP
+    }
+
+    // Emulated Parts
     private Queue<Duckstruction> instructionQueue;
     private DuckEmulation boundEmulator;
+
+    // Registers
+    private int programCounter = 0;
 
     public DuckCPU(DuckEmulation boundEmulator) {
         this.boundEmulator = boundEmulator;
         instructionQueue = new LinkedList<>();
+        programCounter = 0;
     }
 
     /**
@@ -33,6 +43,9 @@ public class DuckCPU {
         switch (type) {
             case DEBUG_DISPLAY:
                 instructionQueue.add(new DebugDisplay(boundEmulator.getDisplay()));
+                break;
+            case DEBUG_CONSOLE:
+                instructionQueue.add(new DebugConsole());
                 break;
             default:
                 throw new IllegalArgumentException("Unknown opcode: " + opcode);
@@ -47,5 +60,48 @@ public class DuckCPU {
         if (instruction != null) {
             instruction.execute();
         }
+    }
+
+    /**
+     * This method sets the value of the given register
+     * 
+     * @param reg   The register to set
+     * @param value The value to set the register to
+     * @throws IllegalArgumentException If the register is unknown
+     */
+    public void regSet(Register reg, int value) throws IllegalArgumentException {
+        switch (reg) {
+            case PC:
+                programCounter = value;
+                break;
+            default:
+                throw new IllegalArgumentException("Unknown register: " + reg);
+        }
+    }
+
+    /**
+     * This method gets the value of the given register
+     * 
+     * @param reg The register to get
+     * @return The value of the register
+     * @throws IllegalArgumentException If the register is unknown
+     */
+    public int regGet(Register reg) throws IllegalArgumentException {
+        switch (reg) {
+            case PC:
+                return programCounter;
+            default:
+                throw new IllegalArgumentException("Unknown register: " + reg);
+        }
+    }
+
+    /**
+     * This method increments the value of the given register
+     * 
+     * @param reg The register to increment
+     */
+    public void regIncrement(Register reg) {
+        int value = regGet(reg);
+        regSet(reg, value + 1);
     }
 }

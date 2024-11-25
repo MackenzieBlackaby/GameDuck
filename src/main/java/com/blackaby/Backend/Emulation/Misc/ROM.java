@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Emulation.Misc;
 
-import java.io.FileNotFoundException;
+import com.blackaby.Backend.Emulation.CPU.Instructions.InstructionType;
 import java.io.FileReader;
 import java.io.IOException;
 
@@ -16,6 +16,7 @@ public class ROM {
     public ROM(String filename) {
         this.filename = filename;
         data = new BinaryInstruction[0];
+        LoadRom();
     }
 
     private void LoadRom() {
@@ -42,6 +43,21 @@ public class ROM {
 
         // Convert raw data to instructions
         data = new BinaryInstruction[size];
+        for (int i = 0; i < data.length; i++) {
+            // Get the type of the instruction and the number of operands
+            InstructionType currentType = InstructionType.fromOpcode(buffer[i]);
+            int operandCount = currentType.getOperandCount();
+            // Get the opcode and operands
+            int opcode = currentType.getOpcode();
+            int[] operands = new int[operandCount];
+            for (int j = 0; j < operands.length; j++) {
+                operands[j] = buffer[i + j + 1];
+            }
+            // Create the instruction
+            data[i] = new BinaryInstruction(opcode, operands);
+            // Increment the index by the number of operands
+            i += operandCount;
+        }
     }
 
     /**
@@ -51,16 +67,6 @@ public class ROM {
      */
     public String getFilename() {
         return filename;
-    }
-
-    /**
-     * This method loads a preset list of instructions into the rom data
-     * This is used for debugging
-     */
-    public void debugRomLoad() {
-        data = new BinaryInstruction[2];
-        data[0] = new BinaryInstruction(0xFF, 0x00);
-        data[1] = new BinaryInstruction(0xFE, 0x00);
     }
 
     /**

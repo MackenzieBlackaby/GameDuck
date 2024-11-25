@@ -50,7 +50,6 @@ public class DuckEmulation implements Runnable {
         running = true;
         paused = false;
         rom = new ROM(romfile);
-        rom.debugRomLoad();
         emulationThread = new Thread(this);
         emulationThread.start();
     }

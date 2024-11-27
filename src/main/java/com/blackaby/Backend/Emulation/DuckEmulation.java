@@ -55,6 +55,22 @@ public class DuckEmulation implements Runnable {
     }
 
     /**
+     * This method pauses or resumes the emulation
+     */
+    public void pauseEmulation() {
+        paused = !paused;
+    }
+
+    /**
+     * This method stops the emulation
+     */
+    public void stopEmulation() {
+        running = false;
+        paused = false;
+        display.clear();
+    }
+
+    /**
      * This method returns the display of the emulation
      * 
      * @return The display of the emulation

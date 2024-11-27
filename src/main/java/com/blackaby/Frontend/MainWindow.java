@@ -23,13 +23,15 @@ public class MainWindow extends DuckWindow {
      * The menu items for the menu bar.
      */
     private final String[][] menuItems = {
-            { "File", "Open Game", "Close Game", "", "Save State", "Load State", "", "Options", "Exit", "" },
+            { "File", "Open Game", "Pause Game", "Close Game", "", "Save State", "Load State", "", "Options", "Exit",
+                    "" },
             { "Game", "" },
             { "View", "Fullscreen", "Windowed", "" },
             { "Help", "Tutorial", "About", "", }
     };
     private final Action menuActions[][] = {
-            { Action.LOADROM, Action.CLOSEGAME, Action.SAVESTATE, Action.LOADSTATE, Action.OPTIONS, Action.EXIT },
+            { Action.LOADROM, Action.PAUSEGAME, Action.CLOSEGAME, Action.SAVESTATE, Action.LOADSTATE, Action.OPTIONS,
+                    Action.EXIT },
             { Action.DEBUG },
             { Action.FULLSCREEN, Action.WINDOWED },
             { Action.TUTORIAL, Action.ABOUT }

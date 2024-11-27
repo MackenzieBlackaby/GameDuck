@@ -21,6 +21,7 @@ public class GUIActions implements ActionListener {
     public enum Action {
         DEBUG,
         LOADROM,
+        PAUSEGAME,
         CLOSEGAME,
         SAVESTATE,
         LOADSTATE,
@@ -60,7 +61,11 @@ public class GUIActions implements ActionListener {
                     attachedEmulation.startEmulation(fileChooser.getSelectedFile().getAbsolutePath());
                 }
                 break;
+            case PAUSEGAME:
+                attachedEmulation.pauseEmulation();
+                break;
             case CLOSEGAME:
+                attachedEmulation.stopEmulation();
                 break;
             case SAVESTATE:
                 break;

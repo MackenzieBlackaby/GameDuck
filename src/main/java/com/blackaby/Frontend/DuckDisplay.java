@@ -80,6 +80,18 @@ public class DuckDisplay extends JPanel {
         }
     }
 
+    /**
+     * Clears the display
+     */
+    public void clear() {
+        for (int x = 0; x < Specifics.GB_DISPLAY_WIDTH; x++) {
+            for (int y = 0; y < Specifics.GB_DISPLAY_HEIGHT; y++) {
+                setPixel(x, y, Color.BLACK, false);
+            }
+        }
+        repaint();
+    }
+
     @Override
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);

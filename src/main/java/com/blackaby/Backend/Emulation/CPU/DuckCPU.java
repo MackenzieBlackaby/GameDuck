@@ -19,7 +19,15 @@ public class DuckCPU {
 
     public enum Register {
         PC,
-        SP
+        SP,
+        A,
+        B,
+        C,
+        D,
+        E,
+        H,
+        L,
+        F
     }
 
     // Emulated Parts

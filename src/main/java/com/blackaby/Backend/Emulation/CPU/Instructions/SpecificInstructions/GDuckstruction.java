@@ -1,4 +1,4 @@
-package com.blackaby.Backend.Emulation.CPU.Instructions;
+package com.blackaby.Backend.Emulation.CPU.Instructions.SpecificInstructions;
 
 import com.blackaby.Frontend.DuckDisplay;
 

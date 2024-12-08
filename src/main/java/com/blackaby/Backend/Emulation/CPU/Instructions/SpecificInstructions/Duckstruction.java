@@ -1,4 +1,4 @@
-package com.blackaby.Backend.Emulation.CPU.Instructions;
+package com.blackaby.Backend.Emulation.CPU.Instructions.SpecificInstructions;
 
 /**
  * This interface represents an instruction for the CPU

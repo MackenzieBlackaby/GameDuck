@@ -1,11 +1,14 @@
 package com.blackaby.Backend.Emulation;
 
 import com.blackaby.Backend.Emulation.CPU.*;
-import com.blackaby.Backend.Emulation.Misc.BinaryInstruction;
 import com.blackaby.Backend.Emulation.Misc.ROM;
 import com.blackaby.Backend.Emulation.Misc.Specifics;
 import com.blackaby.Frontend.DuckDisplay;
 import com.blackaby.Backend.Emulation.CPU.DuckCPU.Register;
+import com.blackaby.Backend.Emulation.CPU.Instructions.SpecificInstructions.Duckstruction;
+import com.blackaby.Backend.Emulation.CPU.Instructions.InstructionTypeManager;
+import com.blackaby.Backend.Emulation.CPU.Instructions.InstructionTypeManager.InstructionType;
+import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 
 /**
  * This class represents the emulation of the GameBoy
@@ -15,6 +18,7 @@ public class DuckEmulation implements Runnable {
 
     // Emulated Hardware Parts
     private DuckCPU cpu;
+    private DuckMemory memory;
     private DuckDisplay display;
     private ROM rom;
 
@@ -29,7 +33,7 @@ public class DuckEmulation implements Runnable {
      * @param display The display to be used in the emulation
      */
     public DuckEmulation(DuckDisplay display) {
-        cpu = new DuckCPU(this);
+        cpu = new DuckCPU();
         this.display = display;
     }
 
@@ -40,6 +44,15 @@ public class DuckEmulation implements Runnable {
      */
     public DuckCPU getCPU() {
         return cpu;
+    }
+
+    /**
+     * This method returns the memory of the emulation
+     * 
+     * @return The memory of the emulation
+     */
+    public DuckMemory getMemory() {
+        return memory;
     }
 
     /**
@@ -88,8 +101,8 @@ public class DuckEmulation implements Runnable {
             while (paused)
                 ;
             if (System.currentTimeMillis() - lastFrameTime >= Specifics.CYCLE_DELAY) {
-                BinaryInstruction instruction = ReadNextInstruction();
-                if (instruction.getOpcode() == null) {
+                Duckstruction instruction = ReadNextInstruction();
+                if (instruction == null) {
                     break;
                 }
                 cpu.queueInstruction(instruction);
@@ -106,22 +119,28 @@ public class DuckEmulation implements Runnable {
      * 
      * @return The next instruction as an array of integers
      */
-    private BinaryInstruction ReadNextInstruction() {
-        // Get the next instruction from the ROM
-        byte opcode[], operands[];
+    private Duckstruction ReadNextInstruction() {
+        byte opcode;
         try {
-            opcode = rom.getOpcode(cpu.regGet(Register.PC));
-            operands = rom.getOperands(cpu.regGet(Register.PC));
+            opcode = rom.getByte(cpu.regGet16(Register.PC));
         } catch (ArrayIndexOutOfBoundsException e) {
-            return new BinaryInstruction(null, null);
+            return null;
         }
 
-        // Increment the PC
-        cpu.regIncrement(Register.PC);
+        // Get operand type
+        InstructionType type = InstructionTypeManager.getType(opcode);
 
-        // Parse the bytes into an instruction
-        BinaryInstruction instruction = new BinaryInstruction(opcode, operands);
+        // Get operand count
+        int operandCount = type.getOperandCount();
 
-        return instruction;
+        // Read in next bytes
+        byte[] operands = {};
+        if (operandCount != 0)
+            operands = rom.getBytes(cpu.regGet16(Register.PC) + 1, operandCount);
+
+        // Increment PC by 1 + operandCount
+        cpu.regSet16(Register.PC, (short) (cpu.regGet16(Register.PC) + 1 + operandCount));
+
+        return InstructionTypeManager.constructInstruction(this, type, opcode, operands);
     }
 }

@@ -13,11 +13,10 @@ public class ProcessorInstruction implements Duckstruction {
     private byte[] values;
     private InstructionType type;
 
-    public ProcessorInstruction(DuckCPU cpu, DuckMemory memory, InstructionType type, byte opcode, byte[] values) {
+    public ProcessorInstruction(DuckCPU cpu, DuckMemory memory, InstructionType type, byte opcode, byte[] operands) {
         this.cpu = cpu;
         this.memory = memory;
         this.type = type;
-        values = new byte[3];
         int i = 0;
         // If one of the instruction types that includes values in opcode, extract value
         // and set as values
@@ -42,10 +41,8 @@ public class ProcessorInstruction implements Duckstruction {
                 this.values[i] = opcodeValues[i];
         }
         // Otherwise, proceed as normal
-        for (; i < values.length; i++)
-
-        {
-            this.values[i] = values[i];
+        for (; i < operands.length; i++) {
+            this.values[i] = operands[i];
         }
     }
 
@@ -57,16 +54,16 @@ public class ProcessorInstruction implements Duckstruction {
     public void execute() {
         switch (type) {
             case REGISTER_REGISTER:
-                cpu.regSet(Register.get8Bit(values[0]), cpu.regGet(Register.get8Bit(values[1])));
+                cpu.regSet(Register.getRegFrom3Bit(values[0]), cpu.regGet(Register.getRegFrom3Bit(values[1])));
                 break;
             case IMMEDIATE_REGISTER:
-                cpu.regSet(Register.get8Bit(values[0]), values[1]);
+                cpu.regSet(Register.getRegFrom3Bit(values[0]), values[1]);
                 break;
             case MEMORY_REGISTER_HL:
-                cpu.regSet(Register.get8Bit(values[0]), memory.read(cpu.regGet16(Register.HL)));
+                cpu.regSet(Register.getRegFrom3Bit(values[0]), memory.read(cpu.regGet16(Register.HL)));
                 break;
             case REGISTER_MEMORY_HL:
-                memory.write(cpu.regGet16(Register.HL), cpu.regGet(Register.get8Bit(values[0])));
+                memory.write(cpu.regGet16(Register.HL), cpu.regGet(Register.getRegFrom3Bit(values[0])));
                 break;
             case IMMEDIATE_MEMORY_HL:
                 memory.write(cpu.regGet16(Register.HL), values[0]);
@@ -120,7 +117,7 @@ public class ProcessorInstruction implements Duckstruction {
                 cpu.regSet16(Register.HL, (short) (cpu.regGet16(Register.HL) + 1));
                 break;
             case IMMEDIATE_PAIR:
-                cpu.regSet16(Register.get16Bit(values[0]), (short) ((values[2] << 8) | values[1]));
+                cpu.regSet16(Register.getRegFrom2Bit(values[0]), (short) ((values[2] << 8) | values[1]));
                 break;
             case SP_MEMORY_IMMEDIATE:
                 int nn = (values[1] << 8) | values[0];
@@ -133,15 +130,16 @@ public class ProcessorInstruction implements Duckstruction {
                 break;
             case STACKPUSH_RR:
                 byte currentSPValue = cpu.regGet(Register.SP);
-                memory.write(currentSPValue - 1, cpu.regGet(Register.get8Bit(values[0])));
-                memory.write(currentSPValue - 2, cpu.regGet(Register.get8Bit(values[1])));
+                short valueToWrite = cpu.regGet16(Register.getRegFrom2Bit(values[0]));
+                memory.write(currentSPValue - 1, (byte) (valueToWrite >> 8));
+                memory.write(currentSPValue - 2, (byte) valueToWrite);
                 cpu.regSet(Register.SP, (byte) (currentSPValue - 2));
                 break;
             case STACKPOP_RR:
                 byte lsb = memory.read(cpu.regGet(Register.SP));
                 byte msb = memory.read((byte) (cpu.regGet(Register.SP) + 1));
-                cpu.regSet(Register.get8Bit(values[0]), lsb);
-                cpu.regSet(Register.get8Bit(values[1]), msb);
+                short readValue = (short) ((msb << 8) | lsb);
+                cpu.regSet16(Register.getRegFrom2Bit(values[0]), readValue);
                 cpu.regSet(Register.SP, (byte) (cpu.regGet(Register.SP) + 2));
                 break;
             case SP_PLUS_IMMEDIATE8_HL:

@@ -17,24 +17,28 @@ import com.blackaby.Backend.Emulation.CPU.Instructions.SpecificInstructions.*;
 public class DuckCPU {
 
     public enum Register {
-        A(0), // Accumulator
-        F(1), // Flags
-        B(2),
-        C(3),
-        D(4),
-        E(5),
-        H(6),
-        L(7),
-        IR(8), // Instruction Register
-        IE(9), // Interrupt Enable
-        PC(10), // Program Counter
-        SP(11), // Stack Pointer
 
-        // Combo registers
+        // 8 bit registers
+        B(0),
+        C(1),
+        D(2),
+        E(3),
+        H(4),
+        L(5),
+        HL_ADDR(6),
+        A(7),
 
-        BC(12), // 00
-        DE(13), // 01
-        HL(14); // 10
+        // Special registers
+        F(8), // Flags
+        IR(9), // Instruction Register
+        IE(10), // Interrupt Enable
+
+        // 16-bit registers
+        BC(11), // 00
+        DE(12), // 01
+        HL(13), // 10
+        SP(14), // 11
+        PC(15);
 
         private final int id;
 
@@ -43,20 +47,21 @@ public class DuckCPU {
         }
 
         public static Register get8Bit(short id) {
-            if (id < 0 || id > 9) { // Updated range check for 8-bit registers
+            if (id < 0 || id > 10) { // Updated range check for 8-bit registers
                 throw new IllegalArgumentException("Invalid 8-bit register ID: " + id);
             }
             return Register.values()[id];
         }
 
         public static Register get16Bit(short id) {
-            if (id < 10 || id > 14) { // Updated range check for 16-bit registers
+            if (id < 11 || id > 15) { // Updated range check for 16-bit registers
                 throw new IllegalArgumentException("Invalid 16-bit register ID: " + id);
             }
             return Register.values()[id];
         }
 
         public static Register getRegFrom2Bit(byte bitID) {
+            bitID &= 0b11; // Mask to 2 bits
             switch (bitID) {
                 case 0b00:
                     return Register.BC;
@@ -68,6 +73,30 @@ public class DuckCPU {
                     return Register.SP;
                 default:
                     throw new IllegalArgumentException("Invalid 16-bit register ID: " + bitID);
+            }
+        }
+
+        public static Register getRegFrom3Bit(byte bitID) {
+            bitID &= 0b111; // Mask to 3 bits
+            switch (bitID) {
+                case 0b000:
+                    return Register.B;
+                case 0b001:
+                    return Register.C;
+                case 0b010:
+                    return Register.D;
+                case 0b011:
+                    return Register.E;
+                case 0b100:
+                    return Register.H;
+                case 0b101:
+                    return Register.L;
+                case 0b110:
+                    return Register.HL_ADDR;
+                case 0b111:
+                    return Register.A;
+                default:
+                    throw new IllegalArgumentException("Invalid 8-bit register ID: " + bitID);
             }
         }
 

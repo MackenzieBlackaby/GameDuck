@@ -112,6 +112,44 @@ public class DuckCPU {
         }
     }
 
+    /**
+     * This enum represents the flags of the CPU.
+     * It has values for all 4 flags: Zero, Subtract, Half Carry, and Carry.
+     * Each flag has a bit position in the flags register.
+     * The flags register is an 8-bit register, so each flag has a bit from 4 to 7.
+     * The flags register is used to store the status of the CPU.
+     */
+    public enum Flag {
+        ZERO(7), // Z
+        SUBTRACT(6), // N
+        HALF_CARRY(5), // H
+        CARRY(4), // C
+        Z(7), // Z
+        N(6), // N
+        H(5), // H
+        C(4); // C
+
+        private final int bit;
+
+        /**
+         * This constructor creates a new flag with the given bit position
+         * 
+         * @param bit The bit position of the flag
+         */
+        Flag(int bit) {
+            this.bit = bit;
+        }
+
+        /**
+         * This method returns the bit position of the flag
+         * 
+         * @return The bit position of the flag
+         */
+        public int getBit() {
+            return bit;
+        }
+    }
+
     // Emulated Parts
     private Queue<Duckstruction> instructionQueue;
 
@@ -376,6 +414,28 @@ public class DuckCPU {
                 return (byteRegs[4] << 8) | byteRegs[5];
             default:
                 return 0;
+        }
+    }
+
+    /**
+     * This method activates given flags in the flags register
+     * 
+     * @param flagsToSet The flags to activate
+     */
+    public void setFlags(Flag... flagsToSet) {
+        for (Flag flag : flagsToSet) {
+            this.flags |= 1 << flag.getBit();
+        }
+    }
+
+    /**
+     * This method deactivates given flags in the flags register
+     * 
+     * @param flagsToClear The flags to deactivate
+     */
+    public void clearFlags(Flag... flagsToClear) {
+        for (Flag flag : flagsToClear) {
+            this.flags &= ~(1 << flag.getBit());
         }
     }
 }

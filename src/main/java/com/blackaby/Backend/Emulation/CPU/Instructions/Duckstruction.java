@@ -1,11 +1,14 @@
-package com.blackaby.Backend.Emulation.CPU.Instructions.SpecificInstructions;
+package com.blackaby.Backend.Emulation.CPU.Instructions;
 
 import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 import com.blackaby.Backend.Emulation.CPU.DuckCPU;
 import com.blackaby.Backend.Emulation.CPU.DuckCPU.Register;
 import com.blackaby.Backend.Emulation.CPU.Instructions.InstructionTypeManager.InstructionType;
 
-public class ProcessorInstruction implements Duckstruction {
+/**
+ * 
+ */
+public class Duckstruction {
 
     protected DuckCPU cpu;
     protected DuckMemory memory;
@@ -13,7 +16,7 @@ public class ProcessorInstruction implements Duckstruction {
     private byte[] values = { 0, 0, 0 };
     private InstructionType type;
 
-    public ProcessorInstruction(DuckCPU cpu, DuckMemory memory, InstructionType type, byte opcode, byte[] operands) {
+    public Duckstruction(DuckCPU cpu, DuckMemory memory, InstructionType type, byte opcode, byte[] operands) {
         this.cpu = cpu;
         this.memory = memory;
         this.type = type;
@@ -53,7 +56,6 @@ public class ProcessorInstruction implements Duckstruction {
      * This method executes the instruction
      * It loads a value into a register
      */
-    @Override
     public void execute() {
         System.out.println("Executing instruction: " + type);
         switch (type) {

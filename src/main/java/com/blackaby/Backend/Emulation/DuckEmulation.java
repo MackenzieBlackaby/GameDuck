@@ -5,9 +5,9 @@ import com.blackaby.Backend.Emulation.Misc.ROM;
 import com.blackaby.Backend.Emulation.Misc.Specifics;
 import com.blackaby.Frontend.DuckDisplay;
 import com.blackaby.Backend.Emulation.CPU.DuckCPU.Register;
-import com.blackaby.Backend.Emulation.CPU.Instructions.SpecificInstructions.Duckstruction;
 import com.blackaby.Backend.Emulation.CPU.Instructions.InstructionTypeManager;
 import com.blackaby.Backend.Emulation.CPU.Instructions.InstructionTypeManager.InstructionType;
+import com.blackaby.Backend.Emulation.CPU.Instructions.Duckstruction;
 import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 
 /**

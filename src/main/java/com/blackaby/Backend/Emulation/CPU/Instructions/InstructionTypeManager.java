@@ -1,8 +1,6 @@
 package com.blackaby.Backend.Emulation.CPU.Instructions;
 
 import com.blackaby.Backend.Emulation.DuckEmulation;
-import com.blackaby.Backend.Emulation.CPU.Instructions.SpecificInstructions.Duckstruction;
-import com.blackaby.Backend.Emulation.CPU.Instructions.SpecificInstructions.ProcessorInstruction;
 
 public class InstructionTypeManager {
 
@@ -94,7 +92,7 @@ public class InstructionTypeManager {
     public static Duckstruction constructInstruction(DuckEmulation boundEmulation, InstructionType instruction,
             byte opcode, byte... operands) {
         if (instruction.getID() < 25) {
-            return new ProcessorInstruction(boundEmulation.getCPU(), boundEmulation.getMemory(), instruction, opcode,
+            return new Duckstruction(boundEmulation.getCPU(), boundEmulation.getMemory(), instruction, opcode,
                     operands);
         }
         return null;

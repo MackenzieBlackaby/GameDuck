@@ -3,7 +3,7 @@ package com.blackaby.Backend.Emulation.CPU;
 import java.util.LinkedList;
 import java.util.Queue;
 
-import com.blackaby.Backend.Emulation.CPU.Instructions.SpecificInstructions.*;
+import com.blackaby.Backend.Emulation.CPU.Instructions.Duckstruction;
 import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 
 /**

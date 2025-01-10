@@ -10,14 +10,14 @@ public class ProcessorInstruction implements Duckstruction {
     protected DuckCPU cpu;
     protected DuckMemory memory;
 
-    private byte[] values;
+    private byte[] values = { 0, 0, 0 };
     private InstructionType type;
 
     public ProcessorInstruction(DuckCPU cpu, DuckMemory memory, InstructionType type, byte opcode, byte[] operands) {
         this.cpu = cpu;
         this.memory = memory;
         this.type = type;
-        int i = 0;
+        int opcodeCount = 0;
         // If one of the instruction types that includes values in opcode, extract value
         // and set as values
         if (type.doesExtractOpcode()) {
@@ -25,7 +25,7 @@ public class ProcessorInstruction implements Duckstruction {
             String opcodeString = type.getOpcode();
             byte opcodeValues[] = new byte[2];
             char currentChar = 'a';
-            for (int currentValue = 0; opcodeString.indexOf(currentChar) == -1; currentValue++) {
+            for (int currentValue = 0; opcodeString.indexOf(currentChar) != -1; currentValue++) {
                 for (int j = 0; j < opcodeString.length(); j++) {
                     if (opcodeString.charAt(j) == currentChar) {
                         // Shift firstValue left by 1
@@ -35,14 +35,17 @@ public class ProcessorInstruction implements Duckstruction {
                     }
                 }
                 currentChar++;
+                opcodeCount++;
             }
             // Set values to opcode values
-            for (i = 0; i < opcodeValues.length; i++)
+            for (int i = 0; i < opcodeCount; i++)
                 this.values[i] = opcodeValues[i];
         }
-        // Otherwise, proceed as normal
-        for (; i < operands.length; i++) {
-            this.values[i] = operands[i];
+        if (operands != null) {
+            int remainingValues = Math.min(values.length - opcodeCount, operands.length);
+            for (int i = 0; i < remainingValues; i++) {
+                this.values[i + opcodeCount] = operands[i];
+            }
         }
     }
 
@@ -52,9 +55,12 @@ public class ProcessorInstruction implements Duckstruction {
      */
     @Override
     public void execute() {
+        System.out.println("Executing instruction: " + type);
         switch (type) {
             case REGISTER_REGISTER:
-                cpu.regSet(Register.getRegFrom3Bit(values[0]), cpu.regGet(Register.getRegFrom3Bit(values[1])));
+                System.out.println("Setting register " + Register.getRegFrom3Bit(values[1]) + " to value of register "
+                        + Register.getRegFrom3Bit(values[0]));
+                cpu.regSet(Register.getRegFrom3Bit(values[1]), cpu.regGet(Register.getRegFrom3Bit(values[0])));
                 break;
             case IMMEDIATE_REGISTER:
                 cpu.regSet(Register.getRegFrom3Bit(values[0]), values[1]);
@@ -129,18 +135,21 @@ public class ProcessorInstruction implements Duckstruction {
                 cpu.regSet16(Register.SP, cpu.regGet16(Register.HL));
                 break;
             case STACKPUSH_RR:
-                byte currentSPValue = cpu.regGet(Register.SP);
-                short valueToWrite = cpu.regGet16(Register.getRegFrom2Bit(values[0]));
-                memory.write(currentSPValue - 1, (byte) (valueToWrite >> 8));
-                memory.write(currentSPValue - 2, (byte) valueToWrite);
-                cpu.regSet(Register.SP, (byte) (currentSPValue - 2));
+                short currentSPValue = cpu.regGet16(Register.SP);
+                System.out.println("Current SP value: " + currentSPValue);
+                short valToWrite = cpu.regGet16(Register.getRegFrom2Bit(values[0]));
+                System.out
+                        .println("Got from register: " + Register.getRegFrom2Bit(values[0]) + " value: " + valToWrite);
+                memory.stackWrite(currentSPValue - 1, (byte) (valToWrite >> 8));
+                memory.stackWrite(currentSPValue - 2, (byte) valToWrite);
+                cpu.regSet16(Register.SP, (byte) (currentSPValue - 2));
                 break;
             case STACKPOP_RR:
-                byte lsb = memory.read(cpu.regGet(Register.SP));
-                byte msb = memory.read((byte) (cpu.regGet(Register.SP) + 1));
-                short readValue = (short) ((msb << 8) | lsb);
-                cpu.regSet16(Register.getRegFrom2Bit(values[0]), readValue);
-                cpu.regSet(Register.SP, (byte) (cpu.regGet(Register.SP) + 2));
+                byte lsb = memory.stackRead(cpu.regGet16(Register.SP));
+                byte msb = memory.stackRead((byte) (cpu.regGet16(Register.SP) + 1));
+                short value = (short) ((msb << 8) | lsb);
+                cpu.regSet16(Register.getRegFrom2Bit(values[0]), value);
+                cpu.regSet16(Register.SP, (byte) (cpu.regGet16(Register.SP) + 2));
                 break;
             case SP_PLUS_IMMEDIATE8_HL:
                 short spValue = cpu.regGet16(Register.SP);

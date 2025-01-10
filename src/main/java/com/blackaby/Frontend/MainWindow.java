@@ -86,7 +86,7 @@ public class MainWindow extends DuckWindow {
      */
     private void addMenuItem(JMenu menu, String item, Action action) {
         JMenuItem menuItem = new JMenuItem(item);
-        menuItem.addActionListener(new GUIActions(action, emulation));
+        menuItem.addActionListener(new GUIActions(this, action, emulation));
         menuItem.setFont(Styling.MENU_FONT);
         menu.add(menuItem);
     }

@@ -4,6 +4,7 @@ import java.util.LinkedList;
 import java.util.Queue;
 
 import com.blackaby.Backend.Emulation.CPU.Instructions.SpecificInstructions.*;
+import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 
 /**
  * This class represents the CPU of the GameBoy.
@@ -19,14 +20,14 @@ public class DuckCPU {
     public enum Register {
 
         // 8 bit registers
-        B(0),
-        C(1),
-        D(2),
-        E(3),
-        H(4),
-        L(5),
-        HL_ADDR(6),
-        A(7),
+        B(0), // 000
+        C(1), // 001
+        D(2), // 010
+        E(3), // 011
+        H(4), // 100
+        L(5), // 101
+        HL_ADDR(6), // 110
+        A(7), // 111
 
         // Special registers
         F(8), // Flags
@@ -119,6 +120,7 @@ public class DuckCPU {
 
     public DuckCPU() {
         instructionQueue = new LinkedList<>();
+        stackPointer = (short) DuckMemory.HRAM_END;
         programCounter = 0;
     }
 

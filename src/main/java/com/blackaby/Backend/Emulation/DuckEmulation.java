@@ -26,15 +26,18 @@ public class DuckEmulation implements Runnable {
     private Thread emulationThread;
     private volatile boolean running = false;
     private volatile boolean paused = false;
+    private boolean debugMode;
 
     /**
      * This constructor creates a new DuckEmulation
      * 
      * @param display The display to be used in the emulation
      */
-    public DuckEmulation(DuckDisplay display) {
+    public DuckEmulation(DuckDisplay display, boolean debugMode) {
         cpu = new DuckCPU();
+        memory = new DuckMemory();
         this.display = display;
+        this.debugMode = debugMode;
     }
 
     /**
@@ -110,6 +113,10 @@ public class DuckEmulation implements Runnable {
                 lastFrameTime = System.currentTimeMillis();
             }
         }
+        if (debugMode) {
+            System.out.println("Emulation Stopped");
+            System.out.println("Final accumulator value: " + cpu.regGet(Register.A));
+        }
     }
 
     /**
@@ -126,6 +133,9 @@ public class DuckEmulation implements Runnable {
         } catch (ArrayIndexOutOfBoundsException e) {
             return null;
         }
+
+        if (opcode == 0)
+            return null;
 
         // Get operand type
         InstructionType type = InstructionTypeManager.getType(opcode);

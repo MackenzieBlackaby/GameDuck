@@ -5,9 +5,7 @@ import com.blackaby.Backend.Emulation.Misc.ROM;
 import com.blackaby.Backend.Emulation.Misc.Specifics;
 import com.blackaby.Frontend.DuckDisplay;
 import com.blackaby.Backend.Emulation.CPU.DuckCPU.Register;
-import com.blackaby.Backend.Emulation.CPU.Instructions.InstructionTypeManager;
-import com.blackaby.Backend.Emulation.CPU.Instructions.InstructionTypeManager.InstructionType;
-import com.blackaby.Backend.Emulation.CPU.Instructions.Duckstruction;
+import com.blackaby.Backend.Emulation.CPU.InstructionTypeManager.InstructionType;
 import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 
 /**
@@ -34,8 +32,8 @@ public class DuckEmulation implements Runnable {
      * @param display The display to be used in the emulation
      */
     public DuckEmulation(DuckDisplay display, boolean debugMode) {
-        cpu = new DuckCPU();
         memory = new DuckMemory();
+        cpu = new DuckCPU();
         this.display = display;
         this.debugMode = debugMode;
     }
@@ -141,9 +139,11 @@ public class DuckEmulation implements Runnable {
      * @return The next instruction as an array of integers
      */
     private Duckstruction ReadNextInstruction() {
-        byte opcode;
+        // Ignore CB prefixes as all instructions processed as one
+        byte opcode = (byte)0xcb;
         try {
-            opcode = rom.getByte(cpu.regGet16(Register.PC));
+            while (opcode == (byte) 0xcb)
+                opcode = rom.getByte(cpu.regGet16(Register.PC));
         } catch (ArrayIndexOutOfBoundsException e) {
             return null;
         }

@@ -521,47 +521,96 @@ public class Duckstruction {
             }
             // Control flow instructions
             case JUMP_UNCONDITIONAL: {
-                // TODO: Implement jump unconditional
+                byte lsb = values[0], msb = values[1];
+                short address = (short) ((msb << 8) | lsb);
+                cpu.regSet16(Register.PC, address);
                 break;
             }
             case JUMP_HL: {
-                // TODO: Implement jump HL
+                cpu.regSet16(Register.PC, cpu.regGet16(Register.HL));
                 break;
             }
             case JUMP_CONDITIONAL: {
-                // TODO: Implement jump conditional
+                byte lsb = values[1], msb = values[2];
+                short address = (short) ((msb << 8) | lsb);
+                if (cpu.getFlagBoolean(Flag.getFlagFrom2Bit(values[0]))) {
+                    cpu.regSet16(Register.PC, address);
+                }
                 break;
             }
             case JUMP_RELATIVE_UNCONDITIONAL: {
-                // TODO: Implement jump relative unconditional
+                byte offset = values[0];
+                short address = (short) (cpu.regGet16(Register.PC) + offset);
+                cpu.regSet16(Register.PC, address);
                 break;
             }
             case JUMP_RELATIVE_CONDITIONAL: {
-                // TODO: Implement jump relative conditional
+                byte offset = values[1];
+                if (cpu.getFlagBoolean(Flag.getFlagFrom2Bit(values[0]))) {
+                    short address = (short) (cpu.regGet16(Register.PC) + offset);
+                    cpu.regSet16(Register.PC, address);
+                }
                 break;
             }
             case CALL_UNCONDITIONAL: {
-                // TODO: Implement call unconditional
+                byte lsb = values[0], msb = values[1];
+                short address = (short) ((msb << 8) | lsb);
+                short sp = cpu.regGet16(Register.SP);
+                memory.stackWrite(sp - 1, (byte) (cpu.regGet16(Register.PC) >> 8));
+                memory.stackWrite(sp - 2, (byte) cpu.regGet16(Register.PC));
+                cpu.regSet16(Register.SP, (short) (sp - 2));
+                cpu.regSet16(Register.PC, address);
                 break;
             }
             case CALL_CONDITIONAL: {
-                // TODO: Implement call conditional
+                if (cpu.getFlagBoolean(Flag.getFlagFrom2Bit(values[0]))) {
+                    byte lsb = values[1], msb = values[2];
+                    short address = (short) ((msb << 8) | lsb);
+                    short sp = cpu.regGet16(Register.SP);
+                    memory.stackWrite(sp - 1, (byte) (cpu.regGet16(Register.PC) >> 8));
+                    memory.stackWrite(sp - 2, (byte) cpu.regGet16(Register.PC));
+                    cpu.regSet16(Register.SP, (short) (sp - 2));
+                    cpu.regSet16(Register.PC, address);
+                }
                 break;
             }
             case RETURN_UNCONDITIONAL: {
-                // TODO: Implement return unconditional
+                short sp = cpu.regGet16(Register.SP);
+                short lsb = memory.stackRead(sp);
+                short msb = memory.stackRead((short) (sp + 1));
+                short address = (short) ((msb << 8) | lsb);
+                cpu.regSet16(Register.SP, (short) (sp + 2));
+                cpu.regSet16(Register.PC, address);
                 break;
             }
             case RETURN_CONDITIONAL: {
-                // TODO: Implement return conditional
+                if (cpu.getFlagBoolean(Flag.getFlagFrom2Bit(values[0]))) {
+                    short sp = cpu.regGet16(Register.SP);
+                    short lsb = memory.stackRead(sp);
+                    short msb = memory.stackRead((short) (sp + 1));
+                    short address = (short) ((msb << 8) | lsb);
+                    cpu.regSet16(Register.SP, (short) (sp + 2));
+                    cpu.regSet16(Register.PC, address);
+                }
                 break;
             }
             case RETURN_INTERRUPT: {
-                // TODO: Implement return interrupt
+                byte lsb = memory.stackRead(cpu.regGet16(Register.SP));
+                byte msb = memory.stackRead((short) (cpu.regGet16(Register.SP) + 1));
+                short address = (short) ((msb << 8) | lsb);
+                cpu.regSet16(Register.SP, (short) (cpu.regGet16(Register.SP) + 2));
+                cpu.regSet16(Register.PC, address);
+                // IME = 1
                 break;
             }
             case RESTART_UNCONDITIONAL: {
-                // TODO: Implement restart unconditional
+                byte lsb = values[0], msb = 0x00;
+                short address = (short) ((msb << 8) | lsb);
+                short sp = cpu.regGet16(Register.SP);
+                memory.stackWrite(sp - 1, (byte) (cpu.regGet16(Register.PC) >> 8));
+                memory.stackWrite(sp - 2, (byte) cpu.regGet16(Register.PC));
+                cpu.regSet16(Register.SP, (short) (sp - 2));
+                cpu.regSet16(Register.PC, address);
                 break;
             }
             case HALT: {
@@ -573,11 +622,11 @@ public class Duckstruction {
                 break;
             }
             case DISABLE_INTERRUPTS: {
-                // TODO: Implement disable interrupts
+                // IME = 0
                 break;
             }
             case ENABLE_INTERRUPTS: {
-                // TODO: Implement enable interrupts
+                // IME = 1
                 break;
             }
             case NOP: {

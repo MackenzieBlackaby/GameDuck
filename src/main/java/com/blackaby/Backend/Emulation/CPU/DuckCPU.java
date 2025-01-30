@@ -154,6 +154,22 @@ public class DuckCPU {
         public int getBit() {
             return bit;
         }
+
+        public static Flag getFlagFrom2Bit(byte bitID) {
+            bitID &= 0b11; // Mask to 2 bits
+            switch (bitID) {
+                case 0b00:
+                    return ZERO;
+                case 0b01:
+                    return SUBTRACT;
+                case 0b10:
+                    return HALF_CARRY;
+                case 0b11:
+                    return CARRY;
+                default:
+                    throw new IllegalArgumentException("Invalid flag ID: " + bitID);
+            }
+        }
     }
 
     // Emulated Parts

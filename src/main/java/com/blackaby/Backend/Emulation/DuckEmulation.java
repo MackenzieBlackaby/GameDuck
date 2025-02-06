@@ -33,7 +33,7 @@ public class DuckEmulation implements Runnable {
      */
     public DuckEmulation(DuckDisplay display, boolean debugMode) {
         memory = new DuckMemory();
-        cpu = new DuckCPU();
+        cpu = new DuckCPU(memory);
         this.display = display;
         this.debugMode = debugMode;
     }

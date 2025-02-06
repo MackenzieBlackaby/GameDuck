@@ -1,5 +1,6 @@
 package com.blackaby.Backend.Emulation.CPU;
 
+import com.blackaby.Backend.Emulation.CPU.DuckCPU.Interrupt;
 import com.blackaby.Backend.Emulation.Graphics.GBColor;
 import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 import com.blackaby.Backend.Emulation.Misc.Specifics;
@@ -69,7 +70,7 @@ public class DuckPPU {
                     scanline++;
                     if (scanline == 144) {
                         setMode(PPUMode.VBLANK);
-                        // cpu.setFlag(DuckCPU.Flag.VBLANK, true); // Trigger VBLANK interrupt
+                        cpu.requestInterrupt(Interrupt.VBLANK);
                     } else {
                         setMode(PPUMode.OAM);
                     }

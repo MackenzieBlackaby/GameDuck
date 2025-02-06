@@ -172,6 +172,25 @@ public class DuckCPU {
         }
     }
 
+    /**
+     * This enum represents the interrupts of the CPU.
+     * It has values for all 5 interrupts: VBLANK, LCD_STAT, TIMER, SERIAL, and
+     * JOYPAD.
+     * Each interrupt has a mask value that is used to enable or disable the
+     * interrupt.
+     */
+    public enum Interrupt {
+        VBLANK(0x01, 0x0040), LCD_STAT(0x02, 0x0048), TIMER(0x04, 0x0050), SERIAL(0x08, 0x0058), JOYPAD(0x10, 0x0060);
+
+        private final int mask;
+        private final short address;
+
+        Interrupt(int mask, int address) {
+            this.mask = mask;
+            this.address = (short) address;
+        }
+    }
+
     // Emulated Parts
     private Queue<Duckstruction> instructionQueue;
 
@@ -186,13 +205,15 @@ public class DuckCPU {
 
     public final DuckALU alu;
     public final DuckIDU idu;
+    public final DuckMemory memory;
 
-    public DuckCPU() {
+    public DuckCPU(DuckMemory memory) {
         instructionQueue = new LinkedList<>();
         stackPointer = (short) DuckMemory.HRAM_END;
         programCounter = 0;
         alu = new DuckALU(this);
         idu = new DuckIDU(this);
+        this.memory = memory;
     }
 
     /**
@@ -431,6 +452,12 @@ public class DuckCPU {
         return (flags & (1 << flag.getBit())) == 0 ? (byte) 0b0 : (byte) 0b1;
     }
 
+    /**
+     * This method gets the value of a flag in the flags register as a boolean
+     * 
+     * @param flag The flag to get
+     * @return The value of the flag as a boolean
+     */
     public boolean getFlagBoolean(Flag flag) {
         return (flags & (1 << flag.getBit())) != 0;
     }
@@ -445,4 +472,37 @@ public class DuckCPU {
             this.flags &= ~(1 << flag.getBit());
         }
     }
+
+    public void requestInterrupt(Interrupt interrupt) {
+        byte interruptQueue = memory.read(DuckMemory.INTERRUPT_ENABLE);
+        interruptQueue |= interrupt.mask;
+        memory.write(DuckMemory.INTERRUPT_ENABLE, interruptQueue);
+    }
+
+    private Interrupt[] extractInterrupts(byte interruptQueue) {
+        Interrupt[] interrupts = new Interrupt[5];
+        for (int i = 0; i < 5; i++) {
+            if ((interruptQueue & (1 << i)) != 0) {
+                interrupts[i] = Interrupt.values()[i];
+            }
+        }
+        return interrupts;
+    }
+
+    public void handleInterrupts() {
+        if (interruptEnable == 0) {
+            return;
+        }
+
+        byte interruptQueue = memory.read(DuckMemory.INTERRUPT_ENABLE);
+        Interrupt interrupts[] = extractInterrupts(interruptQueue);
+
+        for (Interrupt interrupt : interrupts) {
+            if (interrupt != null) {
+                programCounter = interrupt.address;
+                interruptQueue &= ~interrupt.mask;
+            }
+        }
+    }
+
 }

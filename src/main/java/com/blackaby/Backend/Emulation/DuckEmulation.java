@@ -120,13 +120,12 @@ public class DuckEmulation implements Runnable {
                 ;
             if (System.currentTimeMillis() - lastCycleTime >= Specifics.CYCLE_DELAY) {
                 Duckstruction instruction = ReadNextInstruction();
-                if (instruction == null) {
-                    break;
+                if (instruction != null) {
+                    cpu.queueInstruction(instruction);
+                    cpu.executeNextInstruction();
+                    lastCycleTime = System.currentTimeMillis();
+                    ppu.step();
                 }
-                cpu.queueInstruction(instruction);
-                cpu.executeNextInstruction();
-                lastCycleTime = System.currentTimeMillis();
-                ppu.step();
             }
         }
         if (debugMode) {
@@ -145,8 +144,13 @@ public class DuckEmulation implements Runnable {
         // Ignore CB prefixes as all instructions processed as one
         byte opcode = (byte) 0xcb;
         try {
-            while (opcode == (byte) 0xcb)
+            while (opcode == (byte) 0xcb) {
                 opcode = rom.getByte(cpu.regGet16(Register.PC));
+                cpu.regSet16(Register.PC, (short) (cpu.regGet16(Register.PC) + 1));
+                if (debugMode) {
+                    System.out.println("Opcode: " + Integer.toHexString(opcode & 0xFF));
+                }
+            }
         } catch (ArrayIndexOutOfBoundsException e) {
             return null;
         }
@@ -163,10 +167,10 @@ public class DuckEmulation implements Runnable {
         // Read in next bytes
         byte[] operands = {};
         if (operandCount != 0)
-            operands = rom.getBytes(cpu.regGet16(Register.PC) + 1, operandCount);
+            operands = rom.getBytes(cpu.regGet16(Register.PC), operandCount);
 
         // Increment PC by 1 + operandCount
-        cpu.regSet16(Register.PC, (short) (cpu.regGet16(Register.PC) + 1 + operandCount));
+        cpu.regSet16(Register.PC, (short) (cpu.regGet16(Register.PC) + operandCount));
 
         return InstructionTypeManager.constructInstruction(this, type, opcode, operands);
     }

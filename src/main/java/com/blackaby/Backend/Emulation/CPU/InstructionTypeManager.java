@@ -113,7 +113,7 @@ public class InstructionTypeManager {
         TEST_BIT_HL("01aaa110", 0), // !
         RESET_BIT_REGISTER("10aaaaaa", 0), // !
         RESET_BIT_HL("10aaa110", 0), // !
-        SET_BIT_REGISTER("11aaaaaa", 0), // !
+        SET_BIT_REGISTER("11aaabbb", 0), // !
         SET_BIT_HL("11aaa110", 0), // !
         // Control flow instructions
         JUMP_UNCONDITIONAL("11000011", 2),

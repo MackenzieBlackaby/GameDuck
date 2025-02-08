@@ -41,6 +41,7 @@ public class DuckPPU {
         this.cpu = cpu;
         this.memory = memory;
         this.display = display;
+        setMode(PPUMode.OAM);
     }
 
     private void setMode(PPUMode mode) {

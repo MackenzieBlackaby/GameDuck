@@ -74,13 +74,33 @@ public class Duckstruction {
         switch (type) {
             // Loads
             case REGISTER_REGISTER: {
-                System.out.println("Setting register " + Register.getRegFrom3Bit(values[1]) + " to value of register "
-                        + Register.getRegFrom3Bit(values[0]));
-                cpu.regSet(Register.getRegFrom3Bit(values[1]), cpu.regGet(Register.getRegFrom3Bit(values[0])));
+                Register reg1 = Register.getRegFrom3Bit(values[0]);
+                Register reg2 = Register.getRegFrom3Bit(values[1]);
+                if (reg1 == Register.HL_ADDR) {
+                    if (reg2 == Register.HL_ADDR) {
+                        // Same as NOP
+                    } else {
+                        memory.write(cpu.regGet16(Register.HL), cpu.regGet(reg2));
+                    }
+                } else if (reg2 == Register.HL_ADDR) {
+                    if (reg1 == Register.HL_ADDR) {
+                        // Same as NOP
+                    } else {
+                        cpu.regSet(reg1, memory.read(cpu.regGet16(Register.HL)));
+                    }
+                } else {
+                    cpu.regSet(reg1, cpu.regGet(reg2));
+                }
                 break;
             }
             case IMMEDIATE_REGISTER: {
-                cpu.regSet(Register.getRegFrom3Bit(values[0]), values[1]);
+                Register reg = Register.getRegFrom3Bit(values[0]);
+                if (reg != Register.HL_ADDR) {
+                    cpu.regSet(reg, values[1]);
+                } else {
+                    // Same as Immediate Memory HL
+                    memory.write(cpu.regGet16(Register.HL), values[1]);
+                }
                 break;
             }
             // Loads with memory

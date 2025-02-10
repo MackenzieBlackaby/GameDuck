@@ -51,6 +51,7 @@ public class DuckMemory {
      * @return The byte at the specified address
      */
     public byte read(int address) {
+        address = address & 0xFFFFFFFF;
         validate(address);
         return memory[address];
     }
@@ -62,7 +63,6 @@ public class DuckMemory {
      * @param value   The value to write
      */
     public void write(int address, byte value) {
-        validate(address);
         if (readOnlyCheck(address)) {
             return;
         }
@@ -76,6 +76,7 @@ public class DuckMemory {
      * @param value   The value to write
      */
     public void stackWrite(int offset, byte value) {
+        offset = offset & 0xFFFFFFFF;
         write(HRAM_END + offset, value);
     }
 
@@ -86,6 +87,7 @@ public class DuckMemory {
      * @return The byte at the specified offset
      */
     public byte stackRead(int offset) {
+        offset = offset & 0xFFFFFFFF;
         return read(HRAM_END + offset);
     }
 

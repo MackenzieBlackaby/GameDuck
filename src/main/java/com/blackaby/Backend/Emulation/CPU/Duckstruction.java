@@ -185,7 +185,7 @@ public class Duckstruction {
             // Stack
             case SP_MEMORY_IMMEDIATE: {
                 int nn = (values[1] << 8) | values[0];
-                short sp = cpu.regGet(Register.SP);
+                short sp = cpu.regGet16(Register.SP);
                 memory.write(nn, (byte) (sp >> 8));
                 memory.write(nn + 1, (byte) sp);
                 break;

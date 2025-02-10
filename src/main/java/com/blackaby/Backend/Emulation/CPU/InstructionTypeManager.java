@@ -160,32 +160,6 @@ public class InstructionTypeManager {
         };
 
         /**
-         * This array contains all the instructions with exact values - non extracting
-         * types
-         */
-        public static final InstructionType[] ExactInstructions = {
-                REGISTER_REGISTER, MEMORY_REGISTER_HL, REGISTER_MEMORY_HL, MEMORY_ACCUMULATOR_BC, MEMORY_ACCUMULATOR_DE,
-                ACCUMULATOR_MEMORY_BC, ACCUMULATOR_MEMORY_DE, MEMORY_ACCUMULATOR_MSB_0xFF_C,
-                ACCUMULATOR_MEMORY_MSB_0xFF_C,
-                MEMORY_ACCUMULATOR_MSB_0xFF_IMMEDIATE, ACCUMULATOR_MEMORY_MSB_0xFF_IMMEDIATE,
-                MEMORY_ACCUMULATOR_HL_DECREMENT,
-                ACCUMULATOR_MEMORY_HL_DECREMENT, MEMORY_ACCUMULATOR_HL_INCREMENT, ACCUMULATOR_MEMORY_HL_INCREMENT,
-                IMMEDIATE_PAIR, SP_MEMORY_IMMEDIATE, HL_SP, STACKPUSH_RR, STACKPOP_RR, SP_PLUS_IMMEDIATE8_HL,
-                ADD_REGISTER_ACCUMULATOR, ADD_MEMORY_HL, ADD_IMMEDIATE, ADC_REGISTER, ADC_MEMORY_HL, ADC_IMMEDIATE,
-                SUB_REGISTER, SUB_MEMORY_HL, SUB_IMMEDIATE, SBC_REGISTER, SBC_MEMORY_HL, SBC_IMMEDIATE, CP_REGISTER,
-                CP_MEMORY_HL, CP_IMMEDIATE, INC_REGISTER, INC_MEMORY_HL, DEC_REGISTER, DEC_MEMORY_HL, AND_REGISTER,
-                AND_MEMORY_HL, AND_IMMEDIATE, OR_REGISTER, OR_MEMORY_HL, OR_IMMEDIATE, XOR_REGISTER, XOR_MEMORY_HL,
-                XOR_IMMEDIATE, CCF, SCF, DAA, CPL, INC_REGISTER_16, DEC_REGISTER_16, ADD_PAIR_TO_HL, ADD_BYTE_TO_SP,
-                ROTATE_LEFT_CIRCLE_ACCUMULATOR, ROTATE_RIGHT_CIRCLE_ACCUMULATOR, ROTATE_LEFT_ACCUMULATOR,
-                ROTATE_RIGHT_ACCUMULATOR, SHIFT_LEFT_ARITHMETIC_REGISTER, SHIFT_RIGHT_ARITHMETIC_REGISTER,
-                SWAP_NIBBLES_REGISTER, SHIFT_RIGHT_LOGICAL_REGISTER, TEST_BIT_REGISTER, RESET_BIT_REGISTER,
-                SET_BIT_REGISTER,
-                JUMP_UNCONDITIONAL, JUMP_HL, JUMP_CONDITIONAL, JUMP_RELATIVE_UNCONDITIONAL, JUMP_RELATIVE_CONDITIONAL,
-                CALL_UNCONDITIONAL, CALL_CONDITIONAL, RETURN_UNCONDITIONAL, RETURN_CONDITIONAL, RETURN_INTERRUPT,
-                RESTART_UNCONDITIONAL, HALT, STOP, DISABLE_INTERRUPTS, ENABLE_INTERRUPTS, NOP
-        };
-
-        /**
          * This constructor creates a new instruction type with the given opcode and
          * operand count
          * 
@@ -258,12 +232,7 @@ public class InstructionTypeManager {
      *         type
      */
     public static InstructionType getType(byte opcode) {
-        for (InstructionType instruction : InstructionType.ExactInstructions) {
-            if (compareOpcode(instruction.getOpcode(), opcode)) {
-                return instruction;
-            }
-        }
-        for (InstructionType instruction : InstructionType.OpcodeExtractingTypes) {
+        for (InstructionType instruction : InstructionType.values()) {
             if (compareOpcode(instruction.getOpcode(), opcode)) {
                 return instruction;
             }

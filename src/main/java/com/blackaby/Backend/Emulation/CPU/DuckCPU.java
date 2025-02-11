@@ -272,6 +272,9 @@ public class DuckCPU {
             case IE:
                 interruptEnable = value;
                 break;
+            case HL_ADDR:
+                memory.write(regGet16(Register.HL), value);
+                break;
             default:
                 throw new IllegalArgumentException("Unknown 8-bit register: " + reg);
         }
@@ -306,6 +309,8 @@ public class DuckCPU {
                 return instructionRegister;
             case IE:
                 return interruptEnable;
+            case HL_ADDR:
+                return memory.read(regGet16(Register.HL));
             default:
                 throw new IllegalArgumentException("Unknown 8-bit register: " + reg);
         }

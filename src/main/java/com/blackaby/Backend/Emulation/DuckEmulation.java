@@ -37,7 +37,7 @@ public class DuckEmulation implements Runnable {
         cpu = new DuckCPU(memory);
         ppu = new DuckPPU(cpu, memory, display);
         this.display = display;
-        this.debugMode = debugMode;
+        this.debugMode = false;
     }
 
     /**
@@ -114,7 +114,7 @@ public class DuckEmulation implements Runnable {
     @Override
     public void run() {
         running = true;
-        cpu.regSet16(Register.PC, (short)0x0100);
+        cpu.regSet16(Register.PC, (short) 0x0100);
         double lastCycleTime = System.currentTimeMillis();
         while (running) {
             while (paused)

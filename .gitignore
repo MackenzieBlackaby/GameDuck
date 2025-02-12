@@ -2,4 +2,5 @@
 .vscode
 .gb
 .gbc
+Todo.txt
 !src/main/resources/LICENSE.txt

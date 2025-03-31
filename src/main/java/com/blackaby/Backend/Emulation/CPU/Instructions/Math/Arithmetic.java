@@ -50,22 +50,19 @@ public class Arithmetic extends Instruction {
         int result = 0;
         int accumulator = cpu.getAccumulator();
         int carryValue = cpu.getFlagBoolean(DuckCPU.Flag.C) && carry ? 1 : 0;
-        int effectiveValue = 0;
 
         switch (arithmeticType) {
             case ADD: {
-                effectiveValue = value + carryValue;
-                result = accumulator + effectiveValue;
+                result = accumulator + value + carryValue;
+                cpu.setFlag(Flag.C, result > 0xFF);
+                cpu.setFlag(Flag.H, ((accumulator & 0x0F) + (value & 0x0F) + carryValue) > 0x0F);
                 break;
             }
+            case CP:
             case SUBTRACT: {
-                effectiveValue = value + carryValue;
-                result = accumulator - effectiveValue;
-                break;
-            }
-            case CP: {
-                effectiveValue = value;
-                result = accumulator - value;
+                result = accumulator - value - carryValue;
+                cpu.setFlag(Flag.C, result < 0);
+                cpu.setFlag(Flag.H, ((accumulator & 0x0F) - (value & 0x0F) - carryValue) < 0);
                 break;
             }
             default: {
@@ -73,7 +70,6 @@ public class Arithmetic extends Instruction {
             }
         }
 
-        int oldResult = result;
         result &= 0xFF;
 
         if (arithmeticType != ArithmeticType.CP)
@@ -81,13 +77,6 @@ public class Arithmetic extends Instruction {
 
         cpu.setFlag(Flag.Z, result == 0);
         cpu.setFlag(Flag.N, arithmeticType != ArithmeticType.ADD);
-        cpu.setFlag(Flag.H, ((accumulator ^ effectiveValue ^ result) & 0x10) != 0);
-        if (arithmeticType == ArithmeticType.ADD) {
-            cpu.setFlag(Flag.C, oldResult > 0xFF);
-        } else {
-            cpu.setFlag(Flag.C, oldResult < 0);
-        }
-
     }
 
 }

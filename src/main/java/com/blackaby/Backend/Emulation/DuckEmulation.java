@@ -73,7 +73,6 @@ public class DuckEmulation implements Runnable {
     public void stopEmulation() {
         running = false;
         paused = false;
-        display.clear();
     }
 
     public void run() {
@@ -90,7 +89,7 @@ public class DuckEmulation implements Runnable {
         // Load rom
         memory.loadROM(rom);
         // Main loop for emulation
-        while (running)
+        while (running) {
             try {
                 InstructionTick(false);
                 if (paused) {
@@ -100,11 +99,20 @@ public class DuckEmulation implements Runnable {
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
+        }
+        // Clean up emulation after stopping
+        rom = null;
+        cpu = null;
+        memory = null;
+        ppu = null;
+        timerSet = null;
+        display.clear();
+        emulationThread = null;
     }
 
     private void InstructionTick(boolean skipStops) throws InterruptedException {
+        // check if an interrupt is pending
         boolean interruptPending = (memory.getIE() & memory.getIF() & 0x1F) != 0;
-
         if (cpu.isStopped() && !skipStops) {
             // STOP only exits via Joypad interrupt
             if ((memory.getIE() & memory.getIF() & 0x10) != 0) {
@@ -122,7 +130,6 @@ public class DuckEmulation implements Runnable {
             clockCounter = 4 * instruction.getCycleCount();
             cpu.execute(instruction);
         }
-
         // Always tick hardware (PPU, timers, serial) normally
         for (; clockCounter > 0; clockCounter--) {
             timerSet.tick();

@@ -27,6 +27,7 @@ public class DuckEmulation implements Runnable {
     private int clockCounter = 0;
     private volatile boolean running = false;
     private volatile boolean paused = false;
+    private Instruction instruction = null;
 
     /**
      * This constructor creates a new DuckEmulation
@@ -117,8 +118,9 @@ public class DuckEmulation implements Runnable {
             }
             clockCounter = 1; // idle cycle during HALT
         } else {
-            Instruction instruction = ReadNextInstruction();
-            clockCounter = 4 * cpu.execute(instruction);
+            instruction = ReadNextInstruction();
+            clockCounter = 4 * instruction.getCycleCount();
+            cpu.execute(instruction);
         }
 
         // Always tick hardware (PPU, timers, serial) normally

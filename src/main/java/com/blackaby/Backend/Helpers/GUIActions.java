@@ -63,9 +63,11 @@ public class GUIActions implements ActionListener {
                 fileDialog.setAlwaysOnTop(true);
                 fileDialog.setFilenameFilter((_, name) -> name.endsWith(".gb") || name.endsWith(".gbc"));
                 fileDialog.setVisible(true);
-                File file = fileDialog.getFiles()[0];
-                if (file != null) {
-                    attachedEmulation.startEmulation(file.getAbsolutePath());
+                if (fileDialog.getFiles().length != 0) {
+                    File file = fileDialog.getFiles()[0];
+                    if (file != null) {
+                        attachedEmulation.startEmulation(file.getAbsolutePath());
+                    }
                 }
                 break;
             case PAUSEGAME:

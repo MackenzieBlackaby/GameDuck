@@ -9,6 +9,15 @@ import java.awt.*;
  * properties passed in as parameters.
  */
 public class DuckWindow extends JFrame {
+
+    private boolean isFullscreen = false;
+    private boolean isMaximised = false;
+    private Dimension screenSize;
+    private Point location;
+    private Dimension sizeBeforeMax;
+    private Point locationBeforeMax;
+    private String title;
+
     /**
      * Constructor for DuckWindow.
      * 
@@ -30,8 +39,13 @@ public class DuckWindow extends JFrame {
         setLayout(new BorderLayout());
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         setTitle(title);
+        this.title = title;
         setLocationRelativeTo(null);
         setIconImage(new ImageIcon("src/main/resources/duck.png").getImage());
+        screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        sizeBeforeMax = Toolkit.getDefaultToolkit().getScreenSize();
+        locationBeforeMax = getLocation();
+        location = getLocation();
     }
 
     /**
@@ -68,4 +82,51 @@ public class DuckWindow extends JFrame {
     public DuckWindow(String title, int width, int height) {
         this(title, width, height, true);
     }
+
+    public void toggleMaximise() {
+        if (isMaximised) {
+            setExtendedState(JFrame.NORMAL);
+            setSize(sizeBeforeMax);
+            setLocation(locationBeforeMax);
+        } else {
+            sizeBeforeMax = getSize();
+            locationBeforeMax = getLocation();
+            setExtendedState(JFrame.MAXIMIZED_BOTH);
+        }
+        isMaximised = !isMaximised;
+    }
+
+    public void toggleFullScreen() {
+        GraphicsDevice g = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+
+        if (isFullscreen) {
+            // Exit fullscreen
+            g.setFullScreenWindow(null);
+
+            dispose();
+            setUndecorated(false);
+
+            setSize(screenSize);
+            setLocation(location);
+            setVisible(true);
+        } else {
+            screenSize = getSize();
+            location = getLocation();
+            dispose();
+            setUndecorated(true);
+            setVisible(true);
+            g.setFullScreenWindow(this);
+        }
+
+        isFullscreen = !isFullscreen;
+    }
+
+    public void subtitle(String... subtitle) {
+        StringBuilder sb = new StringBuilder(title);
+        for (String s : subtitle) {
+            sb.append(" - ").append(s);
+        }
+        setTitle(sb.toString());
+    }
+
 }

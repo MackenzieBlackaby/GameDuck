@@ -1,1 +1,0 @@
-typeSearchIndex = [{"l":"All Classes and Interfaces","u":"allclasses-index.html"},{"p":"com.blackaby.Frontend","l":"DuckWindow"},{"p":"com.blackaby","l":"Main"},{"p":"com.blackaby.Frontend","l":"MainWindow"},{"p":"com.blackaby.Frontend","l":"Styling"}];updateSearchResults();

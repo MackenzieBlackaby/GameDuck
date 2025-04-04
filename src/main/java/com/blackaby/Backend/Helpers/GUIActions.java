@@ -4,10 +4,13 @@ import java.awt.event.ActionListener;
 import java.io.File;
 
 import com.blackaby.Backend.Emulation.DuckEmulation;
+import com.blackaby.Frontend.AboutWindow;
 import com.blackaby.Frontend.MainWindow;
+import com.blackaby.Frontend.OptionsWindow;
 
 import java.awt.FileDialog;
 import java.awt.event.ActionEvent;
+import javax.swing.JOptionPane;
 
 /**
  * This class represents the different actions that can be performed in the GUI.
@@ -29,9 +32,10 @@ public class GUIActions implements ActionListener {
         OPTIONS,
         EXIT,
         FULLSCREEN,
-        WINDOWED,
+        MAXIMISE,
         TUTORIAL,
-        ABOUT
+        ABOUT,
+        FRAMECOUNTER,
     }
 
     private Action action;
@@ -56,7 +60,7 @@ public class GUIActions implements ActionListener {
             case DEBUG:
                 // DebugLogger.logn("Debugging");
                 break;
-            case LOADROM:
+            case LOADROM: {
                 // Open a file chooser dialog
                 FileDialog fileDialog = new FileDialog(mainWindow, "Select a ROM file", FileDialog.LOAD);
 
@@ -70,6 +74,7 @@ public class GUIActions implements ActionListener {
                     }
                 }
                 break;
+            }
             case PAUSEGAME:
                 attachedEmulation.pauseEmulation();
                 break;
@@ -81,16 +86,30 @@ public class GUIActions implements ActionListener {
             case LOADSTATE:
                 break;
             case OPTIONS:
+                new OptionsWindow();
                 break;
-            case EXIT:
+            case EXIT: {
+                int result = JOptionPane.showConfirmDialog(mainWindow, "Are you sure you want to exit?", "Exit",
+                        JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+                if (result == JOptionPane.YES_OPTION) {
+                    System.exit(0);
+                }
+            }
                 break;
             case FULLSCREEN:
+                mainWindow.toggleFullScreen();
                 break;
-            case WINDOWED:
+            case MAXIMISE:
+                mainWindow.toggleMaximise();
+                break;
+            case FRAMECOUNTER:
+                mainWindow.toggleFrameCounter();
                 break;
             case TUTORIAL:
                 break;
-            case ABOUT:
+            case ABOUT: {
+                new AboutWindow();
+            }
                 break;
             default:
                 // DebugLogger.logn("Invalid action");

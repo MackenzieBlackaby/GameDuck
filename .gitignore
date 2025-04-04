@@ -7,3 +7,4 @@ coffeegb
 Test Roms
 *.txt
 !src/main/resources/LICENSE.txt
+gbctr.pdf

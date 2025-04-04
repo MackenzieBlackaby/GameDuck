@@ -1,9 +1,9 @@
 package com.blackaby.Backend.Emulation.CPU;
 
-import com.blackaby.Backend.Emulation.CPU.InstructionTypeManager.InstructionType;
+import com.blackaby.Backend.Emulation.CPU.DuckDecoder.InstructionType;
 import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 
-public class Instruction implements Runnable {
+public abstract class Instruction implements Runnable {
 
     protected DuckMemory memory;
     protected DuckCPU cpu;
@@ -40,8 +40,6 @@ public class Instruction implements Runnable {
     public InstructionType getType() {
         return type;
     }
-
-    
 
     @Override
     public void run() {

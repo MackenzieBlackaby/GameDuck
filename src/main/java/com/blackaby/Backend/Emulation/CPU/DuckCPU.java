@@ -358,7 +358,6 @@ public class DuckCPU {
      * This method executes the next instruction in the queue
      */
     public int execute(Instruction instruction) {
-        handleInterrupts();
         if (haltBug)
             haltBug = false;
         if (instruction != null && !isHalted) {
@@ -372,7 +371,7 @@ public class DuckCPU {
             interruptMasterEnableCounter++;
         }
         // memory.printStack(stackPointer);
-        return instruction.getCycleCount();
+        return instruction.getCycleCount() + (handleInterrupts() ? 5 : 0);
     }
 
     /**
@@ -751,23 +750,25 @@ public class DuckCPU {
         memory.write(DuckMemory.INTERRUPT_FLAG, interruptFlag | interrupt.getMask());
     }
 
-    private void handleInterrupts() {
+    private boolean handleInterrupts() {
         if (!interruptMasterEnable)
-            return;
+            return false;
         int interruptEnable = memory.read(DuckMemory.IE);
         int interruptFlags = memory.read(DuckMemory.INTERRUPT_FLAG);
         int interruptsTriggered = interruptEnable & interruptFlags;
 
         if (interruptsTriggered == 0)
-            return;
+            return false;
 
         interruptMasterEnable = false;
+        isHalted = false;
         for (int i = 0; i < 5; i++) {
             if ((interruptsTriggered & (1 << i)) != 0) {
                 handleInterrupt(i);
                 break;
             }
         }
+        return true;
     }
 
     private void handleInterrupt(int interruptBit) {

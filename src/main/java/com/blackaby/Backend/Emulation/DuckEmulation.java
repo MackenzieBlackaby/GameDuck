@@ -162,16 +162,15 @@ public class DuckEmulation implements Runnable {
             clockCounter = 1;
         } else {
             instruction = ReadNextInstruction();
-            clockCounter = 4 * instruction.getCycleCount();
-            cpu.execute(instruction);
+            clockCounter = 4 * cpu.execute(instruction);
         }
         int prevClockCounter = clockCounter;
         // Always tick hardware normally
         for (; clockCounter > 0; clockCounter--) {
+            memory.tickDMA();
             timerSet.tick();
             ppu.step();
             handleSerial();
-            memory.tickDMA();
         }
         return prevClockCounter;
     }

@@ -1,7 +1,6 @@
 package com.blackaby.Backend.Emulation;
 
 import com.blackaby.Frontend.DebugLogger;
-import com.blackaby.Main;
 import com.blackaby.Backend.Emulation.CPU.*;
 import com.blackaby.Backend.Emulation.Misc.ROM;
 import com.blackaby.Backend.Emulation.Misc.Specifics;

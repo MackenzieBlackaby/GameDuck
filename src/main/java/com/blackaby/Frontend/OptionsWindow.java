@@ -43,7 +43,7 @@ public class OptionsWindow extends DuckWindow {
         paletteNameField.setPreferredSize(new Dimension(200, 30));
 
         JButton savePaletteButton = new JButton("Save Palette");
-        savePaletteButton.addActionListener(e -> {
+        savePaletteButton.addActionListener(_ -> {
             String name = paletteNameField.getText().trim();
             if (!name.isEmpty()) {
                 Config.savePalette(name);
@@ -55,7 +55,7 @@ public class OptionsWindow extends DuckWindow {
         });
 
         JButton loadPaletteButton = new JButton("Load Palette");
-        loadPaletteButton.addActionListener(e -> new PaletteManager());
+        loadPaletteButton.addActionListener(_ -> new PaletteManager());
 
         gbc.gridy = 0;
         gbc.gridx = 0;
@@ -95,7 +95,7 @@ public class OptionsWindow extends DuckWindow {
 
             JButton colorButton = new JButton("Choose Color");
             int index = i;
-            colorButton.addActionListener(e -> {
+            colorButton.addActionListener(_ -> {
                 Color selectedColor = JColorChooser.showDialog(this, "Choose " + colorNames[index],
                         colorPreview.getBackground());
                 if (selectedColor != null) {
@@ -119,7 +119,7 @@ public class OptionsWindow extends DuckWindow {
         }
 
         JButton resetButton = new JButton("Reset to Default");
-        resetButton.addActionListener(e -> {
+        resetButton.addActionListener(_ -> {
             Settings.reset();
             GBColor[] defaults = {
                     Settings.GB_COLOR_0_OBJ,

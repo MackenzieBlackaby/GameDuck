@@ -201,6 +201,9 @@ public class DuckMemory {
         if (address >= NOT_USABLE_START && address <= NOT_USABLE_END) {
             return 0xFF;
         }
+        // if (address == LY) {
+        //     return 0x90;
+        // }
         return 0xFF & ram[address];
     }
 

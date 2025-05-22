@@ -363,6 +363,7 @@ public class DuckCPU {
         if (haltBug)
             haltBug = false;
         if (instruction != null && !isHalted) {
+            // DebugLogger.logFile(this.toString(), DebugLogger.LOG_FILE);
             instruction.run();
         }
         if (interruptMasterEnableCounter >= 2) {
@@ -381,40 +382,24 @@ public class DuckCPU {
      * @return The string representation of the CPU state
      */
     public String toString() {
-        String af = String.format("0x%02X%02X", accumulator, flags);
-        String bc = String.format("0x%04X", getBCValue());
-        String de = String.format("0x%04X", getDEValue());
-        String hl = String.format("0x%04X", getHLValue());
-        String pc = String.format("0x%04X", programCounter);
-        String sp = String.format("0x%04X", stackPointer);
-        String ir = String.format("0x%02X", instructionRegister);
-        String ie = String.format("0x%02X", memory.read(DuckMemory.IE));
-
-        boolean flagZ = getFlagBoolean(Flag.Z);
-        boolean flagN = getFlagBoolean(Flag.N);
-        boolean flagH = getFlagBoolean(Flag.H);
-        boolean flagC = getFlagBoolean(Flag.C);
-
-        String imeStatus = interruptMasterEnable ? "Enabled" : "Disabled";
-
-        return String.format(
-                "CPU State:\n" +
-                        "  PC: %s    SP: %s\n" +
-                        "  AF: %s    (A: 0x%02X, F: 0x%02X)\n" +
-                        "  BC: %s    (B: 0x%02X, C: 0x%02X)\n" +
-                        "  DE: %s    (D: 0x%02X, E: 0x%02X)\n" +
-                        "  HL: %s    (H: 0x%02X, L: 0x%02X)\n" +
-                        "  IR: %s\n" +
-                        "  Flags: Z=%b  N=%b  H=%b  C=%b\n" +
-                        "  IME: %s    IE: %s",
-                pc, sp,
-                af, accumulator, flags,
-                bc, (registerB & 0xFF), (registerC & 0xFF),
-                de, (registerD & 0xFF), (registerE & 0xFF),
-                hl, (registerH & 0xFF), (registerL & 0xFF),
-                ir,
-                flagZ, flagN, flagH, flagC,
-                imeStatus, ie);
+        // Format:
+        // A:00 F:11 B:22 C:33 D:44 E:55 H:66 L:77 PC:8888 SP:9999 PCMEM:AA,BB,CC,DD
+        StringBuilder sb = new StringBuilder();
+        sb.append("A:").append(String.format("%02X", accumulator)).append(" ");
+        sb.append("F:").append(String.format("%02X", flags)).append(" ");
+        sb.append("B:").append(String.format("%02X", registerB)).append(" ");
+        sb.append("C:").append(String.format("%02X", registerC)).append(" ");
+        sb.append("D:").append(String.format("%02X", registerD)).append(" ");
+        sb.append("E:").append(String.format("%02X", registerE)).append(" ");
+        sb.append("H:").append(String.format("%02X", registerH)).append(" ");
+        sb.append("L:").append(String.format("%02X", registerL)).append(" ");
+        sb.append("PC:").append(String.format("%04X", programCounter)).append(" ");
+        sb.append("SP:").append(String.format("%04X", stackPointer)).append(" ");
+        sb.append("PCMEM:").append(String.format("%02X", memory.read(programCounter)));
+        sb.append(",").append(String.format("%02X", memory.read(programCounter + 1)));
+        sb.append(",").append(String.format("%02X", memory.read(programCounter + 2)));
+        sb.append(",").append(String.format("%02X", memory.read(programCounter + 3)));
+        return sb.toString();
     }
 
     /**
@@ -808,7 +793,6 @@ public class DuckCPU {
     }
 
     private void handleInterrupt(int interruptBit) {
-        DebugLogger.log("Handling interrupt: " + Interrupt.getInterrupt(interruptBit));
         int address = Interrupt.getInterrupt(interruptBit).getAddress();
         int interruptFlag = memory.read(DuckMemory.INTERRUPT_FLAG);
         memory.write(DuckMemory.INTERRUPT_FLAG, interruptFlag & ~(1 << interruptBit));

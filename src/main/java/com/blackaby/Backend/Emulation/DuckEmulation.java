@@ -111,6 +111,7 @@ public class DuckEmulation implements Runnable {
         // Main loop for emulation
         long prevTime = System.nanoTime();
         double leftOvers = 0;
+        //DebugLogger.logFile(cpu.toString(), DebugLogger.LOG_FILE);
         while (running) {
             try {
                 long rn = System.nanoTime();
@@ -219,13 +220,8 @@ public class DuckEmulation implements Runnable {
         InstructionType type = DuckDecoder.getType(opcode, isCB);
         // Check for unknown opcode
         if (type == null) {
-            DebugLogger.logn("Unknown opcode: 0x" + Integer.toHexString(opcode));
             System.exit(1);
-        } else if (type == InstructionType.ENABLE_INTERRUPTS) {
-            DebugLogger.logn("Enable interrupts recognised\n\n\n\n\n\n\n\n\n\n\n\n\n");
-            DebugLogger.logn(cpu.toString());
         }
-
         // Get operand count
         int operandCount = type.getOperandCount();
 

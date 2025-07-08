@@ -8,3 +8,4 @@ Test Roms
 *.txt
 !src/main/resources/LICENSE.txt
 gbctr.pdf
+*.lst

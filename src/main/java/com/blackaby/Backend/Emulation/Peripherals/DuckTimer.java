@@ -7,6 +7,8 @@ public class DuckTimer {
     private int internalCounter = 0;
     private boolean previousTimerBit = false;
     private int overflowCounter = 0;
+    public boolean timaOverflowPending = false;
+    private boolean timaReloaded = false;
 
     private final DuckMemory memory;
     private final DuckCPU cpu;
@@ -17,10 +19,16 @@ public class DuckTimer {
     }
 
     public void tick() {
-        if (overflowCounter == 1) {
-            memory.write(DuckMemory.TIMA, memory.read(DuckMemory.TMA));
-            cpu.requestInterrupt(DuckCPU.Interrupt.TIMER);
-            overflowCounter = 0;
+        if (overflowCounter > 0) {
+            overflowCounter--;
+            if (overflowCounter == 0) {
+                if (!timaReloaded) {
+                    memory.write(DuckMemory.TIMA, memory.read(DuckMemory.TMA));
+                    cpu.requestInterrupt(DuckCPU.Interrupt.TIMER);
+                }
+                timaOverflowPending = false;
+                timaReloaded = false;
+            }
         }
 
         internalCounter = (internalCounter + 1) & 0xFFFF;
@@ -39,8 +47,9 @@ public class DuckTimer {
         if (previousTimerBit && !currentTimerBit) {
             int tima = memory.read(DuckMemory.TIMA) & 0xFF;
             if (tima == 0xFF) {
-                memory.write(DuckMemory.TIMA, 0x00);
-                overflowCounter = 1;
+                timaOverflowPending = true;
+                timaReloaded = false;
+                overflowCounter = 4;
             } else {
                 memory.write(DuckMemory.TIMA, (tima + 1) & 0xFF);
             }
@@ -67,8 +76,10 @@ public class DuckTimer {
             }
         }
 
+        timaOverflowPending = false;
         internalCounter = 0;
-        previousTimerBit = false; // Timer bit is definitely 0 after reset
+        timaReloaded = false;
+        previousTimerBit = false;
     }
 
     public void syncTimerBit() {
@@ -90,5 +101,9 @@ public class DuckTimer {
             case 3 -> 7; // 16384 Hz
             default -> 9;
         };
+    }
+
+    public void cancelPendingOverflow() {
+        timaReloaded = true;
     }
 }

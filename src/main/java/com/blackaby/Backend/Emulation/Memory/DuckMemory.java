@@ -225,6 +225,11 @@ public class DuckMemory {
             ram[DIV] = 0;
             return;
         }
+        if (address == TIMA) {
+            if (timerSet.timaOverflowPending) {
+                timerSet.cancelPendingOverflow();
+            }
+        }
         ram[address] = value & 0xFF;
         if (address == DMA) {
             dmaSource = value << 8;

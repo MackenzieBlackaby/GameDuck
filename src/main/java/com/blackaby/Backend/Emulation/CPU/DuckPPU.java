@@ -1,5 +1,8 @@
 package com.blackaby.Backend.Emulation.CPU;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import com.blackaby.Backend.Emulation.CPU.DuckCPU.Interrupt;
 import com.blackaby.Backend.Emulation.Graphics.GBColor;
 import com.blackaby.Backend.Emulation.Memory.DuckMemory;
@@ -96,7 +99,6 @@ public class DuckPPU {
      */
     public void step() {
         cycle++;
-
         switch (mode) {
             case OAM:
                 if (cycle >= OAM_DURATION) {
@@ -108,16 +110,13 @@ public class DuckPPU {
                 if (cycle >= VRAM_DURATION) {
                     cycle = 0;
                     setMode(PPUMode.HBLANK);
-
                     renderScanline(scanline);
                 }
                 break;
-
             case HBLANK:
                 if (cycle >= HBLANK_DURATION) {
                     cycle = 0;
                     scanline++;
-
                     if (scanline == 144) {
                         setMode(PPUMode.VBLANK);
                         cpu.requestInterrupt(Interrupt.VBLANK);
@@ -126,9 +125,7 @@ public class DuckPPU {
                     }
                 }
                 break;
-
             case VBLANK:
-
                 if (cycle >= SCANLINE_CYCLES) {
                     cycle = 0;
                     scanline++;
@@ -140,7 +137,6 @@ public class DuckPPU {
                 }
                 break;
         }
-
         memory.write(DuckMemory.LY, (byte) scanline);
         updateLYCCompare();
     }
@@ -224,6 +220,12 @@ public class DuckPPU {
             // Write the pixel to the display buffer.
             display.setPixel(screenX, scanline, pixelColor.toColor(), false);
         }
+
+        if ((lcdc & 0x02) != 0) { // Bit 1: OBJ enable
+            for (DuckSprite sprite : getSpritesOnScanline(scanline)) {
+                drawSpritePixel(sprite, scanline);
+            }
+        }
     }
 
     /**
@@ -245,4 +247,113 @@ public class DuckPPU {
         }
         memory.write(0xFF41, (byte) stat);
     }
+
+    private List<DuckSprite> getSpritesOnScanline(int scanline) {
+        List<DuckSprite> visible = new ArrayList<>();
+
+        boolean is8x16 = (memory.read(0xFF40) & 0x04) != 0;
+
+        for (int i = 0; i < 40; i++) {
+            int index = i * 4;
+            int y = (memory.read(0xFE00 + index) & 0xFF) - 16;
+            int x = (memory.read(0xFE00 + index + 1) & 0xFF) - 8;
+            int tileIndex = memory.read(0xFE00 + index + 2) & 0xFF;
+            int attr = memory.read(0xFE00 + index + 3) & 0xFF;
+
+            int height = is8x16 ? 16 : 8;
+            if (scanline >= y && scanline < y + height) {
+                visible.add(new DuckSprite(y, x, tileIndex, attr));
+                if (visible.size() == 10)
+                    break;
+            }
+        }
+
+        return visible;
+    }
+
+    private void drawSpritePixel(DuckSprite sprite, int scanline) {
+        int spriteHeight = ((memory.read(0xFF40) & 0x04) != 0) ? 16 : 8;
+        int line = scanline - sprite.y;
+
+        if ((sprite.attributes & (1 << 6)) != 0) {
+            line = spriteHeight - 1 - line;
+        }
+
+        int tileIndex = sprite.tileIndex;
+        if (spriteHeight == 16) {
+            tileIndex &= 0xFE;
+        }
+
+        int addr = 0x8000 + (tileIndex * 16);
+        int byte1 = memory.read(addr + line * 2) & 0xFF;
+        int byte2 = memory.read(addr + line * 2 + 1) & 0xFF;
+
+        for (int x = 0; x < 8; x++) {
+            boolean xFlip = (sprite.attributes & (1 << 5)) != 0;
+            int bit = xFlip ? x : 7 - x;
+            int pixelX = sprite.x + (xFlip ? 7 - x : x);
+
+            if (pixelX < 0 || pixelX >= Specifics.GB_DISPLAY_WIDTH)
+                continue;
+
+            int colorIndex = ((byte2 >> bit) & 1) << 1 | ((byte1 >> bit) & 1);
+            if (colorIndex == 0)
+                continue;
+
+            int palette = (sprite.attributes & (1 << 4)) != 0
+                    ? memory.read(0xFF49) & 0xFF
+                    : memory.read(0xFF48) & 0xFF;
+            int paletteBits = (palette >> (colorIndex * 2)) & 0x03;
+
+            GBColor pixelColor;
+            switch (paletteBits) {
+                case 0:
+                    pixelColor = Settings.GB_COLOR_0_OBJ;
+                    break;
+                case 1:
+                    pixelColor = Settings.GB_COLOR_1_OBJ;
+                    break;
+                case 2:
+                    pixelColor = Settings.GB_COLOR_2_OBJ;
+                    break;
+                case 3:
+                default:
+                    pixelColor = Settings.GB_COLOR_3_OBJ;
+                    break;
+            }
+
+            boolean behindBG = (sprite.attributes & (1 << 7)) != 0;
+            if (behindBG) {
+                int lcdc = memory.read(0xFF40) & 0xFF;
+                int scrollX = memory.read(0xFF43) & 0xFF;
+                int scrollY = memory.read(0xFF42) & 0xFF;
+                int bgX = (pixelX + scrollX) & 0xFF;
+                int bgY = (scanline + scrollY) & 0xFF;
+                int tileMapBase = ((lcdc & 0x08) != 0) ? 0x9C00 : 0x9800;
+                boolean use8000 = (lcdc & 0x10) != 0;
+                int tileDataBase = use8000 ? 0x8000 : 0x9000;
+
+                int tileColumn = bgX / 8;
+                int tileRow = bgY / 8;
+                int tileIndexAddr = tileMapBase + tileRow * 32 + tileColumn;
+                int tileID = memory.read(tileIndexAddr) & 0xFF;
+                if (!use8000)
+                    tileID = (byte) tileID;
+
+                int tileAddr = tileDataBase + tileID * 16;
+                int tileLine = bgY % 8;
+                int bgByte1 = memory.read(tileAddr + tileLine * 2) & 0xFF;
+                int bgByte2 = memory.read(tileAddr + tileLine * 2 + 1) & 0xFF;
+                int bgBit = 7 - (bgX % 8);
+                int bgColorIndex = ((bgByte2 >> bgBit) & 1) << 1 | ((bgByte1 >> bgBit) & 1);
+
+                if (bgColorIndex != 0) {
+                    continue;
+                }
+            }
+
+            display.setPixel(pixelX, scanline, pixelColor.toColor(), true);
+        }
+    }
+
 }

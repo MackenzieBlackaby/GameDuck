@@ -8,8 +8,6 @@ public class DuckTimer {
     private boolean previousTimerBit = false;
     private int overflowCounter = 0;
     public boolean timaOverflowPending = false;
-    private boolean timaReloaded = false;
-
     private final DuckMemory memory;
     private final DuckCPU cpu;
 
@@ -26,7 +24,6 @@ public class DuckTimer {
                 memory.write(DuckMemory.TIMA, memory.read(DuckMemory.TMA));
                 cpu.requestInterrupt(DuckCPU.Interrupt.TIMER);
                 timaOverflowPending = false;
-                timaReloaded = false;
             }
         }
         internalCounter = (internalCounter + 1) & 0xFFFF;
@@ -50,7 +47,6 @@ public class DuckTimer {
             if (tima == 0xFF) {
                 // System.out.println("TIMA OVERFLOW SCHEDULED at cycle " + internalCounter);
                 timaOverflowPending = true;
-                timaReloaded = false;
                 overflowCounter = 4;
             } else {
                 memory.write(DuckMemory.TIMA, (tima + 1) & 0xFF);
@@ -71,7 +67,6 @@ public class DuckTimer {
             int tima = memory.read(DuckMemory.TIMA) & 0xFF;
             if (tima == 0xFF) {
                 timaOverflowPending = true;
-                timaReloaded = false;
                 overflowCounter = 4;
             } else {
                 memory.write(DuckMemory.TIMA, (tima + 1) & 0xFF);
@@ -80,7 +75,6 @@ public class DuckTimer {
 
         timaOverflowPending = false;
         internalCounter = 0;
-        timaReloaded = false;
         previousTimerBit = false;
     }
 
@@ -106,6 +100,5 @@ public class DuckTimer {
     }
 
     public void cancelPendingOverflow() {
-        timaReloaded = true;
     }
 }

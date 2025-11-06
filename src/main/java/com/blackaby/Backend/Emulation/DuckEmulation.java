@@ -94,6 +94,8 @@ public class DuckEmulation implements Runnable {
      * This method is the main loop of the emulation
      */
     public void run() {
+        // Load rom
+        memory.loadROM(rom);
         memory.write(DuckMemory.LCDC, 0x91);
         // Set initial values
         cpu.setPC(0x0100);
@@ -104,8 +106,6 @@ public class DuckEmulation implements Runnable {
         cpu.setSP(0xFFFE);
         memory.write(0xFF47, 0xFC);
         memory.write(0xFF00, 0xFF);
-        // Load rom
-        memory.loadROM(rom);
         startFrameCounter();
         // Main loop for emulation
         long prevTime = System.nanoTime();

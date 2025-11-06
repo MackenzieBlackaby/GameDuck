@@ -9,3 +9,4 @@ Test Roms
 !src/main/resources/LICENSE.txt
 gbctr.pdf
 *.lst
+*.jar

@@ -772,15 +772,23 @@ public class DuckCPU {
     }
 
     private void handleInterrupt(int interruptBit) {
-        int address = Interrupt.getInterrupt(interruptBit).getAddress();
+        DuckCPU.Interrupt intr = DuckCPU.Interrupt.getInterrupt(interruptBit);
+
+        // Clear interrupt flag
         int interruptFlag = memory.read(DuckMemory.INTERRUPT_FLAG);
-        memory.write(DuckMemory.INTERRUPT_FLAG, interruptFlag & ~(1 << interruptBit));
-        // Write high byte
-        memory.write(stackPointer - 1, (programCounter >> 8) & 0xFF);
-        // Write low byte
-        memory.write(stackPointer - 2, programCounter & 0xFF);
-        stackPointer -= 2;
-        programCounter = address;
+        memory.write(DuckMemory.INTERRUPT_FLAG, interruptFlag & ~intr.getMask());
+
+        setHalted(false); // exit HALT if necessary
+
+        // Push PC onto stack correctly
+        setSP(getSP() - 1);
+        memory.write(getSP(), (getPC() >> 8) & 0xFF); // high byte
+        setSP(getSP() - 1);
+        memory.write(getSP(), getPC() & 0xFF); // low byte
+
+        // Jump to interrupt vector
+        setPC(intr.getAddress());
+        setInterruptEnable(false); // clear IME
     }
 
     /**

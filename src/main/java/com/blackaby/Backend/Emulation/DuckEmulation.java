@@ -110,7 +110,7 @@ public class DuckEmulation implements Runnable {
         // Main loop for emulation
         long prevTime = System.nanoTime();
         double leftOvers = 0;
-        //DebugLogger.logFile(cpu.toString(), DebugLogger.LOG_FILE);
+        // DebugLogger.logFile(cpu.toString(), DebugLogger.LOG_FILE);
         while (running) {
             try {
                 long rn = System.nanoTime();
@@ -146,32 +146,47 @@ public class DuckEmulation implements Runnable {
     }
 
     private int InstructionTick(boolean skipStops) throws InterruptedException {
-        // check if an interrupt is pending
         boolean interruptPending = (memory.getIE() & memory.getIF() & 0x1F) != 0;
+
+        // --- STOP handling ---
         if (cpu.isStopped() && !skipStops) {
-            // STOP only exits via Joypad interrupt
+            // STOP exits only via Joypad interrupt (bit 4)
             if ((memory.getIE() & memory.getIF() & 0x10) != 0) {
                 cpu.setStopped(false);
             }
-            return 0;
-        } else if (cpu.isHalted()) {
+            // Still tick some hardware during STOP (timers & PPU)
+            timerSet.tick();
+            ppu.step();
+            memory.tickDMA();
+            handleSerial();
+            return 0; // CPU does nothing
+        }
+
+        // --- HALT handling ---
+        if (cpu.isHalted()) {
             if (interruptPending) {
-                cpu.setHalted(false);
-                // CPU resumes; if IME is enabled, interrupt will be serviced next cycle
+                cpu.setHalted(false); // resume CPU
             }
-            clockCounter = 1;
+            // HALT bug: if IME = 0 and interrupt pending, do NOT increment PC
+            if (interruptPending && !cpu.isInterruptMasterEnable()) {
+                cpu.setHaltBug(true);
+            }
+            clockCounter = 1; // HALT executes 1 cycle until next instruction
         } else {
             instruction = ReadNextInstruction();
-            clockCounter = 4 * cpu.execute(instruction);
+            clockCounter = cpu.execute(instruction); // return M-cycles
         }
+
         int prevClockCounter = clockCounter;
-        // Always tick hardware normally
+
+        // --- Tick hardware per machine cycle ---
         for (; clockCounter > 0; clockCounter--) {
             memory.tickDMA();
             timerSet.tick();
             ppu.step();
             handleSerial();
         }
+
         return prevClockCounter;
     }
 

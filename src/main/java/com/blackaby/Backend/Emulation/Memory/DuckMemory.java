@@ -299,4 +299,13 @@ public class DuckMemory {
     public int getIF() {
         return read(INTERRUPT_FLAG);
     }
+
+    public void setDividerFromTimer(int value) {
+        ram[DIV] = value & 0xFF; // write RAM directly; no CPU side-effects
+    }
+
+    public void setTIMAFromTimer(int value) {
+        ram[TIMA] = value & 0xFF; // write RAM directly; no CPU side-effects
+    }
+
 }

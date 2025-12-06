@@ -3,10 +3,10 @@ package com.blackaby.Backend.Helpers;
 import java.awt.event.ActionListener;
 import java.io.File;
 
-import com.blackaby.Backend.Emulation.DuckEmulation;
 import com.blackaby.Frontend.AboutWindow;
 import com.blackaby.Frontend.MainWindow;
 import com.blackaby.Frontend.OptionsWindow;
+import com.blackaby.OldBackEnd.Emulation.DuckEmulation;
 
 import java.awt.FileDialog;
 import java.awt.event.ActionEvent;

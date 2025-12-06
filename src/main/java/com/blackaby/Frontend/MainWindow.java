@@ -2,9 +2,9 @@ package com.blackaby.Frontend;
 
 import javax.swing.*;
 
-import com.blackaby.Backend.Emulation.DuckEmulation;
 import com.blackaby.Backend.Helpers.GUIActions;
 import com.blackaby.Backend.Helpers.GUIActions.Action;
+import com.blackaby.OldBackEnd.Emulation.DuckEmulation;
 
 import java.awt.*;
 

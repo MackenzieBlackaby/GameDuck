@@ -1,6 +1,6 @@
 package com.blackaby.Misc;
 
-import com.blackaby.Backend.Emulation.Graphics.GBColor;
+import com.blackaby.OldBackEnd.Emulation.Graphics.GBColor;
 
 /**
  * This class contains the default colors for the GameBoy screen.

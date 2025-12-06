@@ -1,7 +1,7 @@
 package com.blackaby.Frontend;
 
 import com.blackaby.Misc.Settings;
-import com.blackaby.Backend.Emulation.Graphics.GBColor;
+import com.blackaby.OldBackEnd.Emulation.Graphics.GBColor;
 import com.blackaby.Misc.Config;
 
 import javax.swing.*;

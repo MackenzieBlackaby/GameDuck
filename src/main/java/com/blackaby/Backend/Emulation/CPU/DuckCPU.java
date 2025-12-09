@@ -19,19 +19,13 @@ public class DuckCPU {
 
     public enum Register {
         // 8-bit Registers
-        B(0), C(1), D(2), E(3), H(4), L(5), HL_ADDR(6), A(7),
+        B, C, D, E, H, L, HL_ADDR, A,
 
         // Special / Internal
-        F(8), IR(9), IE(10),
+        F, IR, IE,
 
         // 16-bit Registers
-        BC(11), DE(12), HL(13), AF(14), SP(15), PC(16);
-
-        private final int id;
-
-        Register(int id) {
-            this.id = id;
-        }
+        BC, DE, HL, AF, SP, PC;
 
         /** Helper to decode instructions (e.g., Load r, r'). */
         public static Register getRegFrom3Bit(int bitID) {

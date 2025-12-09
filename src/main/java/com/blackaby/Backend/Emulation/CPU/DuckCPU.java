@@ -144,34 +144,21 @@ public class DuckCPU {
      * @param instruction The decoded instruction to run.
      * @return The total T-Cycles consumed (Instruction + potential Interrupts).
      */
-    public int execute(Instruction instruction) {
-        int cycles = 0;
+    public int execute() {
+        int cycles = isHalted ? 4 : executeLoadedInstruction();
 
-        // 1. Execute Instruction (if not halted)
-        if (instruction != null && !isHalted) {
-            instruction.resetCycleCount();
-            instruction.run();
-            cycles += instruction.getCycleCount();
-        } else if (isHalted) {
-            // CPU effectively executes a NOP (4 cycles) while halted
-            cycles += 4;
-        }
-
-        // 2. Handle IME Delay (The EI instruction effect happens after 1 instruction)
-        if (imeDelayCounter > 0) {
+        if (imeDelayCounter > 0)
             imeDelayCounter--;
-            if (imeDelayCounter == 0) {
-                interruptMasterEnable = true;
-            }
-        }
-
-        // 3. Handle Interrupts
-        // If an interrupt occurs, it consumes 20 T-Cycles (5 M-Cycles)
-        if (handleInterrupts()) {
+        if (imeDelayCounter == 0)
+            interruptMasterEnable = true;
+        if (handleInterrupts())
             cycles += 20;
-        }
 
         return cycles;
+    }
+
+    private int executeLoadedInstruction() {
+        return 0;
     }
 
     private boolean handleInterrupts() {
@@ -341,6 +328,22 @@ public class DuckCPU {
 
     public void setSP(int val) {
         sp = val & 0xFFFF;
+    }
+
+    public int getAccumulator() {
+        return a;
+    }
+
+    public void setAccumulator(int val) {
+        a = val & 0xFF;
+    }
+
+    public int getC() {
+        return c;
+    }
+
+    public void setC(int val) {
+        c = val & 0xFF;
     }
 
     // =============================================================

@@ -193,7 +193,7 @@ public class InstructionLogic {
      * @return 4 T-cycles
      */
     public static int DecimalAdjustAccumulator() {
-        int a = cpu.regGet(Register.A);
+        int a = cpu.getAccumulator();
         int correction = 0;
         boolean n = cpu.getFlag(Flag.N);
         boolean h = cpu.getFlag(Flag.H);
@@ -217,7 +217,7 @@ public class InstructionLogic {
             a += correction;
         }
         a &= 0xFF;
-        cpu.regSet(Register.A, a);
+        cpu.setAccumulator(a);
 
         cpu.setFlag(Flag.Z, a == 0);
         cpu.setFlag(Flag.H, false);
@@ -230,9 +230,9 @@ public class InstructionLogic {
      * @return 4 T-cycles
      */
     public static int ComplementAccumulator() {
-        int a = cpu.regGet(Register.A);
+        int a = cpu.getAccumulator();
         a = (~a) & 0xFF;
-        cpu.regSet(Register.A, a);
+        cpu.setAccumulator(a);
         cpu.setFlag(Flag.N, true);
         cpu.setFlag(Flag.H, true);
         return 4;
@@ -276,9 +276,9 @@ public class InstructionLogic {
 
     // Engine that links all the bitwise operations, simplifying things
     private static int BitwiseEngine(BitwiseType bitwiseType, int b) {
-        int a = cpu.regGet(Register.A);
+        int a = cpu.getAccumulator();
         int result = CalculateBitwiseOp(a, b, bitwiseType);
-        cpu.regSet(Register.A, result);
+        cpu.setAccumulator(result);
         SetBitwiseFlags(result, bitwiseType);
         return 4;
     }
@@ -338,7 +338,7 @@ public class InstructionLogic {
     }
 
     private static void ArithmeticEngine(int b, boolean usingCarry, ArithmeticType type) {
-        int a = cpu.regGet(Register.A);
+        int a = cpu.getAccumulator();
         int result = 0;
         int carry = (usingCarry && cpu.getFlag(Flag.C) ? 1 : 0);
         int diff = (b + carry);
@@ -349,7 +349,7 @@ public class InstructionLogic {
             result = a - diff;
 
         if (type != ArithmeticType.CP)
-            cpu.regSet(Register.A, result);
+            cpu.setAccumulator(result);
 
         cpu.setFlag(Flag.Z, (result & 0xFF) == 0);
         cpu.setFlag(Flag.N, type != ArithmeticType.ADD);
@@ -516,7 +516,7 @@ public class InstructionLogic {
 
     // Stores accumulator in given memory address
     private static void StoreAccumulatorInAddress(int address) {
-        memory.write(address, cpu.regGet(Register.A));
+        memory.write(address, cpu.getAccumulator());
     }
 
     /**
@@ -538,7 +538,7 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int AccumulatorToMemoryViaHLIncrement() {
-        AccumulatorToMemoryViaRegisterPair(Register.HL);
+        StoreAccumulatorInAddress(cpu.getHL());
         cpu.setHL(cpu.getHL() + 1);
         return 8;
     }
@@ -550,7 +550,7 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int AccumulatorToMemoryViaHLDecrement() {
-        AccumulatorToMemoryViaRegisterPair(Register.HL);
+        StoreAccumulatorInAddress(cpu.getHL());
         cpu.setHL(cpu.getHL() - 1);
         return 8;
     }
@@ -588,7 +588,7 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int AccumulatorToMemoryWithCRegisterMask() {
-        AccumulatorToMemoryMasked(cpu.regGet(Register.C));
+        AccumulatorToMemoryMasked(cpu.getC());
         return 8;
     }
 
@@ -614,7 +614,7 @@ public class InstructionLogic {
     }
 
     private static void LoadAccumulatorFromMemoryAddress(int address) {
-        cpu.regSet(Register.A, memory.read(address));
+        cpu.setAccumulator(memory.read(address));
     }
 
     public static int LoadAccumulatorFromMemoryViaRegisterPair(Register registerPair) {
@@ -676,7 +676,7 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int LoadAccumulatorFromMemoryViaCRegisterMask() {
-        LoadACcumulatorFromMemoryViaMaskedImmediate(cpu.regGet(Register.C));
+        LoadACcumulatorFromMemoryViaMaskedImmediate(cpu.getC());
         return 8;
     }
 
@@ -726,7 +726,7 @@ public class InstructionLogic {
     public static int LoadToHLStackPointerPlusImmediate(int immediate) {
         int sp = cpu.getSP();
         int signedOffset = (byte) immediate;
-        cpu.setHL((sp + signedOffset) & 0xFFFF);
+        cpu.setHL(sp + signedOffset);
 
         // H and C flags are calculated on the lower byte as an *unsigned* addition
         boolean halfCarry = ((sp & 0x0F) + (immediate & 0x0F)) > 0x0F;

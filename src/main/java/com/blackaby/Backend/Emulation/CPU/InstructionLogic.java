@@ -14,6 +14,15 @@ public class InstructionLogic {
     private static DuckMemory memory;
 
     /**
+     * Link the logic to the CPU and Memory instances.
+     * MUST be called before execution starts.
+     */
+    public static void init(DuckCPU cpuInstance, DuckMemory memoryInstance) {
+        cpu = cpuInstance;
+        memory = memoryInstance;
+    }
+
+    /**
      * Enum representing different types of bitwise operations
      */
     public enum BitwiseType {

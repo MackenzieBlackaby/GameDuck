@@ -36,6 +36,10 @@ public class DuckMemory {
         this.timerSet = timerSet;
     }
 
+    public void setCPU(DuckCPU cpu) {
+        this.cpu = cpu;
+    }
+
     /**
      * Loads a ROM into the memory map (0x0000 - 0x7FFF).
      */

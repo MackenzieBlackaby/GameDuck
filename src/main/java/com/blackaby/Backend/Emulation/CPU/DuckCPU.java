@@ -1,8 +1,9 @@
 package com.blackaby.Backend.Emulation.CPU;
 
+import com.blackaby.Backend.Emulation.DuckEmulation;
 import com.blackaby.Backend.Emulation.Memory.DuckAddresses;
 import com.blackaby.Backend.Emulation.Memory.DuckMemory;
-import com.blackaby.OldBackEnd.Emulation.DuckEmulation; // Ideally remove this dependency later if possible
+import com.blackaby.Backend.Emulation.Misc.ROM;
 
 /**
  * Represents the Central Processing Unit (Sharp LR35902) of the Game Boy.
@@ -119,24 +120,54 @@ public class DuckCPU {
 
     // Internal State
     private int instructionRegister; // Used for decoding logic
+    private OpcodeHandler currentInstruction;
+    private boolean cb = false; // CB Prefix Flag
     private boolean interruptMasterEnable = false; // IME
     private int imeDelayCounter = 0; // For EI instruction delay
 
     private boolean isHalted = false;
     private boolean isStopped = false;
+    private boolean haltBug = false;
 
     // References
     public final DuckMemory memory;
     public final DuckEmulation emulation;
+    public final ROM rom;
 
-    public DuckCPU(DuckMemory memory, DuckEmulation emulation) {
+    // Decoder
+    private final DuckDecoder decoder;
+
+    public DuckCPU(DuckMemory memory, DuckEmulation emulation, ROM rom) {
         this.memory = memory;
         this.emulation = emulation;
+        this.rom = rom;
+        decoder = new DuckDecoder(this, memory);
     }
 
     // =============================================================
-    // EXECUTION CYCLE
+    // FDE CYCLE
     // =============================================================
+
+    public void fetch() {
+        // Fetch instruction
+        instructionRegister = memory.read(pc);
+        // If halt bugged, don't increment PC
+        if (haltBug) {
+            haltBug = false;
+            return;
+        }
+        // Increment and mask PC
+        pc++;
+        pc &= 0xFFFF;
+    }
+
+    public void decode() {
+        currentInstruction = decoder.DecodeInstruction(instructionRegister, cb);
+    }
+
+    private int executeLoadedInstruction() {
+        return currentInstruction.execute();
+    }
 
     /**
      * Executes the provided instruction and handles interrupt states.
@@ -145,20 +176,22 @@ public class DuckCPU {
      * @return The total T-Cycles consumed (Instruction + potential Interrupts).
      */
     public int execute() {
+        // If halted, basically a NOP so just load 4 cycles.
+        // Otherwise, execute the loaded instruction and get its cycle count
         int cycles = isHalted ? 4 : executeLoadedInstruction();
 
+        // Handle interrupt master enable delay
         if (imeDelayCounter > 0)
             imeDelayCounter--;
         if (imeDelayCounter == 0)
             interruptMasterEnable = true;
+
+        // Handle interrupts and add to cycle count
         if (handleInterrupts())
             cycles += 20;
 
+        // Return t-cycle count
         return cycles;
-    }
-
-    private int executeLoadedInstruction() {
-        return 0;
     }
 
     private boolean handleInterrupts() {
@@ -346,6 +379,10 @@ public class DuckCPU {
         c = val & 0xFF;
     }
 
+    public int getInstructionRegister() {
+        return instructionRegister;
+    }
+
     // =============================================================
     // FLAGS & CONTROL
     // =============================================================
@@ -377,6 +414,18 @@ public class DuckCPU {
 
     public void setStopped(boolean stopped) {
         isStopped = stopped;
+    }
+
+    public boolean isStopped() {
+        return isStopped;
+    }
+
+    public void setHaltBug() {
+        haltBug = true;
+    }
+
+    public boolean isHaltBug() {
+        return haltBug;
     }
 
     /**

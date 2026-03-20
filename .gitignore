@@ -11,3 +11,7 @@ gbctr.pdf
 *.lst
 *.jar
 pom.properties
+scripts
+src/test/java
+cache
+target

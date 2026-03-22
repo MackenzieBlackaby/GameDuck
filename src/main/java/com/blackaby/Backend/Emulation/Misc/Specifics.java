@@ -1,28 +1,31 @@
 package com.blackaby.Backend.Emulation.Misc;
 
 /**
- * This class contains specific values for the GameBoy system.
- * These values are used by other classes to maintain consistency.
+ * Hardware-wide constants for the original DMG model.
  */
-public class Specifics {
-    /**
-     * Display Width of Game Boy in pixels.
-     */
-    public static final int GB_DISPLAY_WIDTH = 160;
-    /**
-     * Display Height of Game Boy in pixels.
-     */
-    public static final int GB_DISPLAY_HEIGHT = 144;
-    /**
-     * Refresh rate of Game Boy in frames per second.
-     */
-    public static final int REFRESH_RATE = 60;
-    /**
-     * Cycles Per Second (Clock Speed) Of Game Boy
-     */
-    public static final double CPS = 4194304;
-    /**
-     * Nanoseconds Per Cycle of Game Boy's clock
-     */
-    public static final double NS_PER_CYCLE = 1_000_000_000.0 / CPS;
+public final class Specifics {
+
+    /** Game Boy display width in pixels. */
+    public static final int gameBoyDisplayWidth = 160;
+
+    /** Game Boy display height in pixels. */
+    public static final int gameBoyDisplayHeight = 144;
+
+    /** Nominal display refresh rate in frames per second. */
+    public static final int refreshRate = 60;
+
+    /** CPU clock rate in cycles per second. */
+    public static final double cyclesPerSecond = 4_194_304;
+
+    /** Length of one CPU cycle in nanoseconds. */
+    public static final double nanosecondsPerCycle = 1_000_000_000.0 / cyclesPerSecond;
+
+    @Deprecated public static final int GB_DISPLAY_WIDTH = gameBoyDisplayWidth;
+    @Deprecated public static final int GB_DISPLAY_HEIGHT = gameBoyDisplayHeight;
+    @Deprecated public static final int REFRESH_RATE = refreshRate;
+    @Deprecated public static final double CPS = cyclesPerSecond;
+    @Deprecated public static final double NS_PER_CYCLE = nanosecondsPerCycle;
+
+    private Specifics() {
+    }
 }

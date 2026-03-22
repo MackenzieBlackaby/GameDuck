@@ -6,136 +6,146 @@ import com.blackaby.Backend.Emulation.Memory.DuckAddresses;
 import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 
 /**
- * This class handles the logic for different CPU instructions
- * Each instruction will return the T-cycle count for that specific instruction
+ * Holds the shared implementation for decoded CPU instructions.
+ * <p>
+ * Each helper mutates the active CPU and memory state for one LR35902
+ * instruction and returns the number of T-cycles consumed by that operation.
  */
 public class InstructionLogic {
     private static DuckCPU cpu;
     private static DuckMemory memory;
 
     /**
-     * Link the logic to the CPU and Memory instances.
-     * MUST be called before execution starts.
+     * Binds the instruction helpers to the active CPU and memory instances.
+     *
+     * @param cpuInstance active CPU
+     * @param memoryInstance active memory bus
      */
-    public static void init(DuckCPU cpuInstance, DuckMemory memoryInstance) {
+    public static void Initialise(DuckCPU cpuInstance, DuckMemory memoryInstance) {
         cpu = cpuInstance;
         memory = memoryInstance;
     }
 
+    @Deprecated
+    public static void init(DuckCPU cpuInstance, DuckMemory memoryInstance) {
+        Initialise(cpuInstance, memoryInstance);
+    }
+
     /**
-     * Enum representing different types of bitwise operations
+     * Bitwise logic operations that target the accumulator.
      */
     public enum BitwiseType {
         AND, OR, XOR
     }
 
     /**
-     * Enum representing various locations that can be accessed by opeations
+     * Operand locations used by the decoder.
      */
     public enum OpLocation {
         REGISTER, HL_MEMORY, IMMEDIATE
     }
 
     /**
-     * Enum representing different arithmetic operations
+     * Arithmetic operations handled by the shared arithmetic helpers.
      */
     public enum ArithmeticType {
         ADD, SUB, CP
     }
 
     /**
-     * Enum representing different CB-prefixed bit operations
+     * CB-prefixed bit operations.
      */
     public enum BitOpType {
         BIT, RES, SET
     }
 
     /**
-     * Enum representing different rotate operations
+     * Rotate operations in both normal and CB-prefixed forms.
      */
     public enum RotateType {
         RL, RLA, RLC, RLCA, RR, RRA, RRC, RRCA
     }
 
     /**
-     * Enum representing different shift operations
+     * Shift operations in CB-prefixed space.
      */
     public enum ShiftType {
         SLA, SRA, SRL
     }
 
     /**
-     * Stop Instruction
-     * 
-     * @return 4 T cycles
+     * Executes `STOP`.
+     *
+     * @return 4 T-cycles
      */
     public static int Stop() {
-        cpu.setStopped(true);
+        memory.HandleStopInstruction();
         return 4;
     }
 
     /**
-     * Restart instruction
-     * 
-     * @param address the address to jump to - must be calculated
-     * @return 16 T cycles
+     * Executes `RST`.
+     *
+     * @param address restart vector
+     * @return 16 T-cycles
      */
     public static int Restart(int address) {
-        int pc = cpu.getPC();
-        memory.stackPushShort(pc);
-        cpu.setPC(address & 0xFFFF);
+        int pc = cpu.GetPC();
+        memory.StackPushShort(pc);
+        cpu.SetPC(address & 0xFFFF);
         return 16;
     }
 
     /**
-     * Nop instruction
-     * 
-     * @return 4 T cycles
+     * Executes `NOP`.
+     *
+     * @return 4 T-cycles
      */
     public static int Nop() {
         return 4;
     }
 
     /**
-     * Interrupt control
-     * 
-     * @param enable whether to enable interrupts or not
-     * @return 4 T cycles
+     * Executes `DI` or `EI`.
+     *
+     * @param enable `true` to schedule interrupt enable, `false` to disable IME
+     * @return 4 T-cycles
      */
     public static int InterruptControl(boolean enable) {
-        if (enable)
-            cpu.scheduleEnableInterrupts();
-        else
-            cpu.disableInterrupts();
-        return 4;
-    }
-
-    /**
-     * Halt instruction, with halt bug implemented
-     * 
-     * @return 4 T cycles
-     */
-    public static int Halt() {
-        int ie = memory.read(DuckAddresses.IE);
-        int ifFlag = memory.read(DuckAddresses.INTERRUPT_FLAG);
-        boolean interruptPending = (ie & ifFlag & 0x1F) != 0;
-        if (!cpu.isInterruptMasterEnable() && interruptPending) {
-            // TODO: Halt bug, Return 99 and check in execute
+        if (enable) {
+            cpu.ScheduleEnableInterrupts();
         } else {
-            cpu.setHalted(true);
+            cpu.DisableInterrupts();
         }
         return 4;
     }
 
     /**
-     * Set carry flag instruction
-     * 
-     * @return 4 T cycles
+     * Executes `HALT`, including the halt bug case.
+     *
+     * @return 4 T-cycles
+     */
+    public static int Halt() {
+        int ie = memory.Read(DuckAddresses.IE);
+        int ifFlag = memory.Read(DuckAddresses.INTERRUPT_FLAG);
+        boolean interruptPending = (ie & ifFlag & 0x1F) != 0;
+        if (!cpu.IsInterruptMasterEnable() && interruptPending) {
+            cpu.SetHaltBug();
+        } else {
+            cpu.SetHalted(true);
+        }
+        return 4;
+    }
+
+    /**
+     * Executes `SCF`.
+     *
+     * @return 4 T-cycles
      */
     public static int SetCarryFlag() {
-        cpu.setFlag(Flag.C, true);
-        cpu.setFlag(Flag.N, false);
-        cpu.setFlag(Flag.H, false);
+        cpu.SetFlag(Flag.C, true);
+        cpu.SetFlag(Flag.N, false);
+        cpu.SetFlag(Flag.H, false);
         return 4;
     }
 
@@ -147,9 +157,9 @@ public class InstructionLogic {
      * @return 8 T cycles
      */
     public static int IncrementDecrementShort(Register register, boolean isIncrement) {
-        int value = cpu.regGet16(register);
+        int value = cpu.GetRegisterPair(register);
         value = (value + (isIncrement ? 1 : -1)) & 0xFFFF;
-        cpu.regSet16(register, value);
+        cpu.SetRegisterPair(register, value);
         return 8;
     }
 
@@ -161,17 +171,17 @@ public class InstructionLogic {
      * @return 4 T cycles
      */
     public static int IncrementDecrementByteRegister(Register register, boolean isIncrement) {
-        int value = cpu.regGet(register);
+        int value = cpu.GetRegister(register);
         int oldValue = value;
         value = (value + (isIncrement ? 1 : -1)) & 0xFF;
-        cpu.regSet(register, value);
-        // Setting flags
-        cpu.setFlag(Flag.Z, value == 0);
-        cpu.setFlag(Flag.N, !isIncrement);
-        if (isIncrement)
-            cpu.setFlag(Flag.H, (oldValue & 0xF) == 0xF);
-        else
-            cpu.setFlag(Flag.H, (oldValue & 0xF) == 0x0);
+        cpu.SetRegister(register, value);
+        cpu.SetFlag(Flag.Z, value == 0);
+        cpu.SetFlag(Flag.N, !isIncrement);
+        if (isIncrement) {
+            cpu.SetFlag(Flag.H, (oldValue & 0xF) == 0xF);
+        } else {
+            cpu.SetFlag(Flag.H, (oldValue & 0xF) == 0x0);
+        }
         return 4;
     }
 
@@ -182,17 +192,17 @@ public class InstructionLogic {
      * @return 12 T cycles
      */
     public static int IncrementDecrementByteHL(boolean isIncrement) {
-        int value = memory.read(cpu.getHL());
+        int value = memory.Read(cpu.GetHL());
         int oldValue = value;
         value = (value + (isIncrement ? 1 : -1)) & 0xFF;
-        memory.write(cpu.getHL(), value);
-        // Setting flags
-        cpu.setFlag(Flag.Z, value == 0);
-        cpu.setFlag(Flag.N, !isIncrement);
-        if (isIncrement)
-            cpu.setFlag(Flag.H, (oldValue & 0xF) == 0xF);
-        else
-            cpu.setFlag(Flag.H, (oldValue & 0xF) == 0x0);
+        memory.Write(cpu.GetHL(), value);
+        cpu.SetFlag(Flag.Z, value == 0);
+        cpu.SetFlag(Flag.N, !isIncrement);
+        if (isIncrement) {
+            cpu.SetFlag(Flag.H, (oldValue & 0xF) == 0xF);
+        } else {
+            cpu.SetFlag(Flag.H, (oldValue & 0xF) == 0x0);
+        }
         return 12;
     }
 
@@ -202,20 +212,18 @@ public class InstructionLogic {
      * @return 4 T-cycles
      */
     public static int DecimalAdjustAccumulator() {
-        int a = cpu.getAccumulator();
+        int a = cpu.GetAccumulator();
         int correction = 0;
-        boolean n = cpu.getFlag(Flag.N);
-        boolean h = cpu.getFlag(Flag.H);
-        boolean c = cpu.getFlag(Flag.C);
+        boolean n = cpu.GetFlag(Flag.N);
+        boolean h = cpu.GetFlag(Flag.H);
+        boolean c = cpu.GetFlag(Flag.C);
         if (n) {
-            // Adjusting for subtraction
             if (c)
                 correction |= 0x60;
             if (h)
                 correction |= 0x06;
             a -= correction;
         } else {
-            // Adjusting for addition
             if (c || a > 0x99) {
                 correction |= 0x60;
                 c = true;
@@ -226,10 +234,10 @@ public class InstructionLogic {
             a += correction;
         }
         a &= 0xFF;
-        cpu.setAccumulator(a);
-
-        cpu.setFlag(Flag.Z, a == 0);
-        cpu.setFlag(Flag.H, false);
+        cpu.SetAccumulator(a);
+        cpu.SetFlag(Flag.Z, a == 0);
+        cpu.SetFlag(Flag.H, false);
+        cpu.SetFlag(Flag.C, c);
         return 4;
     }
 
@@ -239,11 +247,11 @@ public class InstructionLogic {
      * @return 4 T-cycles
      */
     public static int ComplementAccumulator() {
-        int a = cpu.getAccumulator();
+        int a = cpu.GetAccumulator();
         a = (~a) & 0xFF;
-        cpu.setAccumulator(a);
-        cpu.setFlag(Flag.N, true);
-        cpu.setFlag(Flag.H, true);
+        cpu.SetAccumulator(a);
+        cpu.SetFlag(Flag.N, true);
+        cpu.SetFlag(Flag.H, true);
         return 4;
     }
 
@@ -253,21 +261,19 @@ public class InstructionLogic {
      * @return 4 T-cycles
      */
     public static int ComplementCarryFlag() {
-        cpu.setFlag(Flag.C, !cpu.getFlag(Flag.C));
-        cpu.setFlag(Flag.N, false);
-        cpu.setFlag(Flag.H, false);
+        cpu.SetFlag(Flag.C, !cpu.GetFlag(Flag.C));
+        cpu.SetFlag(Flag.N, false);
+        cpu.SetFlag(Flag.H, false);
         return 4;
     }
 
-    // Sets the bitwise flags of the CPU
     private static void SetBitwiseFlags(int result, BitwiseType bitwiseType) {
-        cpu.setFlag(Flag.H, bitwiseType == BitwiseType.AND);
-        cpu.setFlag(Flag.Z, result == 0);
-        cpu.setFlag(Flag.N, false);
-        cpu.setFlag(Flag.C, false);
+        cpu.SetFlag(Flag.H, bitwiseType == BitwiseType.AND);
+        cpu.SetFlag(Flag.Z, result == 0);
+        cpu.SetFlag(Flag.N, false);
+        cpu.SetFlag(Flag.C, false);
     }
 
-    // Function to calculate the result of a bitwise operation
     private static int CalculateBitwiseOp(int a, int b, BitwiseType bitwiseType) {
         switch (bitwiseType) {
             case AND -> {
@@ -283,11 +289,10 @@ public class InstructionLogic {
         return -1;
     }
 
-    // Engine that links all the bitwise operations, simplifying things
     private static int BitwiseEngine(BitwiseType bitwiseType, int b) {
-        int a = cpu.getAccumulator();
+        int a = cpu.GetAccumulator();
         int result = CalculateBitwiseOp(a, b, bitwiseType);
-        cpu.setAccumulator(result);
+        cpu.SetAccumulator(result);
         SetBitwiseFlags(result, bitwiseType);
         return 4;
     }
@@ -299,7 +304,7 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int Bitwise(BitwiseType bitwiseType) {
-        BitwiseEngine(bitwiseType, memory.read(cpu.getHL()));
+        BitwiseEngine(bitwiseType, memory.Read(cpu.GetHL()));
         return 8;
     }
 
@@ -311,7 +316,7 @@ public class InstructionLogic {
      * @return 4 T-cycles
      */
     public static int Bitwise(BitwiseType bitwiseType, Register register) {
-        BitwiseEngine(bitwiseType, cpu.regGet(register));
+        BitwiseEngine(bitwiseType, cpu.GetRegister(register));
         return 4;
     }
 
@@ -327,8 +332,6 @@ public class InstructionLogic {
         return 8;
     }
 
-    // Calculates the half carry when the modifier and carry is added/subtracted
-    // from the positive register
     private static boolean CalculateHalfCarry(int positiveRegister, int modifier, int carry, ArithmeticType type) {
         if (type == ArithmeticType.ADD)
             return ((positiveRegister & 0xF) + (modifier & 0xF) + carry) > 0xF;
@@ -337,7 +340,6 @@ public class InstructionLogic {
 
     }
 
-    // Calculates carry by comparing the result to the boundaries of a 1 byte int
     private static boolean CalculateCarry(int result, ArithmeticType type) {
         if (type == ArithmeticType.ADD)
             return result > 0xFF;
@@ -347,23 +349,22 @@ public class InstructionLogic {
     }
 
     private static void ArithmeticEngine(int b, boolean usingCarry, ArithmeticType type) {
-        int a = cpu.getAccumulator();
+        int a = cpu.GetAccumulator();
         int result = 0;
-        int carry = (usingCarry && cpu.getFlag(Flag.C) ? 1 : 0);
+        int carry = (usingCarry && cpu.GetFlag(Flag.C) ? 1 : 0);
         int diff = (b + carry);
-        // Perform operation
         if (type == ArithmeticType.ADD)
             result = a + diff;
         else
             result = a - diff;
 
         if (type != ArithmeticType.CP)
-            cpu.setAccumulator(result);
+            cpu.SetAccumulator(result);
 
-        cpu.setFlag(Flag.Z, (result & 0xFF) == 0);
-        cpu.setFlag(Flag.N, type != ArithmeticType.ADD);
-        cpu.setFlag(Flag.C, CalculateCarry(result, type));
-        cpu.setFlag(Flag.H, CalculateHalfCarry(a, b, carry, type));
+        cpu.SetFlag(Flag.Z, (result & 0xFF) == 0);
+        cpu.SetFlag(Flag.N, type != ArithmeticType.ADD);
+        cpu.SetFlag(Flag.C, CalculateCarry(result, type));
+        cpu.SetFlag(Flag.H, CalculateHalfCarry(a, b, carry, type));
     }
 
     /**
@@ -387,7 +388,7 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int Arithmetic(ArithmeticType type, boolean usingCarry) {
-        ArithmeticEngine(memory.read(cpu.getHL()), usingCarry, type);
+        ArithmeticEngine(memory.Read(cpu.GetHL()), usingCarry, type);
         return 8;
     }
 
@@ -412,7 +413,7 @@ public class InstructionLogic {
      * @return 4 T-cycles
      */
     public static int Arithmetic(ArithmeticType type, Register register, boolean usingCarry) {
-        ArithmeticEngine(cpu.regGet(register), usingCarry, type);
+        ArithmeticEngine(cpu.GetRegister(register), usingCarry, type);
         return 4;
     }
 
@@ -448,43 +449,37 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int AddPairHL(Register registerPair) {
-        int hl = cpu.getHL();
-        int value = cpu.regGet16(registerPair);
+        int hl = cpu.GetHL();
+        int value = cpu.GetRegisterPair(registerPair);
         int result = hl + value;
-        cpu.setHL(result & 0xFFFF);
+        cpu.SetHL(result & 0xFFFF);
 
-        cpu.setFlag(Flag.N, false);
-        cpu.setFlag(Flag.H, (hl & 0xFFF) + (value & 0xFFF) > 0xFFF);
-        cpu.setFlag(Flag.C, result > 0xFFFF);
-        // Z is not affected
+        cpu.SetFlag(Flag.N, false);
+        cpu.SetFlag(Flag.H, (hl & 0xFFF) + (value & 0xFFF) > 0xFFF);
+        cpu.SetFlag(Flag.C, result > 0xFFFF);
         return 8;
     }
 
     public static int AddByteSP(int immediate) {
-        int sp = cpu.getSP();
-
+        int sp = cpu.GetSP();
         int signedOffset = (byte) immediate;
-        boolean halfCarry = ((sp & 0x0F) + (immediate & 0x0F)) > 0x0F;
-        boolean carry = ((sp & 0xFF) + (immediate & 0xFF)) > 0xFF;
-
         int result = (sp + signedOffset) & 0xFFFF;
+        int xor = sp ^ signedOffset ^ result;
 
-        cpu.setSP(result);
-
-        cpu.setFlag(Flag.Z, false);
-        cpu.setFlag(Flag.N, false);
-        cpu.setFlag(Flag.H, halfCarry);
-        cpu.setFlag(Flag.C, carry);
+        cpu.SetSP(result);
+        cpu.SetFlag(Flag.Z, false);
+        cpu.SetFlag(Flag.N, false);
+        cpu.SetFlag(Flag.H, (xor & 0x10) != 0);
+        cpu.SetFlag(Flag.C, (xor & 0x100) != 0);
         return 16;
-
     }
 
     private static void LoadRegisterEngineByte(Register destination, int value) {
-        cpu.regSet(destination, value);
+        cpu.SetRegister(destination, value);
     }
 
     private static void LoadRegisterEngineShort(Register destination, int value) {
-        cpu.regSet16(destination, value);
+        cpu.SetRegisterPair(destination, value);
     }
 
     /**
@@ -495,7 +490,7 @@ public class InstructionLogic {
      * @return 4 T-cycles
      */
     public static int LoadRegisterFromRegister(Register destination, Register source) {
-        LoadRegisterEngineByte(destination, cpu.regGet(source));
+        LoadRegisterEngineByte(destination, cpu.GetRegister(source));
         return 4;
     }
 
@@ -523,9 +518,8 @@ public class InstructionLogic {
         return 12;
     }
 
-    // Stores accumulator in given memory address
     private static void StoreAccumulatorInAddress(int address) {
-        memory.write(address, cpu.getAccumulator());
+        memory.Write(address, cpu.GetAccumulator());
     }
 
     /**
@@ -536,7 +530,7 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int AccumulatorToMemoryViaRegisterPair(Register registerPair) {
-        StoreAccumulatorInAddress(cpu.regGet16(registerPair));
+        StoreAccumulatorInAddress(cpu.GetRegisterPair(registerPair));
         return 8;
     }
 
@@ -547,8 +541,8 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int AccumulatorToMemoryViaHLIncrement() {
-        StoreAccumulatorInAddress(cpu.getHL());
-        cpu.setHL(cpu.getHL() + 1);
+        StoreAccumulatorInAddress(cpu.GetHL());
+        cpu.SetHL(cpu.GetHL() + 1);
         return 8;
     }
 
@@ -559,8 +553,8 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int AccumulatorToMemoryViaHLDecrement() {
-        StoreAccumulatorInAddress(cpu.getHL());
-        cpu.setHL(cpu.getHL() - 1);
+        StoreAccumulatorInAddress(cpu.GetHL());
+        cpu.SetHL(cpu.GetHL() - 1);
         return 8;
     }
 
@@ -597,7 +591,7 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int AccumulatorToMemoryWithCRegisterMask() {
-        AccumulatorToMemoryMasked(cpu.getC());
+        AccumulatorToMemoryMasked(cpu.GetC());
         return 8;
     }
 
@@ -608,7 +602,7 @@ public class InstructionLogic {
      * @return 12 T-cycles
      */
     public static int ImmediateToMemoryViaHL(int immediate) {
-        memory.write(cpu.getHL(), immediate);
+        memory.Write(cpu.GetHL(), immediate);
         return 12;
     }
 
@@ -618,16 +612,16 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int RegisterToMemoryViaHL(Register register) {
-        memory.write(cpu.getHL(), cpu.regGet(register));
+        memory.Write(cpu.GetHL(), cpu.GetRegister(register));
         return 8;
     }
 
     private static void LoadAccumulatorFromMemoryAddress(int address) {
-        cpu.setAccumulator(memory.read(address));
+        cpu.SetAccumulator(memory.Read(address));
     }
 
     public static int LoadAccumulatorFromMemoryViaRegisterPair(Register registerPair) {
-        LoadAccumulatorFromMemoryAddress(cpu.regGet16(registerPair));
+        LoadAccumulatorFromMemoryAddress(cpu.GetRegisterPair(registerPair));
         return 8;
     }
 
@@ -640,7 +634,7 @@ public class InstructionLogic {
 
     public static int LoadAccumulatorFromMemoryViaHLIncrement() {
         LoadAccumulatorFromMemoryViaRegisterPair(Register.HL);
-        cpu.setHL(cpu.getHL() + 1);
+        cpu.SetHL(cpu.GetHL() + 1);
         return 8;
     }
 
@@ -652,7 +646,7 @@ public class InstructionLogic {
      */
     public static int LoadAccumulatorFromMemoryViaHLDecrement() {
         LoadAccumulatorFromMemoryViaRegisterPair(Register.HL);
-        cpu.setHL(cpu.getHL() - 1);
+        cpu.SetHL(cpu.GetHL() - 1);
         return 8;
     }
 
@@ -673,7 +667,7 @@ public class InstructionLogic {
      * @param mask the immediate mask
      * @return 12 T-cycles
      */
-    public static int LoadACcumulatorFromMemoryViaMaskedImmediate(int mask) {
+    public static int LoadAccumulatorFromMemoryViaMaskedImmediate(int mask) {
         int maskedAddress = 0xFF00 | (mask & 0xFF);
         LoadAccumulatorFromMemoryAddress(maskedAddress);
         return 12;
@@ -685,8 +679,13 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int LoadAccumulatorFromMemoryViaCRegisterMask() {
-        LoadACcumulatorFromMemoryViaMaskedImmediate(cpu.getC());
+        LoadAccumulatorFromMemoryViaMaskedImmediate(cpu.GetC());
         return 8;
+    }
+
+    @Deprecated
+    public static int LoadACcumulatorFromMemoryViaMaskedImmediate(int mask) {
+        return LoadAccumulatorFromMemoryViaMaskedImmediate(mask);
     }
 
     /**
@@ -696,7 +695,7 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int LoadRegisterFromMemoryViaHL(Register register) {
-        cpu.regSet(register, memory.read(cpu.getHL()));
+        cpu.SetRegister(register, memory.Read(cpu.GetHL()));
         return 8;
     }
 
@@ -706,7 +705,7 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int SetSPToHL() {
-        cpu.setSP(cpu.getHL());
+        cpu.SetSP(cpu.GetHL());
         return 8;
     }
 
@@ -718,11 +717,24 @@ public class InstructionLogic {
      * @return 20 T-cycles
      */
     public static int StoreSPInAddressViaRegisterPair(Register registerPair) {
-        int sp = cpu.getSP();
-        int address1 = cpu.regGet16(registerPair);
+        int sp = cpu.GetSP();
+        int address1 = cpu.GetRegisterPair(registerPair);
         int address2 = (address1 + 1) & 0xFFFF;
-        memory.write(address1, sp & 0xFF);
-        memory.write(address2, (sp >> 8) & 0xFF);
+        memory.Write(address1, sp & 0xFF);
+        memory.Write(address2, (sp >> 8) & 0xFF);
+        return 20;
+    }
+
+    /**
+     * Stores the Stack Pointer (SP) in memory at the specified address.
+     *
+     * @param address the destination address
+     * @return 20 T-cycles
+     */
+    public static int StoreSPInImmediateAddress(int address) {
+        int sp = cpu.GetSP();
+        memory.Write(address, sp & 0xFF);
+        memory.Write((address + 1) & 0xFFFF, (sp >> 8) & 0xFF);
         return 20;
     }
 
@@ -733,18 +745,15 @@ public class InstructionLogic {
      * @return 12 T-cycles
      */
     public static int LoadToHLStackPointerPlusImmediate(int immediate) {
-        int sp = cpu.getSP();
+        int sp = cpu.GetSP();
         int signedOffset = (byte) immediate;
-        cpu.setHL(sp + signedOffset);
-
-        // H and C flags are calculated on the lower byte as an *unsigned* addition
-        boolean halfCarry = ((sp & 0x0F) + (immediate & 0x0F)) > 0x0F;
-        boolean carry = ((sp & 0xFF) + (immediate & 0xFF)) > 0xFF;
-
-        cpu.setFlag(Flag.Z, false);
-        cpu.setFlag(Flag.N, false);
-        cpu.setFlag(Flag.H, halfCarry);
-        cpu.setFlag(Flag.C, carry);
+        int result = (sp + signedOffset) & 0xFFFF;
+        int xor = sp ^ signedOffset ^ result;
+        cpu.SetHL(result);
+        cpu.SetFlag(Flag.Z, false);
+        cpu.SetFlag(Flag.N, false);
+        cpu.SetFlag(Flag.H, (xor & 0x10) != 0);
+        cpu.SetFlag(Flag.C, (xor & 0x100) != 0);
         return 12;
     }
 
@@ -755,8 +764,8 @@ public class InstructionLogic {
      * @return 12 T-cycles
      */
     public static int StackPopToRegisterPair(Register registerPair) {
-        int popped = memory.stackPopShort();
-        cpu.regSet16(registerPair, popped);
+        int popped = memory.StackPopShort();
+        cpu.SetRegisterPair(registerPair, popped);
         return 12;
     }
 
@@ -767,7 +776,7 @@ public class InstructionLogic {
      * @return 16 T-cycles
      */
     public static int StackPushFromRegisterPair(Register registerPair) {
-        memory.stackPushShort(cpu.regGet16(registerPair));
+        memory.StackPushShort(cpu.GetRegisterPair(registerPair));
         return 16;
     }
 
@@ -781,11 +790,10 @@ public class InstructionLogic {
 
         switch (opType) {
             case BIT:
-                cpu.setFlag(Flag.Z, (value & mask) == 0);
-                cpu.setFlag(Flag.N, false);
-                cpu.setFlag(Flag.H, true);
-                // C flag is not affected
-                return; // No value to write back
+                cpu.SetFlag(Flag.Z, (value & mask) == 0);
+                cpu.SetFlag(Flag.N, false);
+                cpu.SetFlag(Flag.H, true);
+                return;
             case RES:
                 result = value & ~mask;
                 break;
@@ -795,9 +803,9 @@ public class InstructionLogic {
         }
 
         if (register == Register.HL_ADDR) {
-            memory.write(cpu.getHL(), result);
+            memory.Write(cpu.GetHL(), result);
         } else {
-            cpu.regSet(register, result);
+            cpu.SetRegister(register, result);
         }
     }
 
@@ -810,7 +818,7 @@ public class InstructionLogic {
      * @return 8 T-cycles
      */
     public static int BitOperation(BitOpType opType, int bit, Register register) {
-        BitOpEngine(opType, bit, cpu.regGet(register), register);
+        BitOpEngine(opType, bit, cpu.GetRegister(register), register);
         return 8;
     }
 
@@ -822,13 +830,13 @@ public class InstructionLogic {
      * @return 12 T-cycles for BIT, 16 for RES/SET
      */
     public static int BitOperationHL(BitOpType opType, int bit) {
-        BitOpEngine(opType, bit, memory.read(cpu.getHL()), Register.HL_ADDR);
+        BitOpEngine(opType, bit, memory.Read(cpu.GetHL()), Register.HL_ADDR);
         return opType == BitOpType.BIT ? 12 : 16;
     }
 
     private static void RotateEngine(RotateType type, int value, Register register, boolean isCBPrefix) {
         int result;
-        boolean oldCarry = cpu.getFlag(Flag.C);
+        boolean oldCarry = cpu.GetFlag(Flag.C);
         boolean newCarry;
 
         switch (type) {
@@ -853,21 +861,21 @@ public class InstructionLogic {
                 result = (value >>> 1) | (oldCarry ? 0x80 : 0);
                 break;
             default:
-                return; // Should not happen
+                return;
         }
 
         result &= 0xFF;
 
         if (register == Register.HL_ADDR) {
-            memory.write(cpu.getHL(), result);
+            memory.Write(cpu.GetHL(), result);
         } else {
-            cpu.regSet(register, result);
+            cpu.SetRegister(register, result);
         }
 
-        cpu.setFlag(Flag.Z, isCBPrefix && (result == 0));
-        cpu.setFlag(Flag.N, false);
-        cpu.setFlag(Flag.H, false);
-        cpu.setFlag(Flag.C, newCarry);
+        cpu.SetFlag(Flag.Z, isCBPrefix && (result == 0));
+        cpu.SetFlag(Flag.N, false);
+        cpu.SetFlag(Flag.H, false);
+        cpu.SetFlag(Flag.C, newCarry);
     }
 
     /**
@@ -880,12 +888,12 @@ public class InstructionLogic {
     public static int Rotate(RotateType type, Register register) {
         boolean isCBPrefix = type != RotateType.RLA && type != RotateType.RLCA && type != RotateType.RRA
                 && type != RotateType.RRCA;
-        int value = (register == Register.HL_ADDR) ? memory.read(cpu.getHL()) : cpu.regGet(register);
+        int value = (register == Register.HL_ADDR) ? memory.Read(cpu.GetHL()) : cpu.GetRegister(register);
 
         RotateEngine(type, value, register, isCBPrefix);
 
         if (!isCBPrefix)
-            return 4; // RLA, RLCA, etc.
+            return 4;
         return (register == Register.HL_ADDR) ? 16 : 8;
     }
 
@@ -907,20 +915,20 @@ public class InstructionLogic {
                 result = value >>> 1;
                 break;
             default:
-                return; // Should not happen
+                return;
         }
         result &= 0xFF;
 
         if (register == Register.HL_ADDR) {
-            memory.write(cpu.getHL(), result);
+            memory.Write(cpu.GetHL(), result);
         } else {
-            cpu.regSet(register, result);
+            cpu.SetRegister(register, result);
         }
 
-        cpu.setFlag(Flag.Z, result == 0);
-        cpu.setFlag(Flag.N, false);
-        cpu.setFlag(Flag.H, false);
-        cpu.setFlag(Flag.C, newCarry);
+        cpu.SetFlag(Flag.Z, result == 0);
+        cpu.SetFlag(Flag.N, false);
+        cpu.SetFlag(Flag.H, false);
+        cpu.SetFlag(Flag.C, newCarry);
     }
 
     /**
@@ -931,7 +939,7 @@ public class InstructionLogic {
      * @return 8 T-cycles for registers, 16 for (HL)
      */
     public static int Shift(ShiftType type, Register register) {
-        int value = (register == Register.HL_ADDR) ? memory.read(cpu.getHL()) : cpu.regGet(register);
+        int value = (register == Register.HL_ADDR) ? memory.Read(cpu.GetHL()) : cpu.GetRegister(register);
         ShiftEngine(type, value, register);
         return (register == Register.HL_ADDR) ? 16 : 8;
     }
@@ -943,19 +951,19 @@ public class InstructionLogic {
      * @return 8 T-cycles for registers, 16 for (HL)
      */
     public static int Swap(Register register) {
-        int value = (register == Register.HL_ADDR) ? memory.read(cpu.getHL()) : cpu.regGet(register);
+        int value = (register == Register.HL_ADDR) ? memory.Read(cpu.GetHL()) : cpu.GetRegister(register);
         int result = ((value & 0x0F) << 4) | ((value & 0xF0) >> 4);
 
         if (register == Register.HL_ADDR) {
-            memory.write(cpu.getHL(), result);
+            memory.Write(cpu.GetHL(), result);
         } else {
-            cpu.regSet(register, result);
+            cpu.SetRegister(register, result);
         }
 
-        cpu.setFlag(Flag.Z, result == 0);
-        cpu.setFlag(Flag.N, false);
-        cpu.setFlag(Flag.H, false);
-        cpu.setFlag(Flag.C, false);
+        cpu.SetFlag(Flag.Z, result == 0);
+        cpu.SetFlag(Flag.N, false);
+        cpu.SetFlag(Flag.H, false);
+        cpu.SetFlag(Flag.C, false);
 
         return (register == Register.HL_ADDR) ? 16 : 8;
     }
@@ -975,17 +983,17 @@ public class InstructionLogic {
      */
     public static int Jump(boolean conditionMet, boolean isRelative, boolean isHL, int operand) {
         if (!conditionMet) {
-            return isRelative ? 8 : 12; // Cycles for not taking jump
+            return isRelative ? 8 : 12;
         }
 
         if (isHL) {
-            cpu.setPC(cpu.getHL());
+            cpu.SetPC(cpu.GetHL());
             return 4;
         } else if (isRelative) {
-            cpu.setPC(cpu.getPC() + (byte) operand);
+            cpu.SetPC(cpu.GetPC() + (byte) operand);
             return 12;
         } else {
-            cpu.setPC(operand);
+            cpu.SetPC(operand);
             return 16;
         }
     }
@@ -1001,8 +1009,8 @@ public class InstructionLogic {
         if (!conditionMet) {
             return 12;
         }
-        memory.stackPushShort(cpu.getPC());
-        cpu.setPC(address);
+        memory.StackPushShort(cpu.GetPC());
+        cpu.SetPC(address);
         return 24;
     }
 
@@ -1013,14 +1021,14 @@ public class InstructionLogic {
      * @param isInterrupt  true if this is a RETI instruction
      * @return T-cycles (8 if not taken, 16/20 if taken)
      */
-    public static int Return(boolean conditionMet, boolean isInterrupt) {
+    public static int Return(boolean conditionMet, boolean isInterrupt, boolean isConditional) {
         if (!conditionMet) {
             return 8;
         }
-        cpu.setPC(memory.stackPopShort());
+        cpu.SetPC(memory.StackPopShort());
         if (isInterrupt) {
-            cpu.scheduleEnableInterrupts();
+            cpu.EnableInterruptsImmediately();
         }
-        return 16;
+        return isConditional ? 20 : 16;
     }
 }

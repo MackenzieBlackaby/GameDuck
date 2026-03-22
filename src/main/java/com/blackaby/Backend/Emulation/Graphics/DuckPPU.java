@@ -1,60 +1,64 @@
 package com.blackaby.Backend.Emulation.Graphics;
 
-import java.awt.Color;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-import com.blackaby.Frontend.DuckDisplay;
-import com.blackaby.Misc.Settings;
-import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 import com.blackaby.Backend.Emulation.CPU.DuckCPU;
 import com.blackaby.Backend.Emulation.CPU.DuckSprite;
 import com.blackaby.Backend.Emulation.Memory.DuckAddresses;
+import com.blackaby.Backend.Emulation.Memory.DuckMemory;
+import com.blackaby.Frontend.DuckDisplay;
+import com.blackaby.Misc.Settings;
 
 /**
- * Emulates the Pixel Processing Unit (PPU) of the Game Boy.
+ * Emulates the Game Boy pixel processing unit.
  * <p>
- * Handles the LCD State Machine (OAM -> VRAM -> HBLANK -> VBLANK),
- * Background rendering, Sprite rendering, and Interrupt generation.
- * </p>
+ * The PPU advances one T-cycle at a time, manages the LCD mode state machine,
+ * renders background, window, and sprite pixels, and raises the matching LCD
+ * interrupts.
  */
 public class DuckPPU {
 
-    // --- Timing Constants ---
-    public static final int OAM_DURATION = 80;
-    public static final int VRAM_DURATION = 172;
-    public static final int HBLANK_DURATION = 204;
-    private static final int SCANLINE_CYCLES = 456;
-    private static final int VBLANK_LINES = 10;
-    private static final int SCREEN_HEIGHT = 144;
-    private static final int SCREEN_WIDTH = 160;
+    public record PpuState(
+            int modeOrdinal,
+            int scanline,
+            int cycle,
+            boolean statInterruptLine) implements java.io.Serializable {
+    }
 
-    // --- Register Addresses ---
-    private static final int REG_LCDC = DuckAddresses.LCDC;
-    private static final int REG_STAT = DuckAddresses.STAT;
-    private static final int REG_SCY = DuckAddresses.SCY;
-    private static final int REG_SCX = DuckAddresses.SCX;
-    private static final int REG_LY = DuckAddresses.LY;
-    private static final int REG_LYC = DuckAddresses.LYC;
-    private static final int REG_BGP = DuckAddresses.BGP;
-    private static final int REG_OBP0 = DuckAddresses.OBP0;
-    private static final int REG_OBP1 = DuckAddresses.OBP1;
+    public static final int oamDuration = 80;
+    public static final int vramDuration = 172;
 
-    // Window Registers (Unused in this version, but kept for reference)
-    // private static final int REG_WY = DuckAddresses.WY;
-    // private static final int REG_WX = DuckAddresses.WX;
+    @Deprecated public static final int OAM_DURATION = oamDuration;
+    @Deprecated public static final int VRAM_DURATION = vramDuration;
 
-    // --- Mode Definitions ---
-    private enum PPUMode {
+    private static final int scanlineCycles = 456;
+    private static final int vblankLines = 10;
+    private static final int screenHeight = 144;
+    private static final int screenWidth = 160;
+
+    private static final int regLcdc = DuckAddresses.LCDC;
+    private static final int regStat = DuckAddresses.STAT;
+    private static final int regScy = DuckAddresses.SCY;
+    private static final int regScx = DuckAddresses.SCX;
+    private static final int regLy = DuckAddresses.LY;
+    private static final int regLyc = DuckAddresses.LYC;
+    private static final int regBgp = DuckAddresses.BGP;
+    private static final int regObp0 = DuckAddresses.OBP0;
+    private static final int regObp1 = DuckAddresses.OBP1;
+    private static final int regWy = DuckAddresses.WY;
+    private static final int regWx = DuckAddresses.WX;
+
+    private enum PpuMode {
         HBLANK(0),
         VBLANK(1),
         OAM(2),
         VRAM(3);
 
-        final int flag;
+        private final int flag;
 
-        PPUMode(int flag) {
+        PpuMode(int flag) {
             this.flag = flag;
         }
     }
@@ -62,286 +66,467 @@ public class DuckPPU {
     private final DuckCPU cpu;
     private final DuckMemory memory;
     private final DuckDisplay display;
+    private final int[] backgroundPriorityBuffer = new int[screenWidth];
+    private final boolean[] backgroundTilePriorityBuffer = new boolean[screenWidth];
 
-    private PPUMode mode;
-    private int scanline = 0;
-    private int cycle = 0;
+    private PpuMode mode;
+    private int scanline;
+    private int cycle;
+    private boolean statInterruptLine;
 
-    // Optimization: Buffer to store BG color IDs (0-3) for the current scanline.
-    // Used to determine if a Sprite should appear behind the BG.
-    private final int[] bgPriorityBuffer = new int[SCREEN_WIDTH];
-
+    /**
+     * Creates a PPU bound to the current CPU, memory bus, and display target.
+     *
+     * @param cpu CPU for interrupt requests
+     * @param memory memory bus
+     * @param display host display surface
+     */
     public DuckPPU(DuckCPU cpu, DuckMemory memory, DuckDisplay display) {
         this.cpu = cpu;
         this.memory = memory;
         this.display = display;
-        this.mode = PPUMode.OAM;
+        mode = PpuMode.OAM;
     }
 
     /**
-     * Steps the PPU by one T-Cycle (4MHz).
+     * Advances the PPU by one T-cycle.
      */
-    public void step() {
-        int lcdc = memory.read(REG_LCDC);
-
-        // Check if LCD is Disabled (Bit 7 of LCDC)
-        if ((lcdc & 0x80) == 0) {
-            handleLCDDisabled();
+    public void Step() {
+        int lcdControl = memory.Read(regLcdc);
+        if ((lcdControl & 0x80) == 0) {
+            HandleLcdDisabled();
             return;
         }
 
         cycle++;
 
         switch (mode) {
-            case OAM:
-                if (cycle >= OAM_DURATION) {
-                    cycle -= OAM_DURATION;
-                    setMode(PPUMode.VRAM);
+            case OAM -> {
+                if (cycle >= oamDuration) {
+                    cycle -= oamDuration;
+                    SetMode(PpuMode.VRAM);
                 }
-                break;
-            case VRAM:
-                if (cycle >= VRAM_DURATION) {
-                    cycle -= VRAM_DURATION;
-                    setMode(PPUMode.HBLANK);
-                    // Render the scanline at the end of VRAM mode
-                    renderScanline();
-                }
-                break;
-            case HBLANK:
-                if (cycle >= HBLANK_DURATION) {
-                    cycle -= HBLANK_DURATION;
-                    scanline++;
-
-                    memory.write(REG_LY, scanline);
-                    updateLYCCompare();
-
-                    if (scanline == SCREEN_HEIGHT) {
-                        setMode(PPUMode.VBLANK);
-                        cpu.requestInterrupt(DuckCPU.Interrupt.VBLANK);
-                        display.repaint(); // Frame finished
-                    } else {
-                        setMode(PPUMode.OAM);
-                    }
-                }
-                break;
-            case VBLANK:
-                if (cycle >= SCANLINE_CYCLES) {
-                    cycle -= SCANLINE_CYCLES;
-                    scanline++;
-
-                    if (scanline >= SCREEN_HEIGHT + VBLANK_LINES) {
-                        scanline = 0;
-                        setMode(PPUMode.OAM);
-                    }
-
-                    memory.write(REG_LY, scanline);
-                    updateLYCCompare();
-                }
-                break;
-        }
-    }
-
-    private void handleLCDDisabled() {
-        scanline = 0;
-        cycle = 0;
-        mode = PPUMode.HBLANK;
-        memory.write(REG_LY, 0);
-
-        int stat = memory.read(REG_STAT);
-        memory.write(REG_STAT, stat & 0xFC);
-    }
-
-    private void setMode(PPUMode newMode) {
-        this.mode = newMode;
-        int stat = memory.read(REG_STAT);
-
-        stat = (stat & 0xFC) | newMode.flag;
-        memory.write(REG_STAT, stat);
-
-        // Handle STAT Interrupts
-        boolean requestInt = false;
-        if (newMode == PPUMode.HBLANK && (stat & 0x08) != 0)
-            requestInt = true;
-        if (newMode == PPUMode.VBLANK && (stat & 0x10) != 0)
-            requestInt = true;
-        if (newMode == PPUMode.OAM && (stat & 0x20) != 0)
-            requestInt = true;
-
-        if (requestInt) {
-            cpu.requestInterrupt(DuckCPU.Interrupt.LCD_STAT);
-        }
-    }
-
-    private void updateLYCCompare() {
-        int ly = memory.read(REG_LY);
-        int lyc = memory.read(REG_LYC);
-        int stat = memory.read(REG_STAT);
-
-        if (ly == lyc) {
-            stat |= 0x04;
-            if ((stat & 0x40) != 0) {
-                cpu.requestInterrupt(DuckCPU.Interrupt.LCD_STAT);
             }
-        } else {
-            stat &= ~0x04;
+            case VRAM -> {
+                if (cycle >= vramDuration) {
+                    cycle -= vramDuration;
+                    SetMode(PpuMode.HBLANK);
+                    RenderScanline();
+                }
+            }
+            case HBLANK -> {
+                if (cycle >= scanlineCycles - oamDuration - vramDuration) {
+                    cycle -= scanlineCycles - oamDuration - vramDuration;
+                    scanline++;
+
+                    memory.WriteDirect(regLy, scanline);
+                    UpdateLycCompare();
+
+                    if (scanline == screenHeight) {
+                        SetMode(PpuMode.VBLANK);
+                        cpu.RequestInterrupt(DuckCPU.Interrupt.VBLANK);
+                        display.presentFrame();
+                    } else {
+                        SetMode(PpuMode.OAM);
+                    }
+                }
+            }
+            case VBLANK -> {
+                if (cycle >= scanlineCycles) {
+                    cycle -= scanlineCycles;
+                    scanline++;
+
+                    if (scanline >= screenHeight + vblankLines) {
+                        scanline = 0;
+                        SetMode(PpuMode.OAM);
+                    }
+
+                    memory.WriteDirect(regLy, scanline);
+                    UpdateLycCompare();
+                }
+            }
         }
-        memory.write(REG_STAT, stat);
     }
 
     /**
-     * Renders one complete line of pixels (BG + Sprites).
+     * Captures the live LCD mode machine state.
+     *
+     * @return PPU state snapshot
      */
-    private void renderScanline() {
-        int lcdc = memory.read(REG_LCDC);
+    public PpuState CaptureState() {
+        return new PpuState(mode.ordinal(), scanline, cycle, statInterruptLine);
+    }
 
-        // Clear priority buffer
-        for (int i = 0; i < SCREEN_WIDTH; i++)
-            bgPriorityBuffer[i] = 0;
+    /**
+     * Restores the live LCD mode machine state.
+     *
+     * @param state PPU snapshot to restore
+     */
+    public void RestoreState(PpuState state) {
+        if (state == null) {
+            throw new IllegalArgumentException("A PPU quick state is required.");
+        }
 
-        // 1. Render Background
-        if ((lcdc & 0x01) != 0) {
-            renderBackground(lcdc);
+        PpuMode[] modes = PpuMode.values();
+        int ordinal = Math.max(0, Math.min(modes.length - 1, state.modeOrdinal()));
+        mode = modes[ordinal];
+        scanline = state.scanline();
+        cycle = Math.max(0, state.cycle());
+        statInterruptLine = state.statInterruptLine();
+    }
+
+    private void HandleLcdDisabled() {
+        scanline = 0;
+        cycle = 0;
+        mode = PpuMode.HBLANK;
+        statInterruptLine = false;
+        memory.WriteDirect(regLy, 0);
+
+        int stat = memory.Read(regStat);
+        memory.WriteDirect(regStat, (stat & 0xFC) | 0x80);
+    }
+
+    private void SetMode(PpuMode newMode) {
+        mode = newMode;
+        int stat = memory.Read(regStat);
+        memory.WriteDirect(regStat, (stat & 0xFC) | newMode.flag);
+        UpdateStatInterruptLine();
+    }
+
+    private void UpdateLycCompare() {
+        int ly = memory.Read(regLy);
+        int lyc = memory.Read(regLyc);
+        int stat = memory.Read(regStat);
+
+        if (ly == lyc) {
+            stat |= 0x04;
         } else {
-            // FIX: Use Color object instead of int
-            Color white = Settings.GB_COLOR_0_OBJ.toColor();
-            for (int x = 0; x < SCREEN_WIDTH; x++) {
+            stat &= ~0x04;
+        }
+
+        memory.WriteDirect(regStat, stat);
+        UpdateStatInterruptLine();
+    }
+
+    private void UpdateStatInterruptLine() {
+        int stat = memory.Read(regStat);
+        boolean coincidence = (stat & 0x04) != 0;
+        boolean lineHigh = (mode == PpuMode.HBLANK && (stat & 0x08) != 0)
+                || (mode == PpuMode.VBLANK && (stat & 0x10) != 0)
+                || (mode == PpuMode.OAM && (stat & 0x20) != 0)
+                || (coincidence && (stat & 0x40) != 0);
+
+        if (lineHigh && !statInterruptLine) {
+            cpu.RequestInterrupt(DuckCPU.Interrupt.LCD_STAT);
+        }
+
+        statInterruptLine = lineHigh;
+    }
+
+    private void RenderScanline() {
+        int lcdControl = memory.Read(regLcdc);
+        boolean cgbMode = memory.IsCgbMode();
+        boolean useGbcColourisation = ShouldUseGbcColourisation();
+        int[] activeBackgroundPalette = cgbMode ? null : ActiveBackgroundPaletteRgb(useGbcColourisation);
+        int[] activeSpritePalette0 = cgbMode ? null : ActiveSpritePalette0Rgb(useGbcColourisation);
+        int[] activeSpritePalette1 = cgbMode ? null : ActiveSpritePalette1Rgb(useGbcColourisation);
+
+        for (int x = 0; x < screenWidth; x++) {
+            backgroundPriorityBuffer[x] = 0;
+            backgroundTilePriorityBuffer[x] = false;
+        }
+
+        if (cgbMode || (lcdControl & 0x01) != 0) {
+            RenderBackground(lcdControl, activeBackgroundPalette);
+            if ((lcdControl & 0x20) != 0) {
+                RenderWindow(lcdControl, activeBackgroundPalette);
+            }
+        } else {
+            int white = activeBackgroundPalette[0];
+            for (int x = 0; x < screenWidth; x++) {
                 display.setPixel(x, scanline, white, false);
             }
         }
 
-        // 2. Render Sprites
-        if ((lcdc & 0x02) != 0) {
-            renderSprites(lcdc);
+        if ((lcdControl & 0x02) != 0) {
+            RenderSprites(lcdControl, activeSpritePalette0, activeSpritePalette1);
         }
     }
 
-    private void renderBackground(int lcdc) {
-        int scrollY = memory.read(REG_SCY);
-        int scrollX = memory.read(REG_SCX);
-        int bgPalette = memory.read(REG_BGP);
+    private void RenderBackground(int lcdControl, int[] activeBackgroundPalette) {
+        int scrollY = memory.Read(regScy);
+        int scrollX = memory.Read(regScx);
+        boolean cgbMode = memory.IsCgbMode();
+        int[] backgroundPalette = cgbMode ? null : DecodePalette(memory.Read(regBgp), activeBackgroundPalette);
 
-        boolean unsignedData = (lcdc & 0x10) != 0;
-        int tileMapBase = ((lcdc & 0x08) != 0) ? 0x9C00 : 0x9800;
-        int tileDataBase = unsignedData ? 0x8000 : 0x9000;
+        boolean unsignedTileData = (lcdControl & 0x10) != 0;
+        int tileMapBase = ((lcdControl & 0x08) != 0) ? 0x9C00 : 0x9800;
+        int tileDataBase = unsignedTileData ? 0x8000 : 0x9000;
 
-        int yPos = (scanline + scrollY) & 0xFF;
-        int tileRow = yPos / 8;
+        int yPosition = (scanline + scrollY) & 0xFF;
+        int tileRow = yPosition / 8;
 
-        for (int x = 0; x < SCREEN_WIDTH; x++) {
-            int xPos = (x + scrollX) & 0xFF;
-            int tileCol = xPos / 8;
+        for (int x = 0; x < screenWidth; x++) {
+            int xPosition = (x + scrollX) & 0xFF;
+            int tileColumn = xPosition / 8;
 
-            int tileAddress = tileMapBase + (tileRow * 32) + tileCol;
-            int tileNum = memory.read(tileAddress);
-
-            if (!unsignedData) {
-                tileNum = (byte) tileNum;
+            int tileAddress = tileMapBase + (tileRow * 32) + tileColumn;
+            int tileNumber = cgbMode ? memory.ReadVideoRam(0, tileAddress) : memory.Read(tileAddress);
+            int tileAttributes = cgbMode ? memory.ReadVideoRam(1, tileAddress) : 0;
+            if (!unsignedTileData) {
+                tileNumber = (byte) tileNumber;
             }
 
-            int location = tileDataBase + (tileNum * 16);
-            int line = (yPos % 8) * 2;
-            int b1 = memory.read(location + line);
-            int b2 = memory.read(location + line + 1);
+            int tileLineAddress = tileDataBase + (tileNumber * 16);
+            int tileLine = yPosition % 8;
+            if (cgbMode && (tileAttributes & 0x40) != 0) {
+                tileLine = 7 - tileLine;
+            }
+            int lineOffset = tileLine * 2;
+            int vramBank = cgbMode && (tileAttributes & 0x08) != 0 ? 1 : 0;
+            int lowByte = cgbMode
+                    ? memory.ReadVideoRam(vramBank, tileLineAddress + lineOffset)
+                    : memory.Read(tileLineAddress + lineOffset);
+            int highByte = cgbMode
+                    ? memory.ReadVideoRam(vramBank, tileLineAddress + lineOffset + 1)
+                    : memory.Read(tileLineAddress + lineOffset + 1);
 
-            int bit = 7 - (xPos % 8);
-            int hi = (b2 >> bit) & 1;
-            int lo = (b1 >> bit) & 1;
-            int colorIndex = (hi << 1) | lo;
+            int bit = 7 - (xPosition % 8);
+            if (cgbMode && (tileAttributes & 0x20) != 0) {
+                bit = xPosition % 8;
+            }
+            int high = (highByte >> bit) & 1;
+            int low = (lowByte >> bit) & 1;
+            int colourIndex = (high << 1) | low;
 
-            bgPriorityBuffer[x] = colorIndex;
+            backgroundPriorityBuffer[x] = colourIndex;
+            backgroundTilePriorityBuffer[x] = cgbMode && (tileAttributes & 0x80) != 0;
 
-            GBColor color = getPaletteColor(colorIndex, bgPalette);
-            display.setPixel(x, scanline, color.toColor(), false);
+            int colour = cgbMode
+                    ? memory.ReadCgbBackgroundPaletteColourRgb(tileAttributes & 0x07, colourIndex)
+                    : backgroundPalette[colourIndex];
+            display.setPixel(x, scanline, colour, false);
         }
     }
 
-    private void renderSprites(int lcdc) {
-        boolean use8x16 = (lcdc & 0x04) != 0;
-        List<DuckSprite> sprites = getSpritesOnScanline(use8x16);
+    private void RenderWindow(int lcdControl, int[] activeBackgroundPalette) {
+        int windowY = memory.Read(regWy);
+        int windowX = memory.Read(regWx) - 7;
+        if (scanline < windowY || windowX >= screenWidth) {
+            return;
+        }
 
-        for (DuckSprite sprite : sprites) {
-            drawSprite(sprite, use8x16);
+        boolean cgbMode = memory.IsCgbMode();
+        int[] backgroundPalette = cgbMode ? null : DecodePalette(memory.Read(regBgp), activeBackgroundPalette);
+        boolean unsignedTileData = (lcdControl & 0x10) != 0;
+        int tileMapBase = ((lcdControl & 0x40) != 0) ? 0x9C00 : 0x9800;
+        int tileDataBase = unsignedTileData ? 0x8000 : 0x9000;
+        int yPosition = scanline - windowY;
+        int tileRow = yPosition / 8;
+        int startX = Math.max(windowX, 0);
+
+        for (int x = startX; x < screenWidth; x++) {
+            int xPosition = x - windowX;
+            int tileColumn = xPosition / 8;
+
+            int tileAddress = tileMapBase + (tileRow * 32) + tileColumn;
+            int tileNumber = cgbMode ? memory.ReadVideoRam(0, tileAddress) : memory.Read(tileAddress);
+            int tileAttributes = cgbMode ? memory.ReadVideoRam(1, tileAddress) : 0;
+            if (!unsignedTileData) {
+                tileNumber = (byte) tileNumber;
+            }
+
+            int tileLineAddress = tileDataBase + (tileNumber * 16);
+            int tileLine = yPosition % 8;
+            if (cgbMode && (tileAttributes & 0x40) != 0) {
+                tileLine = 7 - tileLine;
+            }
+            int lineOffset = tileLine * 2;
+            int vramBank = cgbMode && (tileAttributes & 0x08) != 0 ? 1 : 0;
+            int lowByte = cgbMode
+                    ? memory.ReadVideoRam(vramBank, tileLineAddress + lineOffset)
+                    : memory.Read(tileLineAddress + lineOffset);
+            int highByte = cgbMode
+                    ? memory.ReadVideoRam(vramBank, tileLineAddress + lineOffset + 1)
+                    : memory.Read(tileLineAddress + lineOffset + 1);
+
+            int bit = 7 - (xPosition % 8);
+            if (cgbMode && (tileAttributes & 0x20) != 0) {
+                bit = xPosition % 8;
+            }
+            int high = (highByte >> bit) & 1;
+            int low = (lowByte >> bit) & 1;
+            int colourIndex = (high << 1) | low;
+
+            backgroundPriorityBuffer[x] = colourIndex;
+            backgroundTilePriorityBuffer[x] = cgbMode && (tileAttributes & 0x80) != 0;
+
+            int colour = cgbMode
+                    ? memory.ReadCgbBackgroundPaletteColourRgb(tileAttributes & 0x07, colourIndex)
+                    : backgroundPalette[colourIndex];
+            display.setPixel(x, scanline, colour, false);
         }
     }
 
-    private void drawSprite(DuckSprite sprite, boolean use8x16) {
-        // Use the cleaner helper methods from the updated DuckSprite class
+    private void RenderSprites(int lcdControl, int[] activeSpritePalette0, int[] activeSpritePalette1) {
+        boolean use8x16 = (lcdControl & 0x04) != 0;
+        List<DuckSprite> visibleSprites = GetSpritesOnScanline(use8x16);
+        for (DuckSprite sprite : visibleSprites) {
+            DrawSprite(sprite, use8x16, activeSpritePalette0, activeSpritePalette1);
+        }
+    }
+
+    private void DrawSprite(DuckSprite sprite, boolean use8x16, int[] activeSpritePalette0, int[] activeSpritePalette1) {
+        boolean cgbMode = memory.IsCgbMode();
         int spriteHeight = use8x16 ? 16 : 8;
-        int paletteReg = sprite.usePalette1() ? REG_OBP1 : REG_OBP0;
-        int palette = memory.read(paletteReg);
+        int paletteRegister = sprite.UsesPalette1() ? regObp1 : regObp0;
+        int[] palette = cgbMode
+                ? null
+                : DecodePalette(memory.Read(paletteRegister),
+                        sprite.UsesPalette1() ? activeSpritePalette1 : activeSpritePalette0);
 
         int line = scanline - sprite.y;
-
-        if (sprite.isYFlip()) {
+        if (sprite.IsYFlip()) {
             line = spriteHeight - 1 - line;
         }
 
         int tileIndex = sprite.tileIndex;
-        if (use8x16)
+        if (use8x16) {
             tileIndex &= 0xFE;
+            if (line >= 8) {
+                tileIndex |= 0x01;
+                line -= 8;
+            }
+        }
 
-        int tileAddr = 0x8000 + (tileIndex * 16) + (line * 2);
-        int b1 = memory.read(tileAddr);
-        int b2 = memory.read(tileAddr + 1);
+        int tileAddress = 0x8000 + (tileIndex * 16) + (line * 2);
+        int lowByte = cgbMode ? memory.ReadVideoRam(sprite.VramBank(), tileAddress) : memory.Read(tileAddress);
+        int highByte = cgbMode ? memory.ReadVideoRam(sprite.VramBank(), tileAddress + 1) : memory.Read(tileAddress + 1);
 
         for (int x = 0; x < 8; x++) {
             int pixelX = sprite.x + x;
-
-            if (pixelX < 0 || pixelX >= SCREEN_WIDTH)
+            if (pixelX < 0 || pixelX >= screenWidth) {
                 continue;
-
-            // Cleaner X-Flip check
-            int bit = sprite.isXFlip() ? x : 7 - x;
-
-            int hi = (b2 >> bit) & 1;
-            int lo = (b1 >> bit) & 1;
-            int colorIndex = (hi << 1) | lo;
-
-            if (colorIndex == 0)
-                continue; // Transparent
-
-            // Cleaner Priority Check
-            if (sprite.isPriorityInternal() && bgPriorityBuffer[pixelX] != 0)
-                continue;
-
-            GBColor color = getPaletteColor(colorIndex, palette);
-            display.setPixel(pixelX, scanline, color.toColor(), false);
-        }
-    }
-
-    private List<DuckSprite> getSpritesOnScanline(boolean use8x16) {
-        List<DuckSprite> visible = new ArrayList<>();
-        int height = use8x16 ? 16 : 8;
-
-        for (int i = 0; i < 40; i++) {
-            int addr = 0xFE00 + (i * 4);
-            int y = memory.read(addr) - 16;
-            int x = memory.read(addr + 1) - 8;
-            int tile = memory.read(addr + 2);
-            int attr = memory.read(addr + 3);
-
-            if (scanline >= y && scanline < (y + height)) {
-                visible.add(new DuckSprite(y, x, tile, attr));
             }
 
-            if (visible.size() >= 10)
+            int bit = sprite.IsXFlip() ? x : 7 - x;
+            int high = (highByte >> bit) & 1;
+            int low = (lowByte >> bit) & 1;
+            int colourIndex = (high << 1) | low;
+
+            if (colourIndex == 0) {
+                continue;
+            }
+
+            if (cgbMode) {
+                boolean bgMasterPriority = (memory.Read(regLcdc) & 0x01) != 0;
+                if (bgMasterPriority && backgroundPriorityBuffer[pixelX] != 0
+                        && (sprite.IsPriorityInternal() || backgroundTilePriorityBuffer[pixelX])) {
+                    continue;
+                }
+            } else if (sprite.IsPriorityInternal() && backgroundPriorityBuffer[pixelX] != 0) {
+                continue;
+            }
+
+            int colour = cgbMode
+                    ? memory.ReadCgbObjectPaletteColourRgb(sprite.CgbPaletteIndex(), colourIndex)
+                    : palette[colourIndex];
+            display.setPixel(pixelX, scanline, colour, false);
+        }
+    }
+
+    private List<DuckSprite> GetSpritesOnScanline(boolean use8x16) {
+        List<DuckSprite> visibleSprites = new ArrayList<>();
+        int spriteHeight = use8x16 ? 16 : 8;
+
+        for (int index = 0; index < 40; index++) {
+            int address = 0xFE00 + (index * 4);
+            int y = memory.Read(address) - 16;
+            int x = memory.Read(address + 1) - 8;
+            int tile = memory.Read(address + 2);
+            int attributes = memory.Read(address + 3);
+
+            if (scanline >= y && scanline < (y + spriteHeight)) {
+                visibleSprites.add(new DuckSprite(y, x, tile, attributes));
+            }
+
+            if (visibleSprites.size() >= 10) {
                 break;
+            }
         }
 
-        // Stable sort by X coordinate
-        visible.sort(Comparator.comparingInt(s -> s.x));
-        return visible;
+        if (!memory.IsCgbMode() || memory.Read(DuckAddresses.OPRI) != 0) {
+            visibleSprites.sort(Comparator.comparingInt(sprite -> sprite.x));
+        }
+        return visibleSprites;
     }
 
-    private GBColor getPaletteColor(int colorIndex, int palette) {
-        int shift = colorIndex * 2;
-        int colorId = (palette >> shift) & 0x03;
-
-        return switch (colorId) {
-            case 0 -> Settings.GB_COLOR_0_OBJ;
-            case 1 -> Settings.GB_COLOR_1_OBJ;
-            case 2 -> Settings.GB_COLOR_2_OBJ;
-            default -> Settings.GB_COLOR_3_OBJ;
+    private int[] DecodePalette(int paletteRegister, int[] paletteColours) {
+        return new int[] {
+                PaletteColourRgb(0, paletteRegister, paletteColours),
+                PaletteColourRgb(1, paletteRegister, paletteColours),
+                PaletteColourRgb(2, paletteRegister, paletteColours),
+                PaletteColourRgb(3, paletteRegister, paletteColours)
         };
     }
+
+    private int PaletteColourRgb(int colourIndex, int paletteRegister, int[] paletteColours) {
+        int shift = colourIndex * 2;
+        int colourId = (paletteRegister >> shift) & 0x03;
+        return paletteColours[Math.max(0, Math.min(3, colourId))];
+    }
+
+    private int[] ActiveBackgroundPaletteRgb(boolean useGbcColourisation) {
+        if (useGbcColourisation) {
+            return PaletteRgb(Settings.gbcBackgroundPaletteObjects);
+        }
+
+        return new int[] {
+                Settings.gbColour0Object.ToRgb(),
+                Settings.gbColour1Object.ToRgb(),
+                Settings.gbColour2Object.ToRgb(),
+                Settings.gbColour3Object.ToRgb()
+        };
+    }
+
+    private int[] ActiveSpritePalette0Rgb(boolean useGbcColourisation) {
+        if (useGbcColourisation) {
+            return PaletteRgb(Settings.gbcSpritePalette0Objects);
+        }
+
+        return new int[] {
+                Settings.gbColour0Object.ToRgb(),
+                Settings.gbColour1Object.ToRgb(),
+                Settings.gbColour2Object.ToRgb(),
+                Settings.gbColour3Object.ToRgb()
+        };
+    }
+
+    private int[] ActiveSpritePalette1Rgb(boolean useGbcColourisation) {
+        if (useGbcColourisation) {
+            return PaletteRgb(Settings.gbcSpritePalette1Objects);
+        }
+
+        return new int[] {
+                Settings.gbColour0Object.ToRgb(),
+                Settings.gbColour1Object.ToRgb(),
+                Settings.gbColour2Object.ToRgb(),
+                Settings.gbColour3Object.ToRgb()
+        };
+    }
+
+    private int[] PaletteRgb(GBColor[] palette) {
+        return new int[] {
+                palette[0].ToRgb(),
+                palette[1].ToRgb(),
+                palette[2].ToRgb(),
+                palette[3].ToRgb()
+        };
+    }
+
+    private boolean ShouldUseGbcColourisation() {
+        return Settings.gbcPaletteModeEnabled && !memory.IsLoadedRomCgbCompatible();
+    }
+
+    @Deprecated public void step() { Step(); }
 }

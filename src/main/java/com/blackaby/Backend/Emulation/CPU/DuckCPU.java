@@ -6,31 +6,49 @@ import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 import com.blackaby.Backend.Emulation.Misc.ROM;
 
 /**
- * Represents the Central Processing Unit (Sharp LR35902) of the Game Boy.
+ * Emulates the Game Boy CPU core and its register state.
  * <p>
- * Manages registers, flags, interrupt state machine, and instruction execution
- * cycle.
- * </p>
+ * The class owns the LR35902 register file, interrupt state, HALT behaviour,
+ * and the fetch-decode-execute flow used by the main emulation loop.
  */
 public class DuckCPU {
 
-    // =============================================================
-    // ENUMS
-    // =============================================================
+    public record CpuState(
+            int pc,
+            int sp,
+            int a,
+            int f,
+            int b,
+            int c,
+            int d,
+            int e,
+            int h,
+            int l,
+            int instructionRegister,
+            boolean interruptMasterEnable,
+            int imeDelayCounter,
+            boolean halted,
+            boolean stopped,
+            boolean haltBug) implements java.io.Serializable {
+    }
 
+    /**
+     * Identifies 8-bit and 16-bit CPU registers used by the decoder and
+     * instruction helpers.
+     */
     public enum Register {
-        // 8-bit Registers
         B, C, D, E, H, L, HL_ADDR, A,
-
-        // Special / Internal
         F, IR, IE,
-
-        // 16-bit Registers
         BC, DE, HL, AF, SP, PC;
 
-        /** Helper to decode instructions (e.g., Load r, r'). */
-        public static Register getRegFrom3Bit(int bitID) {
-            return switch (bitID & 0b111) {
+        /**
+         * Decodes the three-bit register field used by many byte instructions.
+         *
+         * @param bitId encoded register field
+         * @return decoded register
+         */
+        public static Register GetRegFrom3Bit(int bitId) {
+            return switch (bitId & 0b111) {
                 case 0 -> B;
                 case 1 -> C;
                 case 2 -> D;
@@ -39,22 +57,35 @@ public class DuckCPU {
                 case 5 -> L;
                 case 6 -> HL_ADDR;
                 case 7 -> A;
-                default -> throw new IllegalArgumentException("Invalid 3-bit Register ID");
+                default -> throw new IllegalArgumentException("Invalid 3-bit register field");
             };
         }
 
-        /** Helper to decode instructions (e.g., PUSH rr). */
-        public static Register getRegFrom2Bit(int bitID, boolean isAFContext) {
-            return switch (bitID & 0b11) {
+        /**
+         * Decodes the two-bit register-pair field used by 16-bit instructions.
+         *
+         * @param bitId encoded register field
+         * @param isAfContext whether field `11` should resolve to `AF` instead of
+         * `SP`
+         * @return decoded register pair
+         */
+        public static Register GetRegFrom2Bit(int bitId, boolean isAfContext) {
+            return switch (bitId & 0b11) {
                 case 0 -> BC;
                 case 1 -> DE;
                 case 2 -> HL;
-                case 3 -> isAFContext ? AF : SP;
-                default -> throw new IllegalArgumentException("Invalid 2-bit Register ID");
+                case 3 -> isAfContext ? AF : SP;
+                default -> throw new IllegalArgumentException("Invalid 2-bit register field");
             };
         }
+
+        @Deprecated public static Register getRegFrom3Bit(int bitId) { return GetRegFrom3Bit(bitId); }
+        @Deprecated public static Register getRegFrom2Bit(int bitId, boolean isAfContext) { return GetRegFrom2Bit(bitId, isAfContext); }
     }
 
+    /**
+     * CPU status flags stored in the upper nibble of register `F`.
+     */
     public enum Flag {
         Z(7), N(6), H(5), C(4);
 
@@ -64,11 +95,21 @@ public class DuckCPU {
             this.bit = bit;
         }
 
-        public int getBit() {
+        /**
+         * Returns the bit position used for this flag in register `F`.
+         *
+         * @return flag bit index
+         */
+        public int GetBit() {
             return bit;
         }
+
+        @Deprecated public int getBit() { return GetBit(); }
     }
 
+    /**
+     * Interrupt sources exposed through the IF and IE registers.
+     */
     public enum Interrupt {
         VBLANK(0x01, 0x40),
         LCD_STAT(0x02, 0x48),
@@ -84,59 +125,80 @@ public class DuckCPU {
             this.address = address;
         }
 
-        public int getMask() {
+        /**
+         * Returns the IF and IE bit mask for this interrupt source.
+         *
+         * @return interrupt bit mask
+         */
+        public int GetMask() {
             return mask;
         }
 
-        public int getAddress() {
+        /**
+         * Returns the interrupt vector address.
+         *
+         * @return vector address
+         */
+        public int GetAddress() {
             return address;
         }
 
-        public static Interrupt getInterrupt(int index) {
+        /**
+         * Resolves an interrupt from priority order index.
+         *
+         * @param index priority index from 0 to 4
+         * @return interrupt entry
+         */
+        public static Interrupt GetInterrupt(int index) {
             return switch (index) {
                 case 0 -> VBLANK;
                 case 1 -> LCD_STAT;
                 case 2 -> TIMER;
                 case 3 -> SERIAL;
                 case 4 -> JOYPAD;
-                default -> throw new IllegalArgumentException("Invalid Interrupt Index");
+                default -> throw new IllegalArgumentException("Invalid interrupt index");
             };
         }
+
+        @Deprecated public int getMask() { return GetMask(); }
+        @Deprecated public int getAddress() { return GetAddress(); }
+        @Deprecated public static Interrupt getInterrupt(int index) { return GetInterrupt(index); }
     }
 
-    // =============================================================
-    // STATE
-    // =============================================================
+    private int pc;
+    private int sp;
 
-    // Registers (Stored as ints, but treated as unsigned bytes/shorts)
-    private int pc; // Program Counter
-    private int sp; // Stack Pointer
+    private int a;
+    private int f;
+    private int b;
+    private int c;
+    private int d;
+    private int e;
+    private int h;
+    private int l;
 
-    // Main Registers
-    private int a, f;
-    private int b, c;
-    private int d, e;
-    private int h, l;
-
-    // Internal State
-    private int instructionRegister; // Used for decoding logic
+    private int instructionRegister;
     private OpcodeHandler currentInstruction;
-    private boolean cb = false; // CB Prefix Flag
-    private boolean interruptMasterEnable = false; // IME
-    private int imeDelayCounter = 0; // For EI instruction delay
+    private boolean interruptMasterEnable;
+    private int imeDelayCounter;
+    private boolean halted;
+    private boolean stopped;
+    private boolean haltBug;
 
-    private boolean isHalted = false;
-    private boolean isStopped = false;
-    private boolean haltBug = false;
-
-    // References
     public final DuckMemory memory;
     public final DuckEmulation emulation;
     public final ROM rom;
 
-    // Decoder
     private final DuckDecoder decoder;
 
+    /**
+     * Creates a CPU bound to the active memory bus, emulator controller, and
+     * cartridge metadata.
+     *
+     * @param memory memory bus
+     * @param emulation owning emulator controller
+     * @param rom loaded cartridge
+     */
     public DuckCPU(DuckMemory memory, DuckEmulation emulation, ROM rom) {
         this.memory = memory;
         this.emulation = emulation;
@@ -144,106 +206,61 @@ public class DuckCPU {
         decoder = new DuckDecoder(this, memory);
     }
 
-    // =============================================================
-    // FDE CYCLE
-    // =============================================================
-
-    public void fetch() {
-        // Fetch instruction
-        instructionRegister = memory.read(pc);
-        // If halt bugged, don't increment PC
+    /**
+     * Fetches the next opcode byte from memory.
+     */
+    public void Fetch() {
+        instructionRegister = memory.Read(pc);
         if (haltBug) {
             haltBug = false;
             return;
         }
-        // Increment and mask PC
-        pc++;
-        pc &= 0xFFFF;
-    }
 
-    public void decode() {
-        currentInstruction = decoder.DecodeInstruction(instructionRegister, cb);
-    }
-
-    private int executeLoadedInstruction() {
-        return currentInstruction.execute();
+        pc = (pc + 1) & 0xFFFF;
     }
 
     /**
-     * Executes the provided instruction and handles interrupt states.
-     * 
-     * @param instruction The decoded instruction to run.
-     * @return The total T-Cycles consumed (Instruction + potential Interrupts).
+     * Decodes the currently fetched opcode into an executable handler.
      */
-    public int execute() {
-        // If halted, basically a NOP so just load 4 cycles.
-        // Otherwise, execute the loaded instruction and get its cycle count
-        int cycles = isHalted ? 4 : executeLoadedInstruction();
+    public void Decode() {
+        currentInstruction = decoder.DecodeInstruction(instructionRegister, false);
+    }
 
-        // Handle interrupt master enable delay
-        if (imeDelayCounter > 0)
+    /**
+     * Executes the current instruction and then services delayed IME and
+     * interrupt entry logic.
+     *
+     * @return T-cycles consumed by the instruction, plus interrupt entry if one
+     * is taken
+     */
+    public int Execute() {
+        int cycles = halted ? 4 : ExecuteLoadedInstruction();
+
+        if (imeDelayCounter > 0) {
             imeDelayCounter--;
-        if (imeDelayCounter == 0)
-            interruptMasterEnable = true;
+            if (imeDelayCounter == 0) {
+                interruptMasterEnable = true;
+            }
+        }
 
-        // Handle interrupts and add to cycle count
-        if (handleInterrupts())
+        if (HandleInterrupts()) {
             cycles += 20;
+        }
 
-        // Return t-cycle count
         return cycles;
     }
 
-    private boolean handleInterrupts() {
-        int ie = memory.read(DuckAddresses.IE);
-        int ifReg = memory.read(DuckAddresses.INTERRUPT_FLAG);
-
-        // Check pending interrupts that are also enabled
-        int pending = ie & ifReg & 0x1F;
-
-        if (pending == 0)
-            return false;
-
-        // HALT BUG / WAKE UP:
-        // If CPU is Halted and an interrupt is pending (even if IME is off),
-        // the CPU wakes up.
-        if (isHalted) {
-            isHalted = false;
-        }
-
-        // Interrupt Service Routine (ISR) logic only runs if IME is ON
-        if (interruptMasterEnable) {
-            interruptMasterEnable = false; // Disable nested interrupts immediately
-
-            // Determine priority (Bit 0 -> Bit 4)
-            // Integer.numberOfTrailingZeros is a fast way to find the lowest set bit
-            int interruptIndex = Integer.numberOfTrailingZeros(pending);
-            Interrupt intr = Interrupt.getInterrupt(interruptIndex);
-
-            // 1. Clear the specific IF bit
-            memory.write(DuckAddresses.INTERRUPT_FLAG, ifReg & ~intr.getMask());
-
-            // 2. Push PC to Stack
-            pushStack16(pc);
-
-            // 3. Jump to Vector
-            pc = intr.getAddress();
-
-            return true; // Interrupt serviced
-        }
-
-        return false;
-    }
-
-    // =============================================================
-    // REGISTER ACCESS
-    // =============================================================
-
-    public void regSet(Register reg, int value) {
-        value &= 0xFF; // Sanitize input
-        switch (reg) {
+    /**
+     * Writes an 8-bit value to a register or the byte addressed by `HL`.
+     *
+     * @param register target register
+     * @param value value to store
+     */
+    public void SetRegister(Register register, int value) {
+        value &= 0xFF;
+        switch (register) {
             case A -> a = value;
-            case F -> f = value & 0xF0; // HARDWARE FIX: Low nibble of F is always 0
+            case F -> f = value & 0xF0;
             case B -> b = value;
             case C -> c = value;
             case D -> d = value;
@@ -251,13 +268,19 @@ public class DuckCPU {
             case H -> h = value;
             case L -> l = value;
             case IR -> instructionRegister = value;
-            case HL_ADDR -> memory.write(getHL(), value);
-            default -> throw new IllegalArgumentException("Unknown 8-bit register: " + reg);
+            case HL_ADDR -> memory.Write(GetHL(), value);
+            default -> throw new IllegalArgumentException("Unknown 8-bit register: " + register);
         }
     }
 
-    public int regGet(Register reg) {
-        return switch (reg) {
+    /**
+     * Reads an 8-bit value from a register or the byte addressed by `HL`.
+     *
+     * @param register source register
+     * @return register value
+     */
+    public int GetRegister(Register register) {
+        return switch (register) {
             case A -> a;
             case F -> f;
             case B -> b;
@@ -267,14 +290,20 @@ public class DuckCPU {
             case H -> h;
             case L -> l;
             case IR -> instructionRegister;
-            case HL_ADDR -> memory.read(getHL());
-            default -> throw new IllegalArgumentException("Unknown 8-bit register: " + reg);
+            case HL_ADDR -> memory.Read(GetHL());
+            default -> throw new IllegalArgumentException("Unknown 8-bit register: " + register);
         };
     }
 
-    public void regSet16(Register reg, int value) {
-        value &= 0xFFFF; // Sanitize
-        switch (reg) {
+    /**
+     * Writes a 16-bit value to a register pair.
+     *
+     * @param register target pair
+     * @param value value to store
+     */
+    public void SetRegisterPair(Register register, int value) {
+        value &= 0xFFFF;
+        switch (register) {
             case PC -> pc = value;
             case SP -> sp = value;
             case BC -> {
@@ -292,192 +321,447 @@ public class DuckCPU {
             case AF -> {
                 a = (value >> 8) & 0xFF;
                 f = value & 0xF0;
-            } // Low nibble fix
-            default -> throw new IllegalArgumentException("Invalid 16-bit register: " + reg);
+            }
+            default -> throw new IllegalArgumentException("Invalid 16-bit register: " + register);
         }
     }
 
-    public int regGet16(Register reg) {
-        return switch (reg) {
+    /**
+     * Reads a 16-bit value from a register pair.
+     *
+     * @param register source pair
+     * @return register-pair value
+     */
+    public int GetRegisterPair(Register register) {
+        return switch (register) {
             case PC -> pc;
             case SP -> sp;
             case BC -> (b << 8) | c;
             case DE -> (d << 8) | e;
             case HL -> (h << 8) | l;
             case AF -> (a << 8) | f;
-            default -> throw new IllegalArgumentException("Invalid 16-bit register: " + reg);
+            default -> throw new IllegalArgumentException("Invalid 16-bit register: " + register);
         };
     }
 
-    // --- Fast Access Helpers (Avoid Switch Overhead) ---
-
-    public int getHL() {
+    /**
+     * Returns register pair `HL`.
+     *
+     * @return current `HL` value
+     */
+    public int GetHL() {
         return (h << 8) | l;
     }
 
-    public void setHL(int val) {
-        h = (val >> 8) & 0xFF;
-        l = val & 0xFF;
+    /**
+     * Writes register pair `HL`.
+     *
+     * @param value new `HL` value
+     */
+    public void SetHL(int value) {
+        h = (value >> 8) & 0xFF;
+        l = value & 0xFF;
     }
 
-    public int getBC() {
+    /**
+     * Returns register pair `BC`.
+     *
+     * @return current `BC` value
+     */
+    public int GetBC() {
         return (b << 8) | c;
     }
 
-    public void setBC(int val) {
-        b = (val >> 8) & 0xFF;
-        c = val & 0xFF;
+    /**
+     * Writes register pair `BC`.
+     *
+     * @param value new `BC` value
+     */
+    public void SetBC(int value) {
+        b = (value >> 8) & 0xFF;
+        c = value & 0xFF;
     }
 
-    public int getDE() {
+    /**
+     * Returns register pair `DE`.
+     *
+     * @return current `DE` value
+     */
+    public int GetDE() {
         return (d << 8) | e;
     }
 
-    public void setDE(int val) {
-        d = (val >> 8) & 0xFF;
-        e = val & 0xFF;
+    /**
+     * Writes register pair `DE`.
+     *
+     * @param value new `DE` value
+     */
+    public void SetDE(int value) {
+        d = (value >> 8) & 0xFF;
+        e = value & 0xFF;
     }
 
-    public int getAF() {
+    /**
+     * Returns register pair `AF`.
+     *
+     * @return current `AF` value
+     */
+    public int GetAF() {
         return (a << 8) | f;
     }
 
-    public void setAF(int val) {
-        a = (val >> 8) & 0xFF;
-        f = val & 0xF0;
+    /**
+     * Writes register pair `AF`.
+     *
+     * @param value new `AF` value
+     */
+    public void SetAF(int value) {
+        a = (value >> 8) & 0xFF;
+        f = value & 0xF0;
     }
 
-    public int getPC() {
+    /**
+     * Returns the program counter.
+     *
+     * @return program counter
+     */
+    public int GetPC() {
         return pc;
     }
 
-    public void setPC(int val) {
-        pc = val & 0xFFFF;
+    /**
+     * Writes the program counter.
+     *
+     * @param value new PC value
+     */
+    public void SetPC(int value) {
+        pc = value & 0xFFFF;
     }
 
-    public int getSP() {
+    /**
+     * Returns the stack pointer.
+     *
+     * @return stack pointer
+     */
+    public int GetSP() {
         return sp;
     }
 
-    public void setSP(int val) {
-        sp = val & 0xFFFF;
+    /**
+     * Writes the stack pointer.
+     *
+     * @param value new SP value
+     */
+    public void SetSP(int value) {
+        sp = value & 0xFFFF;
     }
 
-    public int getAccumulator() {
+    /**
+     * Returns register `A`.
+     *
+     * @return accumulator value
+     */
+    public int GetAccumulator() {
         return a;
     }
 
-    public void setAccumulator(int val) {
-        a = val & 0xFF;
+    /**
+     * Writes register `A`.
+     *
+     * @param value new accumulator value
+     */
+    public void SetAccumulator(int value) {
+        a = value & 0xFF;
     }
 
-    public int getC() {
+    /**
+     * Returns register `C`.
+     *
+     * @return register `C`
+     */
+    public int GetC() {
         return c;
     }
 
-    public void setC(int val) {
-        c = val & 0xFF;
+    /**
+     * Writes register `C`.
+     *
+     * @param value new register value
+     */
+    public void SetC(int value) {
+        c = value & 0xFF;
     }
 
-    public int getInstructionRegister() {
+    /**
+     * Returns the most recently fetched opcode.
+     *
+     * @return instruction register contents
+     */
+    public int GetInstructionRegister() {
         return instructionRegister;
     }
 
-    // =============================================================
-    // FLAGS & CONTROL
-    // =============================================================
-
-    public void setFlag(Flag flag, boolean value) {
+    /**
+     * Sets or clears a status flag.
+     *
+     * @param flag flag to update
+     * @param value new flag state
+     */
+    public void SetFlag(Flag flag, boolean value) {
         if (value) {
-            f |= (1 << flag.getBit());
+            f |= (1 << flag.GetBit());
         } else {
-            f &= ~(1 << flag.getBit());
+            f &= ~(1 << flag.GetBit());
         }
-        f &= 0xF0; // Enforce hardware constraint
+        f &= 0xF0;
     }
 
-    public boolean getFlag(Flag flag) {
-        return (f & (1 << flag.getBit())) != 0;
+    /**
+     * Returns the state of a status flag.
+     *
+     * @param flag flag to read
+     * @return `true` if the flag is set
+     */
+    public boolean GetFlag(Flag flag) {
+        return (f & (1 << flag.GetBit())) != 0;
     }
 
-    public void clearFlags() {
+    /**
+     * Clears all status flags.
+     */
+    public void ClearFlags() {
         f = 0;
     }
 
-    public void setHalted(boolean halted) {
-        isHalted = halted;
+    /**
+     * Sets the CPU HALT state.
+     *
+     * @param halted whether the CPU is halted
+     */
+    public void SetHalted(boolean halted) {
+        this.halted = halted;
     }
 
-    public boolean isHalted() {
-        return isHalted;
+    /**
+     * Returns whether the CPU is halted.
+     *
+     * @return `true` if HALT is active
+     */
+    public boolean IsHalted() {
+        return halted;
     }
 
-    public void setStopped(boolean stopped) {
-        isStopped = stopped;
+    /**
+     * Sets the CPU STOP state.
+     *
+     * @param stopped whether the CPU is stopped
+     */
+    public void SetStopped(boolean stopped) {
+        this.stopped = stopped;
     }
 
-    public boolean isStopped() {
-        return isStopped;
+    /**
+     * Returns whether the CPU is stopped.
+     *
+     * @return `true` if STOP is active
+     */
+    public boolean IsStopped() {
+        return stopped;
     }
 
-    public void setHaltBug() {
+    /**
+     * Arms the HALT bug for the next fetch.
+     */
+    public void SetHaltBug() {
         haltBug = true;
     }
 
-    public boolean isHaltBug() {
+    /**
+     * Returns whether the HALT bug is pending.
+     *
+     * @return `true` if the next fetch should skip the PC increment
+     */
+    public boolean IsHaltBug() {
         return haltBug;
     }
 
     /**
-     * Schedules the IME to be enabled after the *next* instruction.
-     * (Used by EI instruction).
+     * Schedules IME to be enabled after the next instruction completes.
      */
-    public void scheduleEnableInterrupts() {
-        imeDelayCounter = 2;
+    public void ScheduleEnableInterrupts() {
+        if (!interruptMasterEnable && imeDelayCounter == 0) {
+            imeDelayCounter = 2;
+        }
     }
 
     /**
-     * Immediately disables interrupts (Used by DI instruction).
+     * Disables interrupts immediately.
      */
-    public void disableInterrupts() {
+    public void DisableInterrupts() {
         interruptMasterEnable = false;
         imeDelayCounter = 0;
     }
 
-    public void requestInterrupt(Interrupt interrupt) {
-        int ifReg = memory.read(DuckAddresses.INTERRUPT_FLAG);
-        memory.write(DuckAddresses.INTERRUPT_FLAG, ifReg | interrupt.getMask());
+    /**
+     * Enables interrupts immediately.
+     */
+    public void EnableInterruptsImmediately() {
+        interruptMasterEnable = true;
+        imeDelayCounter = 0;
     }
 
     /**
-     * Returns the current state of the Interrupt Master Enable (IME) flag.
-     * Required by the HALT instruction to detect the Halt Bug.
+     * Sets the IF bit for an interrupt source.
+     *
+     * @param interrupt interrupt to request
      */
-    public boolean isInterruptMasterEnable() {
+    public void RequestInterrupt(Interrupt interrupt) {
+        int ifRegister = memory.Read(DuckAddresses.INTERRUPT_FLAG);
+        memory.Write(DuckAddresses.INTERRUPT_FLAG, ifRegister | interrupt.GetMask());
+    }
+
+    /**
+     * Returns the current IME state.
+     *
+     * @return `true` if interrupts are globally enabled
+     */
+    public boolean IsInterruptMasterEnable() {
         return interruptMasterEnable;
     }
 
-    // =============================================================
-    // STACK HELPERS
-    // =============================================================
-
-    private void pushStack16(int value) {
-        // High byte first
-        sp = (sp - 1) & 0xFFFF;
-        memory.write(sp, (value >> 8) & 0xFF);
-        // Low byte second
-        sp = (sp - 1) & 0xFFFF;
-        memory.write(sp, value & 0xFF);
+    /**
+     * Captures the live CPU register and interrupt state.
+     *
+     * @return CPU state snapshot
+     */
+    public CpuState CaptureState() {
+        return new CpuState(
+                pc,
+                sp,
+                a,
+                f,
+                b,
+                c,
+                d,
+                e,
+                h,
+                l,
+                instructionRegister,
+                interruptMasterEnable,
+                imeDelayCounter,
+                halted,
+                stopped,
+                haltBug);
     }
 
-    // Note: popStack16 isn't strictly needed inside CPU class unless internal logic
-    // uses it,
-    // as instructions (RET, POP) usually handle it themselves via Memory,
-    // but useful to have if you move RET logic here later.
+    /**
+     * Restores the CPU register and interrupt state from a snapshot.
+     *
+     * @param state CPU snapshot to restore
+     */
+    public void RestoreState(CpuState state) {
+        if (state == null) {
+            throw new IllegalArgumentException("A CPU quick state is required.");
+        }
+
+        pc = state.pc() & 0xFFFF;
+        sp = state.sp() & 0xFFFF;
+        a = state.a() & 0xFF;
+        f = state.f() & 0xF0;
+        b = state.b() & 0xFF;
+        c = state.c() & 0xFF;
+        d = state.d() & 0xFF;
+        e = state.e() & 0xFF;
+        h = state.h() & 0xFF;
+        l = state.l() & 0xFF;
+        instructionRegister = state.instructionRegister() & 0xFF;
+        interruptMasterEnable = state.interruptMasterEnable();
+        imeDelayCounter = Math.max(0, state.imeDelayCounter());
+        halted = state.halted();
+        stopped = state.stopped();
+        haltBug = state.haltBug();
+        currentInstruction = null;
+    }
+
+    private int ExecuteLoadedInstruction() {
+        return currentInstruction.Execute();
+    }
+
+    private boolean HandleInterrupts() {
+        int ieRegister = memory.Read(DuckAddresses.IE);
+        int ifRegister = memory.Read(DuckAddresses.INTERRUPT_FLAG);
+        int pending = ieRegister & ifRegister & 0x1F;
+
+        if (pending == 0) {
+            return false;
+        }
+
+        if (halted) {
+            halted = false;
+        }
+
+        if (!interruptMasterEnable) {
+            return false;
+        }
+
+        interruptMasterEnable = false;
+        Interrupt interrupt = Interrupt.GetInterrupt(Integer.numberOfTrailingZeros(pending));
+        memory.Write(DuckAddresses.INTERRUPT_FLAG, ifRegister & ~interrupt.GetMask());
+        PushStack16(pc);
+        pc = interrupt.GetAddress();
+        return true;
+    }
+
+    private void PushStack16(int value) {
+        sp = (sp - 1) & 0xFFFF;
+        memory.Write(sp, (value >> 8) & 0xFF);
+        sp = (sp - 1) & 0xFFFF;
+        memory.Write(sp, value & 0xFF);
+    }
+
+    @Deprecated public void fetch() { Fetch(); }
+    @Deprecated public void decode() { Decode(); }
+    @Deprecated public int execute() { return Execute(); }
+    @Deprecated public void regSet(Register register, int value) { SetRegister(register, value); }
+    @Deprecated public int regGet(Register register) { return GetRegister(register); }
+    @Deprecated public void regSet16(Register register, int value) { SetRegisterPair(register, value); }
+    @Deprecated public int regGet16(Register register) { return GetRegisterPair(register); }
+    @Deprecated public int getHL() { return GetHL(); }
+    @Deprecated public void setHL(int value) { SetHL(value); }
+    @Deprecated public int getBC() { return GetBC(); }
+    @Deprecated public void setBC(int value) { SetBC(value); }
+    @Deprecated public int getDE() { return GetDE(); }
+    @Deprecated public void setDE(int value) { SetDE(value); }
+    @Deprecated public int getAF() { return GetAF(); }
+    @Deprecated public void setAF(int value) { SetAF(value); }
+    @Deprecated public int getPC() { return GetPC(); }
+    @Deprecated public void setPC(int value) { SetPC(value); }
+    @Deprecated public int getSP() { return GetSP(); }
+    @Deprecated public void setSP(int value) { SetSP(value); }
+    @Deprecated public int getAccumulator() { return GetAccumulator(); }
+    @Deprecated public void setAccumulator(int value) { SetAccumulator(value); }
+    @Deprecated public int getC() { return GetC(); }
+    @Deprecated public void setC(int value) { SetC(value); }
+    @Deprecated public int getInstructionRegister() { return GetInstructionRegister(); }
+    @Deprecated public void setFlag(Flag flag, boolean value) { SetFlag(flag, value); }
+    @Deprecated public boolean getFlag(Flag flag) { return GetFlag(flag); }
+    @Deprecated public void clearFlags() { ClearFlags(); }
+    @Deprecated public void setHalted(boolean halted) { SetHalted(halted); }
+    @Deprecated public boolean isHalted() { return IsHalted(); }
+    @Deprecated public void setStopped(boolean stopped) { SetStopped(stopped); }
+    @Deprecated public boolean isStopped() { return IsStopped(); }
+    @Deprecated public void setHaltBug() { SetHaltBug(); }
+    @Deprecated public boolean isHaltBug() { return IsHaltBug(); }
+    @Deprecated public void scheduleEnableInterrupts() { ScheduleEnableInterrupts(); }
+    @Deprecated public void disableInterrupts() { DisableInterrupts(); }
+    @Deprecated public void enableInterruptsImmediately() { EnableInterruptsImmediately(); }
+    @Deprecated public void requestInterrupt(Interrupt interrupt) { RequestInterrupt(interrupt); }
+    @Deprecated public boolean isInterruptMasterEnable() { return IsInterruptMasterEnable(); }
 
     @Override
     public String toString() {
-        return String.format("A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X",
+        return String.format(
+                "A:%02X F:%02X B:%02X C:%02X D:%02X E:%02X H:%02X L:%02X SP:%04X PC:%04X",
                 a, f, b, c, d, e, h, l, sp, pc);
     }
 }

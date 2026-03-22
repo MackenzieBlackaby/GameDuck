@@ -1,13 +1,14 @@
 package com.blackaby;
 
 import com.blackaby.Frontend.MainWindow;
+import com.blackaby.Misc.Config;
+
 import javax.swing.UIManager;
 import javax.swing.plaf.ColorUIResource;
 import java.awt.Color;
 
 /**
- * This class is the main class for the GameDuck application.
- * It is the entry point for the application and creates the main window.
+ * Launches the GameDuck desktop application.
  */
 public class Main {
     public static void main(String[] args) {
@@ -17,6 +18,7 @@ public class Main {
         } catch (Exception e) {
             e.printStackTrace();
         }
+        Config.Load();
         new MainWindow();
     }
 }

@@ -22,26 +22,26 @@ import java.awt.Font;
 import java.util.List;
 
 /**
- * Browser for loading and deleting saved DMG palettes.
+ * Browser for loading and deleting saved host themes.
  */
-public final class PaletteManager extends DuckWindow {
+public final class ThemeManager extends DuckWindow {
 
     private final Color panelBackground;
     private final Color cardBackground;
     private final Color cardBorder;
     private final Color accentColour;
     private final Color mutedTextColour;
-    private final DefaultListModel<String> paletteListModel = new DefaultListModel<>();
-    private final Runnable onPaletteChanged;
+    private final DefaultListModel<String> themeListModel = new DefaultListModel<>();
+    private final Runnable onThemeChanged;
 
     /**
-     * Creates the palette browser.
+     * Creates the theme browser.
      *
-     * @param onPaletteChanged callback fired after a palette is loaded
+     * @param onThemeChanged callback fired after a theme is loaded
      */
-    public PaletteManager(Runnable onPaletteChanged) {
-        super(UiText.PaletteManager.WINDOW_TITLE, 460, 360, false);
-        this.onPaletteChanged = onPaletteChanged;
+    public ThemeManager(Runnable onThemeChanged) {
+        super(UiText.ThemeManager.WINDOW_TITLE, 460, 360, false);
+        this.onThemeChanged = onThemeChanged;
         panelBackground = Styling.appBackgroundColour;
         cardBackground = Styling.surfaceColour;
         cardBorder = Styling.surfaceBorderColour;
@@ -63,11 +63,11 @@ public final class PaletteManager extends DuckWindow {
         header.setBackground(panelBackground);
         header.setBorder(BorderFactory.createEmptyBorder(20, 24, 12, 24));
 
-        JLabel titleLabel = new JLabel(UiText.PaletteManager.TITLE);
+        JLabel titleLabel = new JLabel(UiText.ThemeManager.TITLE);
         titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 24f));
         titleLabel.setForeground(accentColour);
 
-        JLabel subtitleLabel = new JLabel(UiText.PaletteManager.SUBTITLE);
+        JLabel subtitleLabel = new JLabel(UiText.ThemeManager.SUBTITLE);
         subtitleLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
         subtitleLabel.setForeground(mutedTextColour);
 
@@ -85,55 +85,55 @@ public final class PaletteManager extends DuckWindow {
         card.setBackground(cardBackground);
         card.setBorder(CreateCardBorder());
 
-        JList<String> paletteList = new JList<>(paletteListModel);
-        paletteList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        paletteList.setFont(Styling.menuFont.deriveFont(13f));
-        paletteList.setFixedCellHeight(30);
-        paletteList.setBackground(Styling.cardTintColour);
-        paletteList.setSelectionBackground(Styling.listSelectionColour);
-        paletteList.setSelectionForeground(accentColour);
+        JList<String> themeList = new JList<>(themeListModel);
+        themeList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        themeList.setFont(Styling.menuFont.deriveFont(13f));
+        themeList.setFixedCellHeight(30);
+        themeList.setBackground(Styling.cardTintColour);
+        themeList.setSelectionBackground(Styling.listSelectionColour);
+        themeList.setSelectionForeground(accentColour);
 
-        RefreshPaletteList();
+        RefreshThemeList();
 
-        if (!paletteListModel.isEmpty()) {
-            paletteList.setSelectedIndex(0);
+        if (!themeListModel.isEmpty()) {
+            themeList.setSelectedIndex(0);
         }
 
-        JScrollPane scrollPane = new JScrollPane(paletteList);
+        JScrollPane scrollPane = new JScrollPane(themeList);
         scrollPane.setBorder(BorderFactory.createLineBorder(cardBorder, 1));
         card.add(scrollPane, BorderLayout.CENTER);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         buttonPanel.setOpaque(false);
 
-        JButton deleteButton = CreateSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
+        JButton deleteButton = CreateSecondaryButton(UiText.ThemeManager.DELETE_BUTTON);
         deleteButton.addActionListener(event -> {
-            String selectedPalette = paletteList.getSelectedValue();
-            if (selectedPalette == null) {
+            String selectedTheme = themeList.getSelectedValue();
+            if (selectedTheme == null) {
                 return;
             }
 
             int result = JOptionPane.showConfirmDialog(this,
-                    UiText.PaletteManager.DeleteConfirmMessage(selectedPalette), UiText.PaletteManager.DELETE_CONFIRM_TITLE,
+                    UiText.ThemeManager.DeleteConfirmMessage(selectedTheme), UiText.ThemeManager.DELETE_CONFIRM_TITLE,
                     JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
             if (result == JOptionPane.YES_OPTION) {
-                Config.DeletePalette(selectedPalette);
-                RefreshPaletteList();
-                if (!paletteListModel.isEmpty()) {
-                    paletteList.setSelectedIndex(0);
+                Config.DeleteTheme(selectedTheme);
+                RefreshThemeList();
+                if (!themeListModel.isEmpty()) {
+                    themeList.setSelectedIndex(0);
                 }
             }
         });
 
-        JButton loadButton = CreatePrimaryButton(UiText.PaletteManager.LOAD_BUTTON);
+        JButton loadButton = CreatePrimaryButton(UiText.ThemeManager.LOAD_BUTTON);
         loadButton.addActionListener(event -> {
-            String selectedPalette = paletteList.getSelectedValue();
-            if (selectedPalette == null) {
+            String selectedTheme = themeList.getSelectedValue();
+            if (selectedTheme == null) {
                 return;
             }
 
-            if (Config.LoadPalette(selectedPalette) && onPaletteChanged != null) {
-                onPaletteChanged.run();
+            if (Config.LoadTheme(selectedTheme) && onThemeChanged != null) {
+                onThemeChanged.run();
             }
             dispose();
         });
@@ -146,11 +146,11 @@ public final class PaletteManager extends DuckWindow {
         return wrapper;
     }
 
-    private void RefreshPaletteList() {
-        paletteListModel.clear();
-        List<String> paletteNames = Config.GetSavedPaletteNames();
-        for (String paletteName : paletteNames) {
-            paletteListModel.addElement(paletteName);
+    private void RefreshThemeList() {
+        themeListModel.clear();
+        List<String> themeNames = Config.GetSavedThemeNames();
+        for (String themeName : themeNames) {
+            themeListModel.addElement(themeName);
         }
     }
 

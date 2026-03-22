@@ -1,35 +1,32 @@
 package com.blackaby.Backend.Emulation.CPU;
 
 /**
- * Represents a simplified sprite object for the rendering pipeline.
+ * Holds one sprite entry prepared for scanline rendering.
  * <p>
- * This class captures the state of a sprite for a specific scanline,
- * including pre-calculated screen coordinates and helper methods
- * for decoding the attribute byte (OAM flags).
- * </p>
+ * The class stores screen-space coordinates derived from OAM and provides small
+ * helpers for reading the attribute bits used by the PPU.
  */
 public class DuckSprite {
 
-    // --- Attribute Bit Definitions ---
-    private static final int MASK_PRIORITY = 0x80; // Bit 7: BG and Window over OBJ
-    private static final int MASK_Y_FLIP = 0x40; // Bit 6: Y flip
-    private static final int MASK_X_FLIP = 0x20; // Bit 5: X flip
-    private static final int MASK_PALETTE = 0x10; // Bit 4: Palette number (0=OBP0, 1=OBP1)
+    private static final int priorityMask = 0x80;
+    private static final int yFlipMask = 0x40;
+    private static final int xFlipMask = 0x20;
+    private static final int paletteMask = 0x10;
+    private static final int vramBankMask = 0x08;
+    private static final int cgbPaletteMask = 0x07;
 
-    // Public final fields: These are data carriers that should not change once
-    // created.
     public final int x;
     public final int y;
     public final int tileIndex;
     public final int attributes;
 
     /**
-     * Constructs a new sprite.
+     * Creates a sprite snapshot from raw OAM data.
      *
-     * @param y          The Y-coordinate on the screen (Raw OAM Y - 16).
-     * @param x          The X-coordinate on the screen (Raw OAM X - 8).
-     * @param tileIndex  The tile index.
-     * @param attributes The raw attribute byte.
+     * @param y sprite Y coordinate adjusted by the DMG OAM offset
+     * @param x sprite X coordinate adjusted by the DMG OAM offset
+     * @param tileIndex tile index used by the sprite
+     * @param attributes raw OAM attribute byte
      */
     public DuckSprite(int y, int x, int tileIndex, int attributes) {
         this.y = y;
@@ -38,36 +35,66 @@ public class DuckSprite {
         this.attributes = attributes;
     }
 
-    // --- Helper Methods (Cleaner PPU Logic) ---
-
     /**
-     * @return True if the sprite should be rendered behind the background/window
-     *         (unless the BG/Win pixel is transparent).
+     * Returns whether the sprite should sit behind non-zero background pixels.
+     *
+     * @return `true` if background priority is enabled
      */
-    public boolean isPriorityInternal() {
-        return (attributes & MASK_PRIORITY) != 0;
+    public boolean IsPriorityInternal() {
+        return (attributes & priorityMask) != 0;
     }
 
     /**
-     * @return True if the sprite should be flipped vertically.
+     * Returns whether the sprite is vertically flipped.
+     *
+     * @return `true` if Y flip is enabled
      */
-    public boolean isYFlip() {
-        return (attributes & MASK_Y_FLIP) != 0;
+    public boolean IsYFlip() {
+        return (attributes & yFlipMask) != 0;
     }
 
     /**
-     * @return True if the sprite should be flipped horizontally.
+     * Returns whether the sprite is horizontally flipped.
+     *
+     * @return `true` if X flip is enabled
      */
-    public boolean isXFlip() {
-        return (attributes & MASK_X_FLIP) != 0;
+    public boolean IsXFlip() {
+        return (attributes & xFlipMask) != 0;
     }
 
     /**
-     * @return True if the sprite uses Object Palette 1 (OBP1), False for OBP0.
+     * Returns whether the sprite uses OBP1 instead of OBP0.
+     *
+     * @return `true` if palette 1 is selected
      */
-    public boolean usePalette1() {
-        return (attributes & MASK_PALETTE) != 0;
+    public boolean UsesPalette1() {
+        return (attributes & paletteMask) != 0;
     }
+
+    /**
+     * Returns the CGB object palette index.
+     *
+     * @return palette index from 0 to 7
+     */
+    public int CgbPaletteIndex() {
+        return attributes & cgbPaletteMask;
+    }
+
+    /**
+     * Returns the sprite tile VRAM bank in CGB mode.
+     *
+     * @return VRAM bank index
+     */
+    public int VramBank() {
+        return (attributes & vramBankMask) != 0 ? 1 : 0;
+    }
+
+    @Deprecated public boolean isPriorityInternal() { return IsPriorityInternal(); }
+    @Deprecated public boolean isYFlip() { return IsYFlip(); }
+    @Deprecated public boolean isXFlip() { return IsXFlip(); }
+    @Deprecated public boolean usePalette1() { return UsesPalette1(); }
+    @Deprecated public int cgbPaletteIndex() { return CgbPaletteIndex(); }
+    @Deprecated public int vramBank() { return VramBank(); }
 
     @Override
     public String toString() {

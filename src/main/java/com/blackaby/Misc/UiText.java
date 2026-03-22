@@ -1,0 +1,1000 @@
+package com.blackaby.Misc;
+
+/**
+ * Central catalog for user-facing desktop UI text.
+ *
+ * Should be easy to modify
+ */
+public final class UiText {
+
+    private UiText() {
+    }
+
+    // ---------------------------------------------------------------------
+    // Shared app-wide labels and status text
+    // ---------------------------------------------------------------------
+    public static final class Common {
+        // App identity.
+        public static final String APP_NAME = "GameDuck";
+
+        // Shared status words.
+        public static final String READY = "Ready";
+        public static final String RUNNING = "Running";
+        public static final String INSTALLED = "Installed";
+        public static final String MISSING = "Missing";
+
+        // Shared dialog and panel titles.
+        public static final String WARNING_TITLE = "Warning";
+        public static final String SEARCH_TITLE = "Search";
+        public static final String CONSOLE_TITLE = "Console";
+
+        // Shared console filter labels.
+        public static final String CONSOLE_FILTER_ALL = "ALL";
+        public static final String CONSOLE_FILTER_GB = "GB";
+        public static final String CONSOLE_FILTER_GBC = "GBC";
+
+        private Common() {
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Core application windows
+    // ---------------------------------------------------------------------
+    public static final class AboutWindow {
+        // Window chrome.
+        public static final String WINDOW_TITLE = "About";
+
+        private AboutWindow() {
+        }
+
+        // Rich text body shown in the About dialog.
+        public static String HtmlBody() {
+            return "<html>"
+                    + "<h1>" + Common.APP_NAME + "</h1>"
+                    + "<h2>Version 0.1</h2>"
+                    + "<p><b>Nintendo Game Boy Emulator</b><br>"
+                    + "By Mackenzie Blackaby<br>"
+                    + "Final year project for Lancaster University<br><br>"
+                    + "<i>This emulator contains no IP or copyrighted material</i></p>"
+                    + "</html>";
+        }
+    }
+
+    public static final class MainWindow {
+        // Window chrome and top header copy.
+        public static final String WINDOW_TITLE = Common.APP_NAME;
+        public static final String HEADER_TITLE = Common.APP_NAME;
+        public static final String HEADER_SUBTITLE = "Game Boy emulation suite";
+
+        // Primary header action buttons.
+        public static final String BUTTON_OPEN_ROM = "Open ROM";
+        public static final String BUTTON_LIBRARY = "Library";
+        public static final String BUTTON_OPEN_IPS_PATCH = "Open IPS Patch";
+        public static final String BUTTON_OPTIONS = "Options";
+
+        // Display panel text.
+        public static final String DISPLAY_TITLE = "Display";
+        public static final String DISPLAY_HINT = "Scaled Game Output";
+
+        // Serial panel text.
+        public static final String SERIAL_TITLE = "Serial Output";
+        public static final String SERIAL_HINT = "(Live debug text from the emulated serial port)";
+
+        // Artwork panel titles and helper text.
+        public static final String GAME_ART_TITLE = "Game Art";
+        public static final String GAME_ART_HINT_DEFAULT = "(Fetched automatically from libretro thumbnails)";
+        public static final String GAME_ART_LOAD_PROMPT = "Load a ROM to fetch artwork";
+        public static final String GAME_ART_DISABLED_HINT = "(Disabled in window options)";
+
+        // Main surface placeholder and loading text.
+        public static final String NO_ROM_LOADED = "No ROM loaded";
+        public static final String RETRIEVING_GAME_NAME = "Retrieving game name...";
+        public static final String FETCHING_ARTWORK = "Fetching artwork...";
+        public static final String NO_ARTWORK_FOUND = "No artwork found for this rom";
+        public static final String NO_ARTWORK_HINT = "No matching libretro thumbnail was found for this ROM";
+
+        // Game menu labels.
+        public static final String GAME_MENU_TITLE = "Game";
+        public static final String GAME_MENU_LIBRARY = "Library";
+        public static final String GAME_MENU_OPEN_ROM = "Open ROM";
+        public static final String GAME_MENU_OPEN_IPS_PATCH = "Open IPS Patch";
+        public static final String GAME_MENU_PAUSE_GAME = "Pause Game";
+        public static final String GAME_MENU_RESET_GAME = "Reset Game";
+        public static final String GAME_MENU_CLOSE_GAME = "Close Game";
+        public static final String GAME_MENU_SAVE_STATE_MANAGER = "Save State Manager";
+        public static final String GAME_MENU_QUICK_SAVE = "Quick Save";
+        public static final String GAME_MENU_QUICK_LOAD = "Quick Load";
+        public static final String GAME_MENU_SAVE_STATE = "Save State";
+        public static final String GAME_MENU_LOAD_STATE = "Load State";
+        public static final String GAME_MENU_QUICK_SLOT = "Quick Slot";
+        // Top-level menu bar layout.
+        public static final String[][] MENU_ITEMS = {
+                { "File", "Options", "", "Exit", "" },
+                { GAME_MENU_TITLE, GAME_MENU_LIBRARY, GAME_MENU_OPEN_ROM, GAME_MENU_OPEN_IPS_PATCH, "",
+                        GAME_MENU_PAUSE_GAME, GAME_MENU_RESET_GAME, GAME_MENU_CLOSE_GAME, "",
+                        GAME_MENU_QUICK_SAVE, GAME_MENU_QUICK_LOAD,
+                        "" },
+                { "View", "Enter Full View", "Toggle Fullscreen", "Toggle Maximise", "", "Frame Counter" },
+                { "Help", "About", "", }
+        };
+
+        private MainWindow() {
+        }
+
+        // Dynamic labels shown while the window is live.
+        public static String FpsLabel(int frames) {
+            return "FPS: " + frames;
+        }
+
+        public static String StatusBarFps(int frames) {
+            return frames + " FPS";
+        }
+
+        public static String FullViewButtonLabel(boolean fillWindow) {
+            return fillWindow ? "Exit Full View" : "Full View";
+        }
+
+        public static String FullViewMenuLabel(boolean fillWindow) {
+            return fillWindow ? "Exit Full View" : "Enter Full View";
+        }
+
+        public static String LookingUpArtwork(String artworkLabel, String gameName) {
+            return "Looking up " + artworkLabel.toLowerCase() + " for " + gameName;
+        }
+
+        public static String SaveStateSlotLabel(int slot, String timestampText) {
+            String base = slot == 0 ? GAME_MENU_QUICK_SLOT : "Save Slot " + slot;
+            return timestampText == null || timestampText.isBlank()
+                    ? base
+                    : base + "  [" + timestampText + "]";
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Asset and preset management windows
+    // ---------------------------------------------------------------------
+    public static final class PaletteManager {
+        // Window and heading text.
+        public static final String WINDOW_TITLE = "Palette Manager";
+        public static final String TITLE = "Saved Palettes";
+        public static final String SUBTITLE = "Load or delete saved palettes.";
+
+        // Buttons and dialog titles.
+        public static final String LOAD_BUTTON = "Load Palette";
+        public static final String DELETE_BUTTON = "Delete";
+        public static final String DELETE_CONFIRM_TITLE = "Delete Palette";
+
+        private PaletteManager() {
+        }
+
+        // Confirmation messages.
+        public static String DeleteConfirmMessage(String paletteName) {
+            return "Delete palette \"" + paletteName + "\"?";
+        }
+    }
+
+    public static final class ThemeManager {
+        // Window and heading text.
+        public static final String WINDOW_TITLE = "Theme Manager";
+        public static final String TITLE = "Saved Themes";
+        public static final String SUBTITLE = "Load or delete saved themes.";
+
+        // Buttons and dialog titles.
+        public static final String LOAD_BUTTON = "Load Theme";
+        public static final String DELETE_BUTTON = "Delete";
+        public static final String DELETE_CONFIRM_TITLE = "Delete Theme";
+
+        private ThemeManager() {
+        }
+
+        // Confirmation messages.
+        public static String DeleteConfirmMessage(String themeName) {
+            return "Delete theme \"" + themeName + "\"?";
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Library browsing and ROM metadata
+    // ---------------------------------------------------------------------
+    public static final class LibraryWindow {
+        // Main library window chrome.
+        public static final String WINDOW_TITLE = "Library";
+        public static final String TITLE = "Game Library";
+        public static final String SUBTITLE = "All ROMs that have been run are copied into GameDuck!";
+
+        // List controls: filter and view headings.
+        public static final String FILTER_TITLE = "Filter";
+        public static final String VIEW_TITLE = "View";
+
+        // List controls: filter options.
+        public static final String FILTER_ALL = "All Games";
+        public static final String FILTER_FAVOURITES = "Favourites Only";
+        public static final String FILTER_ROM_HACKS = "ROM Hacks Only";
+        public static final String FILTER_BASE_ROMS = "Base ROMs Only";
+
+        // List controls: view options.
+        public static final String VIEW_LIST = "List";
+        public static final String VIEW_SMALL_ICONS = "Small Icons";
+        public static final String VIEW_LARGE_ICONS = "Large Icons";
+
+        // Artwork and preview placeholders.
+        public static final String ART_LOADING = "Loading art...";
+        public static final String ART_MISSING = "No art";
+        public static final String TITLE_SCREEN_LOADING = "Loading title screen...";
+        public static final String TITLE_SCREEN_MISSING = "No title screen found";
+
+        // Library item actions and icon tooltips.
+        public static final String LOAD_BUTTON = "Load ROM";
+        public static final String SAVE_MANAGER_BUTTON = "Save Manager";
+        public static final String REFRESH_BUTTON = "Refresh";
+        public static final String CLOSE_BUTTON = "Close";
+        public static final String FAVOURITE_BUTTON = "\u2606";
+        public static final String UNFAVOURITE_BUTTON = "\u2605";
+        public static final String INFO_BUTTON = "\u2139";
+        public static final String FAVOURITE_BUTTON_TOOLTIP = "Add Favourite";
+        public static final String UNFAVOURITE_BUTTON_TOOLTIP = "Remove Favourite";
+        public static final String INFO_BUTTON_TOOLTIP = "Show ROM Info";
+
+        // Library card and list metadata labels.
+        public static final String VARIANT_TITLE = "Variant";
+        public static final String FAVOURITE_BADGE = "Favourite";
+        public static final String BASE_VARIANT = "Base ROM";
+
+        // Empty states for the main library list.
+        public static final String EMPTY = "No games have been copied into the library yet.";
+        public static final String EMPTY_FAVOURITES = "No favourite games yet. Mark games from the library to keep them in this view.";
+        public static final String EMPTY_ROM_HACKS = "No ROM hacks are in the library yet.";
+        public static final String EMPTY_BASE_ROMS = "No base ROMs are in the library yet.";
+        public static final String EMPTY_FILTERED = "No games match the current search or filters.";
+
+        // ROM info window chrome.
+        public static final String INFO_WINDOW_TITLE = "ROM Info";
+        public static final String INFO_WINDOW_SUBTITLE = "Cartridge details, library history, and libretro metadata for the selected ROM.";
+
+        // ROM info section titles.
+        public static final String INFO_OVERVIEW_TITLE = "Overview";
+        public static final String INFO_LIBRETRO_TITLE = "Libretro Metadata";
+        public static final String INFO_STORAGE_TITLE = "Stored File";
+
+        // ROM info field labels.
+        public static final String INFO_PATH_TITLE = "Managed ROM Path";
+        public static final String INFO_LAST_PLAYED_TITLE = "Last Played";
+        public static final String INFO_TARGET_HARDWARE_TITLE = "Target Hardware";
+        public static final String INFO_COMPATIBILITY_TITLE = "Compatibility";
+        public static final String INFO_HEADER_TITLE = "Header Title";
+        public static final String INFO_MAPPER_TITLE = "Mapper";
+        public static final String INFO_ROM_SIZE_TITLE = "ROM Size";
+        public static final String INFO_SAVE_SUPPORT_TITLE = "Battery Save";
+        public static final String INFO_PUBLISHER_TITLE = "Publisher";
+        public static final String INFO_RELEASE_YEAR_TITLE = "Release Year";
+        public static final String INFO_DATABASE_TITLE = "Libretro Database";
+
+        // ROM info value placeholders.
+        public static final String INFO_NO_SELECTION = "No library game selected";
+        public static final String INFO_UNKNOWN_VALUE = "Unknown";
+        public static final String INFO_LOADING_VALUE = "Loading...";
+
+        // ROM info actions and error titles.
+        public static final String INFO_OPEN_EXPLORER_BUTTON = "Open in Explorer";
+        public static final String INFO_LOAD_ERROR_TITLE = "Failed to open ROM info";
+        public static final String INFO_EXPLORER_ERROR_TITLE = "Failed to open Explorer";
+
+        // ROM info units and formatting fragments.
+        public static final String INFO_ROM_BANKS_SUFFIX = "banks";
+        public static final String INFO_BYTE_UNIT_B = "B";
+        public static final String INFO_BYTE_UNIT_KB = "KB";
+        public static final String INFO_BYTE_UNIT_MB = "MB";
+
+        private LibraryWindow() {
+        }
+
+        // Dynamic labels for library list cards and info panes.
+        public static String VariantLabel(java.util.List<String> patchNames) {
+            return patchNames == null || patchNames.isEmpty()
+                    ? BASE_VARIANT
+                    : "Hack: " + String.join(" + ", patchNames);
+        }
+
+        public static String InfoTargetHardware(boolean cgbOnly, boolean cgbCompatible) {
+            if (cgbOnly) {
+                return "Game Boy Color";
+            }
+            if (cgbCompatible) {
+                return "Dual-mode cartridge";
+            }
+            return "Game Boy";
+        }
+
+        public static String InfoCompatibility(boolean cgbOnly, boolean cgbCompatible) {
+            if (cgbOnly) {
+                return "Requires Game Boy Color hardware";
+            }
+            if (cgbCompatible) {
+                return "Runs on Game Boy and Game Boy Color";
+            }
+            return "Designed for original Game Boy hardware";
+        }
+
+        public static String InfoBatterySave(boolean hasBatterySave) {
+            return hasBatterySave ? "Supported" : "Not supported";
+        }
+
+        public static String InfoRomSizeSummary(String formattedByteSize, int bankCount) {
+            return formattedByteSize + " | " + bankCount + " " + INFO_ROM_BANKS_SUFFIX;
+        }
+
+        public static String InfoByteSize(long bytes) {
+            if (bytes < 1024L) {
+                return bytes + " " + INFO_BYTE_UNIT_B;
+            }
+            if (bytes < 1024L * 1024L) {
+                return String.format("%.1f %s", bytes / 1024.0, INFO_BYTE_UNIT_KB);
+            }
+            return String.format("%.1f %s", bytes / (1024.0 * 1024.0), INFO_BYTE_UNIT_MB);
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Global dialogs, actions, and supporting metadata
+    // ---------------------------------------------------------------------
+    public static final class GuiActions {
+        // File dialog titles.
+        public static final String LOAD_ROM_DIALOG_TITLE = "Select a ROM or IPS patch";
+        public static final String LOAD_IPS_DIALOG_TITLE = "Select an IPS patch";
+        public static final String BASE_ROM_DIALOG_TITLE = "Select the base ROM for this IPS patch";
+
+        // Error dialog titles.
+        public static final String LOAD_ROM_ERROR_TITLE = "Failed to load ROM";
+        public static final String LOAD_IPS_ERROR_TITLE = "Failed to load IPS patch";
+        public static final String LIBRARY_LOAD_ERROR_TITLE = "Failed to load library game";
+        public static final String QUICK_SAVE_ERROR_TITLE = "Failed to quick save";
+        public static final String QUICK_LOAD_ERROR_TITLE = "Failed to quick load";
+        public static final String SAVE_STATE_ERROR_TITLE = "Failed to save state";
+        public static final String LOAD_STATE_ERROR_TITLE = "Failed to load state";
+
+        // Confirmation dialog titles and messages.
+        public static final String EXIT_CONFIRM_TITLE = "Exit";
+        public static final String EXIT_CONFIRM_MESSAGE = "Are you sure you want to exit?";
+
+        // Short status messages shown after save/load actions.
+        public static final String QUICK_SAVE_STATUS = "Quick saved";
+        public static final String QUICK_LOAD_STATUS = "Quick loaded";
+
+        private GuiActions() {
+        }
+
+        // Dynamic status labels used by quick slot and numbered slot flows.
+        public static String SaveStateStatus(int slot) {
+            return slot == 0 ? QUICK_SAVE_STATUS : "Saved slot " + slot;
+        }
+
+        public static String LoadStateStatus(int slot) {
+            return slot == 0 ? QUICK_LOAD_STATUS : "Loaded slot " + slot;
+        }
+    }
+
+    public static final class GameArt {
+        // Artwork source labels exposed in the UI.
+        public static final String SOURCE_LIBRETRO = "Libretro thumbnails";
+        public static final String SOURCE_LIBRETRO_BOXART = "Libretro box art";
+        public static final String SOURCE_LIBRETRO_TITLE = "Libretro title screen";
+        public static final String SOURCE_LIBRETRO_SCREENSHOT = "Libretro screenshot";
+        public static final String SOURCE_NONE = "Artwork hidden";
+
+        // Mode picker labels.
+        public static final String BOX_ART_LABEL = "Box Art";
+        public static final String TITLE_SCREEN_LABEL = "Title Screen";
+        public static final String SCREENSHOT_LABEL = "Screenshot";
+        public static final String NONE_LABEL = "None";
+
+        // Mode picker descriptions.
+        public static final String BOX_ART_DESCRIPTION = "Show libretro box art when available.";
+        public static final String TITLE_SCREEN_DESCRIPTION = "Show libretro title-screen captures instead of cover art.";
+        public static final String SCREENSHOT_DESCRIPTION = "Show libretro gameplay screenshots instead of cover art.";
+        public static final String NONE_DESCRIPTION = "Hide the game art panel in the main window.";
+
+        private GameArt() {
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Options reference text and preset catalogs
+    // ---------------------------------------------------------------------
+    public static final class AppShortcuts {
+        // Shortcut labels.
+        public static final String OPTIONS_LABEL = "Options";
+        public static final String EXIT_LABEL = "Exit";
+        public static final String OPEN_GAME_LABEL = "Open Game";
+        public static final String PAUSE_GAME_LABEL = "Pause Game";
+        public static final String CLOSE_GAME_LABEL = "Close Game";
+        public static final String SAVE_STATE_LABEL = "Quick Save";
+        public static final String LOAD_STATE_LABEL = "Quick Load";
+        public static final String TOGGLE_FULL_VIEW_LABEL = "Toggle Full View";
+        public static final String TOGGLE_FULLSCREEN_LABEL = "Toggle Fullscreen";
+        public static final String TOGGLE_MAXIMISE_LABEL = "Toggle Maximise";
+        public static final String TOGGLE_FRAME_COUNTER_LABEL = "Frame Counter";
+
+        // Shortcut descriptions.
+        public static final String OPTIONS_DESCRIPTION = "Open the options window.";
+        public static final String EXIT_DESCRIPTION = "Close the app after confirmation.";
+        public static final String OPEN_GAME_DESCRIPTION = "Load a ROM from disk.";
+        public static final String PAUSE_GAME_DESCRIPTION = "Pause or resume the current game.";
+        public static final String CLOSE_GAME_DESCRIPTION = "Stop the current ROM.";
+        public static final String SAVE_STATE_DESCRIPTION = "Save the current emulator quick state.";
+        public static final String LOAD_STATE_DESCRIPTION = "Load the current emulator quick state.";
+        public static final String TOGGLE_FULL_VIEW_DESCRIPTION = "Switch the display into or out of full view mode.";
+        public static final String TOGGLE_FULLSCREEN_DESCRIPTION = "Switch the main window into fullscreen mode.";
+        public static final String TOGGLE_MAXIMISE_DESCRIPTION = "Toggle the maximised window state.";
+        public static final String TOGGLE_FRAME_COUNTER_DESCRIPTION = "Show or hide the FPS counter.";
+
+        private AppShortcuts() {
+        }
+    }
+
+    public static final class GameNameDisplayMode {
+        // Display mode labels.
+        public static final String NONE_LABEL = "Show all bracketed content";
+        public static final String ROUND_LABEL = "Hide (...) only";
+        public static final String SQUARE_LABEL = "Hide [...] only";
+        public static final String BOTH_LABEL = "Hide (...) and [...]";
+
+        // Display mode descriptions.
+        public static final String NONE_DESCRIPTION = "Keep both (...) and [...] segments in displayed names.";
+        public static final String ROUND_DESCRIPTION = "Remove round-bracketed segments from displayed names.";
+        public static final String SQUARE_DESCRIPTION = "Remove square-bracketed segments from displayed names.";
+        public static final String BOTH_DESCRIPTION = "Remove round and square bracketed segments from displayed names.";
+
+        private GameNameDisplayMode() {
+        }
+    }
+
+    public static final class ThemePresets {
+        // Built-in preset labels.
+        public static final String HARBOR_LABEL = "Harbour";
+        public static final String MINT_DMG_LABEL = "Mint DMG";
+        public static final String GRAPHITE_LABEL = "Graphite";
+        public static final String SUNSET_LABEL = "Sunset";
+
+        // Built-in preset descriptions.
+        public static final String HARBOR_DESCRIPTION = "Cool blue default with crisp contrast.";
+        public static final String MINT_DMG_DESCRIPTION = "A soft green inspired by the DMG screen";
+        public static final String GRAPHITE_DESCRIPTION = "More neutral default than harbour";
+        public static final String SUNSET_DESCRIPTION = "Warm copper accents and soft paper.";
+
+        private ThemePresets() {
+        }
+    }
+
+    public static final class ThemeColorRoles {
+        // Theme role labels.
+        public static final String APP_BACKGROUND_LABEL = "App Background";
+        public static final String SURFACE_LABEL = "Surface";
+        public static final String ACCENT_LABEL = "Accent";
+        public static final String MUTED_TEXT_LABEL = "Muted Text";
+        public static final String DISPLAY_FRAME_LABEL = "Display Frame";
+        public static final String SECTION_HIGHLIGHT_LABEL = "Section Tint";
+
+        // Theme role descriptions.
+        public static final String APP_BACKGROUND_DESCRIPTION = "Window backgrounds.";
+        public static final String SURFACE_DESCRIPTION = "Cards, panels, and menu surfaces.";
+        public static final String ACCENT_DESCRIPTION = "Primary buttons and headings.";
+        public static final String MUTED_TEXT_DESCRIPTION = "Secondary labels and helper text.";
+        public static final String DISPLAY_FRAME_DESCRIPTION = "The the emulator display bezel.";
+        public static final String SECTION_HIGHLIGHT_DESCRIPTION = "Highlighted panels and selection tint.";
+
+        private ThemeColorRoles() {
+        }
+    }
+
+    public static final class AudioEnhancements {
+        // Preset labels.
+        public static final String SOFT_LOW_PASS_LABEL = "Soft Low-Pass";
+        public static final String POCKET_SPEAKER_LABEL = "Pocket Speaker";
+        public static final String SOFT_CLIP_LABEL = "Soft Clip";
+        public static final String STEREO_WIDEN_LABEL = "Stereo Widen";
+        public static final String ROOM_REVERB_LABEL = "Room Reverb";
+        public static final String SHIMMER_CHORUS_LABEL = "Shimmer Chorus";
+        public static final String BITCRUSH_LABEL = "Bitcrush";
+        public static final String DUB_ECHO_LABEL = "Dub Echo";
+        public static final String UNDERWATER_LABEL = "Underwater";
+
+        // Preset descriptions.
+        public static final String SOFT_LOW_PASS_DESCRIPTION = "Gently rolls off harsh highs for a warmer handheld tone.";
+        public static final String POCKET_SPEAKER_DESCRIPTION = "Band-limits the output to feel closer to a small built-in speaker.";
+        public static final String SOFT_CLIP_DESCRIPTION = "Rounds peaks to tame brittleness and add a little loudness and density.";
+        public static final String STEREO_WIDEN_DESCRIPTION = "Expands the left and right image slightly after the mix.";
+        public static final String ROOM_REVERB_DESCRIPTION = "Adds a short reflective room bloom that keeps chiptune transients mostly intact.";
+        public static final String SHIMMER_CHORUS_DESCRIPTION = "Blends a slow stereo chorus for a wider, glassier synth-like wash.";
+        public static final String BITCRUSH_DESCRIPTION = "Downsamples and quantises the output for a crunchy, intentionally digital edge.";
+        public static final String DUB_ECHO_DESCRIPTION = "Throws the mix into a soft ping-pong delay with dark repeating tails.";
+        public static final String UNDERWATER_DESCRIPTION = "Low-passes and gently warbles the mix into a submerged dream-state haze.";
+
+        private AudioEnhancements() {
+        }
+    }
+
+    // ---------------------------------------------------------------------
+    // Options window text catalog
+    // ---------------------------------------------------------------------
+    public static final class OptionsWindow {
+        // Window chrome and tab labels.
+        public static final String WINDOW_TITLE = "Options";
+        public static final String HEADER_TITLE = "Options";
+        public static final String HEADER_SUBTITLE = "Tune the display, controls, audio, and emulation behaviour.";
+        public static final String TAB_PALETTE = "Palette";
+        public static final String TAB_CONTROLS = "Controls";
+        public static final String TAB_SOUND = "Sound";
+        public static final String TAB_EMULATION = "Emulation";
+        public static final String TAB_WINDOW = "Window";
+        public static final String TAB_LIBRARY = "Library";
+        public static final String TAB_THEME = "Theme";
+
+        // -----------------------------------------------------------------
+        // Section card titles and descriptions used across the tab pages.
+        // Keep each title/description pair together for the card it belongs to.
+        // -----------------------------------------------------------------
+        public static final String SECTION_PALETTE_TITLE = "Game Boy Palette Customisation";
+        public static final String SECTION_PALETTE_DESCRIPTION = "REMOVE THIS ELEMENT";
+        public static final String SECTION_GBC_TITLE = "Game Boy Colour Colourisation";
+        public static final String SECTION_GBC_DESCRIPTION = "REMOVE THIS ELEMENT";
+        public static final String SECTION_CONTROLS_TITLE = "Input Mapping";
+        public static final String SECTION_CONTROLS_DESCRIPTION = "Rebind each Game Boy button to the keyboard layout you prefer.";
+        public static final String SECTION_SHORTCUTS_TITLE = "App Shortcuts";
+        public static final String SECTION_SHORTCUTS_DESCRIPTION = "Customise the keyboard shortcuts used for emulator actions and window commands.";
+        public static final String SECTION_SOUND_TITLE = "Audio Output";
+        public static final String SECTION_SOUND_DESCRIPTION = "Toggle sound, balance the four DMG voices, and build a reorderable enhancement chain for the host output.";
+        public static final String SECTION_EMULATION_TITLE = "Save Data and Boot ROM";
+        public static final String SECTION_EMULATION_DESCRIPTION = "Open the multi-game save manager, then configure DMG and CGB boot ROM startup behaviour.";
+        public static final String SECTION_WINDOW_TITLE = "Main Window Layout";
+        public static final String SECTION_WINDOW_DESCRIPTION = "Choose whether the emulator keeps the new chrome, whether serial output is visible, and which libretro artwork type appears in the main window.";
+        public static final String SECTION_LIBRARY_TITLE = "Game Name Display";
+        public static final String SECTION_LIBRARY_DESCRIPTION = "Control whether displayed game names keep or hide bracketed suffixes such as regions, revisions, or hack tags.";
+        public static final String SECTION_THEME_LIBRARY_TITLE = "Theme Library";
+        public static final String SECTION_THEME_LIBRARY_DESCRIPTION = "Save the current host theme, reload saved looks, or continue from a previous custom preset.";
+        public static final String SECTION_THEME_PRESETS_TITLE = "Theme Presets";
+        public static final String SECTION_THEME_PRESETS_DESCRIPTION = "Pick a built-in look for the host app before making manual tweaks.";
+        public static final String SECTION_THEME_COLORS_TITLE = "Theme Colors";
+        public static final String SECTION_THEME_COLORS_DESCRIPTION = "Adjust the host UI palette with the same picker flow used for the DMG display colors.";
+
+        // -----------------------------------------------------------------
+        // Palette tab: DMG palette editor.
+        // -----------------------------------------------------------------
+        public static final String ACTIVE_DMG_PALETTE_TITLE = "Active Game Boy Palette";
+        public static final String ACTIVE_DMG_PALETTE_HELPER = "Click any swatch to edit that tone.";
+        public static final String SAVE_CURRENT_PALETTE = "Save Current Palette";
+        public static final String SAVE_CURRENT_PALETTE_HELPER = "REMOVE THIS ELEMENT";
+        public static final String SAVE_PALETTE_BUTTON = "Save Palette";
+        public static final String BROWSE_BUTTON = "Browse";
+        public static final String RESET_PALETTE_BUTTON = "Default Palette";
+        public static final String[] DMG_TONE_NAMES = { "Background", "Light", "Medium", "Dark" };
+
+        // -----------------------------------------------------------------
+        // Palette tab: GBC colourisation controls.
+        // -----------------------------------------------------------------
+        public static final String GBC_COMPATIBLE_MODE_TITLE = "GBC Colourisation mode";
+        public static final String GBC_COMPATIBLE_MODE_HELPER = "Switch between GBC and GB emulation for games compatible with both (Game restart required).";
+        public static final String GBC_NON_CGB_MODE_TITLE = "Non-CGB Colour Mode";
+        public static final String GBC_NON_CGB_MODE_HELPER = "Choose between using the GB or GBC colourisation of GB roms";
+        public static final String DMG_PALETTE_MODE_GB = "GB Original";
+        public static final String DMG_PALETTE_MODE_GBC = "GBC Colourisation";
+        public static final String GBC_COMPATIBLE_MODE_FULL_COLOUR = "GBC Full colour";
+        public static final String GBC_COMPATIBLE_MODE_GB_PALETTE = "GB Colourisation";
+        public static final String GBC_BACKGROUND_PALETTE_TITLE = "Background Palette";
+        public static final String GBC_BACKGROUND_PALETTE_HELPER = "Used for tiles and window pixels.";
+        public static final String GBC_SPRITE0_PALETTE_TITLE = "Sprite Palette 0";
+        public static final String GBC_SPRITE0_PALETTE_HELPER = "Used by sprites selecting OBP0.";
+        public static final String GBC_SPRITE1_PALETTE_TITLE = "Sprite Palette 1";
+        public static final String GBC_SPRITE1_PALETTE_HELPER = "Used by sprites selecting OBP1.";
+        public static final String RESET_GBC_SETTINGS_BUTTON = "Reset GBC Settings";
+
+        // -----------------------------------------------------------------
+        // Theme tab: saved theme handling and active theme editing.
+        // -----------------------------------------------------------------
+        public static final String ACTIVE_APP_THEME_TITLE = "Active App Theme";
+        public static final String ACTIVE_APP_THEME_HELPER = "Current colors used by the window chrome and controls.";
+        public static final String SAVE_CURRENT_THEME = "Save Current Theme";
+        public static final String SAVE_CURRENT_THEME_HELPER = "Save the active window theme or reopen a custom preset.";
+        public static final String SAVE_THEME_BUTTON = "Save Theme";
+        public static final String RESET_THEME_BUTTON = "Reset Theme";
+        public static final String CHOOSE_COLOR_BUTTON = "Choose Color";
+        public static final String APPLY_THEME_BUTTON = "Apply Theme";
+        public static final String CHOOSE_BUTTON = "Choose";
+
+        // -----------------------------------------------------------------
+        // Controls tab: player inputs and app shortcut rebinding.
+        // -----------------------------------------------------------------
+        public static final String PLAYER_CONTROLS_TITLE = "Player Controls";
+        public static final String PLAYER_CONTROLS_DESCRIPTION = "Click any keycap to capture a new keyboard input for the emulator. Duplicate assignments are swapped automatically so every Game Boy button stays bound.";
+        public static final String WINDOW_SHORTCUTS_TITLE = "Window Shortcuts";
+        public static final String WINDOW_SHORTCUTS_DESCRIPTION = "These bindings drive the live menu accelerators and the quick-key hints shown in the main window. Modifier combinations like Ctrl or Shift are supported.";
+        public static final String PLAYER_CONTROLS_BADGE = "DMG Input";
+        public static final String WINDOW_SHORTCUTS_BADGE = "App Action";
+        public static final String DMG_BADGE = "DMG";
+        public static final String APP_BADGE = "APP";
+        public static final String RESET_CONTROLS_BUTTON = "Reset Controls";
+        public static final String RESET_SHORTCUTS_BUTTON = "Reset App Shortcuts";
+
+        // -----------------------------------------------------------------
+        // Sound tab: playback and channel mixer.
+        // -----------------------------------------------------------------
+        public static final String PLAYBACK_TITLE = "Playback";
+        public static final String PLAYBACK_HELPER = "Control whether the APU is sent to the host speakers and keep the master level within a comfortable range.";
+        public static final String MASTER_VOLUME_TITLE = "Master Volume";
+        public static final String MASTER_VOLUME_HELPER = "Applies to all four DMG audio channels.";
+        public static final String CHANNEL_MIXER_TITLE = "Channel Mixer";
+        public static final String CHANNEL_MIXER_HELPER = "Mute each DMG voice or trim its level without affecting the others.";
+        public static final String SOUND_ENABLED_CHECKBOX = "Enable Sound";
+        public static final String MUTE_CHECKBOX = "Mute";
+        public static final String QUIET_LABEL = "Quiet";
+        public static final String LOUD_LABEL = "Loud";
+        public static final String RESET_SOUND_BUTTON = "Reset Sound";
+
+        // -----------------------------------------------------------------
+        // Sound tab: enhancement chain builder.
+        // -----------------------------------------------------------------
+        public static final String AUDIO_ENHANCEMENTS_TITLE = "Audio Enhancements";
+        public static final String AUDIO_ENHANCEMENTS_HELPER = "Add fixed enhancement presets to the host audio chain. Effects are applied from top to bottom, can be reordered live, and can be stacked for stronger shaping.";
+        public static final String ADD_PRESET_TITLE = "Add Preset";
+        public static final String ACTIVE_CHAIN_TITLE = "Active Chain";
+        public static final String ACTIVE_CHAIN_HELPER = "Top runs first. Changes apply immediately to live audio output.";
+        public static final String PRESET_DESCRIPTION_PLACEHOLDER = "Select a preset to view its character.";
+        public static final String ADD_TO_CHAIN_BUTTON = "Add to Chain";
+        public static final String MOVE_UP_BUTTON = "Move Up";
+        public static final String MOVE_DOWN_BUTTON = "Move Down";
+        public static final String REMOVE_BUTTON = "Remove";
+        public static final String CLEAR_CHAIN_BUTTON = "Clear Chain";
+
+        // -----------------------------------------------------------------
+        // Window tab: main window layout and library naming controls.
+        // -----------------------------------------------------------------
+        public static final String WINDOW_FILL_CHECKBOX = "Fill window with output";
+        public static final String WINDOW_FILL_HELPER = "When enabled, the display fills the main window area and the extra header, hints, and status strip are hidden.";
+        public static final String SERIAL_OUTPUT_CHECKBOX = "Show serial output";
+        public static final String SERIAL_OUTPUT_HELPER = "Toggle the serial log panel on the right side of the main window.";
+        public static final String GAME_ART_MODE_LABEL = "Game Art";
+        public static final String GAME_ART_MODE_HELPER = "Choose which libretro artwork type the main window should show, or hide the art panel completely.";
+        public static final String RESET_WINDOW_BUTTON = "Reset Window Layout";
+        public static final String LIBRARY_MODE_LABEL = "Bracketed Content";
+        public static final String RESET_LIBRARY_BUTTON = "Reset Library Naming";
+
+        // -----------------------------------------------------------------
+        // Emulation tab: save-state manager launcher and window copy.
+        // -----------------------------------------------------------------
+        public static final String SAVE_STATE_MANAGER_OPEN_BUTTON = "Save State Manager";
+        public static final String SAVE_STATE_MANAGER_WINDOW_TITLE = "Save State Manager";
+        public static final String SAVE_STATE_MANAGER_SUBTITLE = "Manage quick saves and numbered save-state slots for every tracked game.";
+        public static final String SAVE_STATE_MANAGER_EMPTY_TITLE = "No tracked library games yet";
+        public static final String SAVE_STATE_MANAGER_EMPTY_HELPER = "Run a game once so GameDuck can track its library entry and save-state slots.";
+        public static final String SAVE_STATE_MANAGER_FILTERED_EMPTY_TITLE = "No matching tracked ROMs";
+        public static final String SAVE_STATE_MANAGER_FILTERED_EMPTY_HELPER = "Try a different search or console filter.";
+        public static final String SAVE_STATE_MANAGER_SLOT_TITLE = "Save State Slots";
+        public static final String SAVE_STATE_MANAGER_SLOT_HELPER = "Quick Slot plus slots 1-9 for the selected ROM.";
+        public static final String SAVE_STATE_MANAGER_PATH_TITLE = "Selected Slot Path";
+        public static final String SAVE_STATE_MANAGER_ACTIONS_TITLE = "State Actions";
+        public static final String SAVE_STATE_MANAGER_ACTIONS_HELPER = "Import, export, move, or delete the selected save state.";
+        public static final String SAVE_STATE_MANAGER_MOVE_TITLE = "Move State";
+        public static final String SAVE_STATE_MANAGER_MOVE_HELPER = "Move the selected state into another slot for this ROM.";
+        public static final String SAVE_STATE_MANAGER_IMPORT_BUTTON = "Import";
+        public static final String SAVE_STATE_MANAGER_EXPORT_BUTTON = "Export";
+        public static final String SAVE_STATE_MANAGER_DELETE_BUTTON = "Delete Slot";
+        public static final String SAVE_STATE_MANAGER_DELETE_ALL_BUTTON = "Delete All";
+        public static final String SAVE_STATE_MANAGER_MOVE_BUTTON = "Move";
+        public static final String SAVE_STATE_MANAGER_SLOT_EMPTY = "Empty";
+        public static final String SAVE_STATE_MANAGER_SLOT_PRESENT = "Saved";
+        public static final String SAVE_STATE_MANAGER_CURRENT_GAME_BADGE = "Loaded Now";
+        public static final String SAVE_STATE_MANAGER_NO_SLOT_BADGE = "No State";
+        public static final String SAVE_STATE_MANAGER_READY_BADGE = "State Ready";
+        public static final String SAVE_STATE_MANAGER_IMPORT_DIALOG_TITLE = "Import save state";
+        public static final String SAVE_STATE_MANAGER_EXPORT_DIALOG_TITLE = "Export save state";
+        public static final String SAVE_STATE_MANAGER_IMPORT_FAILED_TITLE = "Failed to import save state";
+        public static final String SAVE_STATE_MANAGER_EXPORT_FAILED_TITLE = "Failed to export save state";
+        public static final String SAVE_STATE_MANAGER_DELETE_FAILED_TITLE = "Failed to delete save state";
+        public static final String SAVE_STATE_MANAGER_MOVE_FAILED_TITLE = "Failed to move save state";
+        public static final String SAVE_STATE_MANAGER_DELETE_CONFIRM_TITLE = "Delete Save State";
+        public static final String SAVE_STATE_MANAGER_DELETE_ALL_CONFIRM_TITLE = "Delete All Save States";
+        public static final String SAVE_STATE_MANAGER_TARGET_SLOT_LABEL = "Target Slot";
+        public static final String SAVE_STATE_MANAGER_SLOT_PATH_MISSING = "No managed save-state file exists for this slot yet.";
+        public static final String SAVE_STATE_MANAGER_SLOT_SUMMARY_TITLE = "Saved Slots";
+
+        // -----------------------------------------------------------------
+        // Emulation tab: save-data manager launcher and detail copy.
+        // -----------------------------------------------------------------
+        public static final String SAVE_DATA_TITLE = "Save Data Manager";
+        public static final String SAVE_DATA_DESCRIPTION = "Open the dedicated save manager to review and edit save data for every tracked battery-backed game.";
+        public static final String SAVE_MANAGER_WINDOW_TITLE = "Save Data Manager";
+        public static final String SAVE_MANAGER_SUBTITLE = "Manage save files for every tracked game.";
+        public static final String SAVE_MANAGER_EMPTY_TITLE = "No tracked save games yet";
+        public static final String SAVE_MANAGER_EMPTY_HELPER = "Load a game with battery-backed save RAM once and it will appear here with its managed save slot.";
+        public static final String SAVE_MANAGER_FILTERED_EMPTY_TITLE = "No matching tracked games";
+        public static final String SAVE_MANAGER_FILTERED_EMPTY_HELPER = "Try a different search or console filter.";
+        public static final String SAVE_MANAGER_CURRENT_GAME_BADGE = "Loaded Now";
+        public static final String SAVE_MANAGER_REFRESH_BUTTON = "Refresh";
+        public static final String SAVE_MANAGER_SIZE_SUMMARY_TITLE = "Save Sizes";
+        public static final String SAVE_MANAGER_ACTIONS_TITLE = "Save Actions";
+        public static final String SAVE_MANAGER_ACTIONS_HELPER = "Import, export, or delete save data.";
+        public static final String SAVE_MANAGER_LAUNCH_TITLE = "Multi-Game Save Manager";
+        public static final String SAVE_MANAGER_LAUNCH_HELPER = "Open a separate window that lists every tracked save-capable game with its artwork, save files, and import/export/delete actions.";
+        public static final String SAVE_MANAGER_OPEN_BUTTON = "Open Save Manager";
+        public static final String SAVE_DATA_MANAGED_PATH_TITLE = "Managed Save Path";
+        public static final String SAVE_DATA_EXISTING_FILES_TITLE = "Detected Save Files";
+        public static final String SAVE_DATA_EXISTING_FILES_HELPER = "Managed saves are stored in GameDuck's save directory. Older legacy filenames are detected here too.";
+        public static final String SAVE_DATA_NO_ROM_TITLE = "No Battery Save Game Loaded";
+        public static final String SAVE_DATA_NO_GAME_BADGE = "No Game";
+        public static final String SAVE_DATA_UNSUPPORTED_BADGE = "No Save RAM";
+        public static final String SAVE_DATA_READY_BADGE = "Save Ready";
+        public static final String SAVE_DATA_EMPTY_BADGE = "No Save File";
+        public static final String SAVE_DATA_IMPORT_BUTTON = "Import";
+        public static final String SAVE_DATA_EXPORT_BUTTON = "Export";
+        public static final String SAVE_DATA_DELETE_BUTTON = "Delete";
+        public static final String SAVE_IMPORT_DIALOG_TITLE = "Import save data";
+        public static final String SAVE_EXPORT_DIALOG_TITLE = "Export save data";
+        public static final String SAVE_IMPORT_FAILED_TITLE = "Failed to import save data";
+        public static final String SAVE_EXPORT_FAILED_TITLE = "Failed to export save data";
+        public static final String SAVE_DELETE_FAILED_TITLE = "Failed to delete save data";
+        public static final String SAVE_DELETE_CONFIRM_TITLE = "Delete Save Data";
+        public static final String SAVE_DETAILS_LIVE_SIZE_TITLE = "Live Save Size";
+        public static final String SAVE_DETAILS_EXPECTED_SIZE_TITLE = "Expected Cartridge Save Size";
+        public static final String SAVE_DETAILS_NONE = "No managed save file has been created yet.";
+        public static final String SAVE_DETAILS_NOT_AVAILABLE = "Not available";
+        public static final String SAVE_DETAILS_UNKNOWN_TIME = "Unknown";
+        public static final String SAVE_DELETE_WARNING = "Deleting clears the live cartridge RAM and removes the managed .sav file.";
+
+        // -----------------------------------------------------------------
+        // Emulation tab: DMG and CGB boot ROM configuration.
+        // -----------------------------------------------------------------
+        public static final String BOOT_ROM_REQUIRED_TITLE = "Boot ROM Required";
+        public static final String USE_DMG_BOOT_ROM_CHECKBOX = "Use installed DMG boot ROM on startup";
+        public static final String DMG_BOOT_SEQUENCE_TITLE = "DMG Boot Sequence";
+        public static final String DMG_BOOT_SEQUENCE_HELPER = "Run new sessions through an installed DMG boot ROM or skip straight to the post-boot hardware state. Changes apply on the next ROM start or restart.";
+        public static final String INSTALLED_BOOT_ROM_TITLE = "Installed Boot ROM";
+        public static final String INSTALLED_BOOT_ROM_HELPER = "GameDuck stores the selected file in its managed emulator data folder.";
+        public static final String MANAGED_PATH_TITLE = "Managed Path";
+        public static final String INSERT_BOOT_ROM_BUTTON = "Insert Boot ROM";
+        public static final String REMOVE_BOOT_ROM_BUTTON = "Remove Boot ROM";
+        public static final String USE_CGB_BOOT_ROM_CHECKBOX = "Use installed GBC boot ROM for CGB-capable games";
+        public static final String BOOT_ROM_FILE_DIALOG_TITLE = "Select a boot ROM";
+        public static final String CGB_BOOT_SEQUENCE_TITLE = "GBC Boot Sequence";
+        public static final String CGB_BOOT_SEQUENCE_HELPER = "Run CGB-capable cartridges through an installed GBC boot ROM instead of jumping straight to the post-boot CGB hardware state.";
+        public static final String INSTALLED_CGB_BOOT_ROM_TITLE = "Installed GBC Boot ROM";
+        public static final String INSTALLED_CGB_BOOT_ROM_HELPER = "Stored in GameDuck's managed data folder separately from the DMG boot ROM.";
+        public static final String MANAGED_CGB_PATH_TITLE = "Managed GBC Path";
+        public static final String INSERT_CGB_BOOT_ROM_BUTTON = "Insert GBC Boot ROM";
+        public static final String REMOVE_CGB_BOOT_ROM_BUTTON = "Remove GBC Boot ROM";
+        public static final String BOOT_ROM_INSTALL_FAILED_TITLE = "Failed to install boot ROM";
+        public static final String BOOT_ROM_REMOVE_FAILED_TITLE = "Failed to remove boot ROM";
+
+        // -----------------------------------------------------------------
+        // Shared modal button labels and capture helper text.
+        // -----------------------------------------------------------------
+        public static final String CLOSE_BUTTON = "Close";
+        public static final String PRESS_ESCAPE_TO_CANCEL = "Press Escape to cancel";
+        public static final String SHORTCUT_CAPTURE_HELPER = "Use modifiers like Ctrl or Shift. Press Escape to cancel.";
+
+        private OptionsWindow() {
+        }
+
+        // -----------------------------------------------------------------
+        // Palette and theme feedback messages.
+        // -----------------------------------------------------------------
+        public static String PaletteNameRequiredMessage() {
+            return "Enter a palette name first.";
+        }
+
+        public static String PaletteSavedMessage(String name) {
+            return "Palette \"" + name + "\" saved.";
+        }
+
+        public static String ThemeNameRequiredMessage() {
+            return "Enter a theme name first.";
+        }
+
+        public static String ThemeSavedMessage(String name) {
+            return "Theme \"" + name + "\" saved.";
+        }
+
+        // -----------------------------------------------------------------
+        // Palette, color chooser, and rebinding dialog labels.
+        // -----------------------------------------------------------------
+        public static String EditPaletteToneTooltip(String toneName) {
+            return "Edit " + toneName + " Color";
+        }
+
+        public static String PaletteToneColorLabel(String toneName) {
+            return toneName + " Color";
+        }
+
+        public static String ChooseColorTitle(String label) {
+            return "Choose " + label;
+        }
+
+        public static String GbcColorChooserTitle() {
+            return "Choose GBC Palette Color";
+        }
+
+        public static String RebindDialogTitle(String buttonName) {
+            return "Rebind " + buttonName;
+        }
+
+        public static String RebindDialogPrompt(String buttonName) {
+            return "Press a key for " + buttonName;
+        }
+
+        public static String ShortcutDialogTitle(String shortcutLabel) {
+            return "Shortcut for " + shortcutLabel;
+        }
+
+        public static String ShortcutDialogPrompt(String shortcutLabel) {
+            return "Press a shortcut for " + shortcutLabel;
+        }
+
+        // -----------------------------------------------------------------
+        // Sound UI formatting helpers.
+        // -----------------------------------------------------------------
+        public static String AudioChainItemLabel(int index, String presetLabel) {
+            return (index + 1) + ". " + presetLabel;
+        }
+
+        public static String ChannelVolumeLabel(int volume) {
+            return volume + "%";
+        }
+
+        public static String PercentValue(int value) {
+            return value + "%";
+        }
+
+        public static String ChannelName(int channelIndex) {
+            return switch (channelIndex) {
+                case 0 -> "Pulse 1";
+                case 1 -> "Pulse 2";
+                case 2 -> "Wave";
+                case 3 -> "Noise";
+                default -> "Channel";
+            };
+        }
+
+        // -----------------------------------------------------------------
+        // Boot ROM requirement prompts.
+        // -----------------------------------------------------------------
+        public static String DmgBootRomRequiredMessage() {
+            return "Install a 256-byte DMG boot ROM first. GameDuck does not bundle the original Nintendo boot ROM.";
+        }
+
+        public static String CgbBootRomRequiredMessage() {
+            return "Install a 2048-byte CGB boot ROM first. GameDuck does not bundle the original Nintendo boot ROM.";
+        }
+
+        // -----------------------------------------------------------------
+        // Save data messages for import/export/delete flows.
+        // -----------------------------------------------------------------
+        public static String SaveImportSuccessMessage(String gameName, int importedBytes) {
+            return "Imported " + importedBytes + " bytes into " + gameName
+                    + ". Restart the game if it only reads save data during boot.";
+        }
+
+        public static String SaveExportSuccessMessage(String destinationPath) {
+            return "Exported save data to:\n" + destinationPath;
+        }
+
+        public static String SaveDeleteConfirmMessage(String gameName) {
+            return "Delete the managed save data for " + gameName + "?\n\n" + SAVE_DELETE_WARNING;
+        }
+
+        public static String SaveDeletedMessage(String gameName) {
+            return "Deleted the managed save data for " + gameName + ".";
+        }
+
+        // -----------------------------------------------------------------
+        // Save manager formatting helpers.
+        // -----------------------------------------------------------------
+        public static String SaveFileEntrySummary(String label, long sizeBytes, String modifiedText) {
+            return label + "  •  " + FormatByteSize(sizeBytes) + "  •  " + modifiedText;
+        }
+
+        public static String FormatByteSize(long sizeBytes) {
+            if (sizeBytes < 0) {
+                return SAVE_DETAILS_NOT_AVAILABLE;
+            }
+            return sizeBytes + " bytes";
+        }
+
+        public static String SaveManagerTrackedGamesBadge(int count) {
+            return count == 1 ? "1 Tracked Game" : count + " Tracked Games";
+        }
+
+        public static String SaveManagerLiveSizeSummary(String liveSize, String expectedSize) {
+            return "Live " + liveSize + " | Expected " + expectedSize;
+        }
+
+        // -----------------------------------------------------------------
+        // Save-state manager formatting helpers.
+        // -----------------------------------------------------------------
+        public static String SaveStateManagerTrackedGamesBadge(int count) {
+            return count == 1 ? "1 Tracked ROM" : count + " Tracked ROMs";
+        }
+
+        public static String SaveStateSlotSummary(int filledSlots) {
+            return filledSlots == 1 ? "1 Saved Slot" : filledSlots + " Saved Slots";
+        }
+
+        public static String SaveStateSlotStatus(boolean exists) {
+            return exists ? SAVE_STATE_MANAGER_SLOT_PRESENT : SAVE_STATE_MANAGER_SLOT_EMPTY;
+        }
+
+        // -----------------------------------------------------------------
+        // Save-state manager messages for import/export/delete/move flows.
+        // -----------------------------------------------------------------
+        public static String SaveStateDeleteConfirmMessage(String gameName, String slotLabel) {
+            return "Delete " + slotLabel + " for " + gameName + "?";
+        }
+
+        public static String SaveStateDeleteAllConfirmMessage(String gameName) {
+            return "Delete every managed save state for " + gameName + "?";
+        }
+
+        public static String SaveStateDeletedMessage(String gameName, String slotLabel) {
+            return "Deleted " + slotLabel + " for " + gameName + ".";
+        }
+
+        public static String SaveStateDeletedAllMessage(String gameName) {
+            return "Deleted all managed save states for " + gameName + ".";
+        }
+
+        public static String SaveStateExportSuccessMessage(String destinationPath) {
+            return "Exported save state to:\n" + destinationPath;
+        }
+
+        public static String SaveStateImportSuccessMessage(String gameName, String slotLabel) {
+            return "Imported a save state into " + slotLabel + " for " + gameName + ".";
+        }
+
+        public static String SaveStateMoveSuccessMessage(String gameName, String sourceSlotLabel,
+                String targetSlotLabel) {
+            return "Moved " + sourceSlotLabel + " to " + targetSlotLabel + " for " + gameName + ".";
+        }
+
+        // -----------------------------------------------------------------
+        // Lookup helpers for palette and control metadata.
+        // -----------------------------------------------------------------
+        public static String GbcPaletteButtonLabel(int colourIndex) {
+            return "C" + colourIndex;
+        }
+
+        public static String PaletteToneDescription(int index) {
+            return switch (index) {
+                case 0 -> "Base screen tone.";
+                case 1 -> "Light highlight tone.";
+                case 2 -> "Mid-tone detail shade.";
+                case 3 -> "Dark outline shade.";
+                default -> "";
+            };
+        }
+
+        public static String DmgButtonName(String buttonId) {
+            return switch (buttonId) {
+                case "A" -> "A";
+                case "B" -> "B";
+                case "UP" -> "Up";
+                case "DOWN" -> "Down";
+                case "LEFT" -> "Left";
+                case "RIGHT" -> "Right";
+                case "START" -> "Start";
+                case "SELECT" -> "Select";
+                default -> "Button";
+            };
+        }
+
+        public static String DmgControlHelper(String buttonId) {
+            return switch (buttonId) {
+                case "A" -> "Primary face button";
+                case "B" -> "Secondary face button";
+                case "UP" -> "Move up";
+                case "DOWN" -> "Move down";
+                case "LEFT" -> "Move left";
+                case "RIGHT" -> "Move right";
+                case "START" -> "Pause or start";
+                case "SELECT" -> "Secondary system action";
+                default -> "";
+            };
+        }
+    }
+}

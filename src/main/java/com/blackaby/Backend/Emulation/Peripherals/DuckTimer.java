@@ -1,137 +1,209 @@
 package com.blackaby.Backend.Emulation.Peripherals;
 
-import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 import com.blackaby.Backend.Emulation.CPU.DuckCPU;
 import com.blackaby.Backend.Emulation.Memory.DuckAddresses;
+import com.blackaby.Backend.Emulation.Memory.DuckMemory;
 
+/**
+ * Emulates the DMG divider and programmable timer unit.
+ * <p>
+ * The timer follows the Game Boy's falling-edge behaviour and preserves the
+ * delayed TIMA overflow reload used by many test ROMs.
+ */
 public class DuckTimer {
 
-    // Constants for clarity
-    private static final int TAC_ENABLE_BIT = 0x04;
-    private static final int TAC_CLOCK_SELECT_MASK = 0x03;
+    public record TimerState(
+            int internalCounter,
+            boolean previousTimerBit,
+            int overflowCounter,
+            boolean timaOverflowPending) implements java.io.Serializable {
+    }
 
-    private int internalCounter = 0; // 16-bit internal counter
-    private boolean previousTimerBit = false;
+    private static final int tacEnableBit = 0x04;
+    private static final int tacClockSelectMask = 0x03;
 
-    // Overflow handling
-    private int overflowCounter = 0;
-    public boolean timaOverflowPending = false;
+    private int internalCounter;
+    private boolean previousTimerBit;
+    private int overflowCounter;
+
+    public boolean timaOverflowPending;
 
     private final DuckMemory memory;
     private final DuckCPU cpu;
 
+    /**
+     * Creates a timer bound to the active CPU and memory bus.
+     *
+     * @param cpu CPU instance for interrupt requests
+     * @param memory memory bus for register mirroring
+     */
     public DuckTimer(DuckCPU cpu, DuckMemory memory) {
         this.cpu = cpu;
         this.memory = memory;
     }
 
-    public void tick() {
-        // 1. Handle pending overflow delays (4 T-cycles)
+    /**
+     * Seeds the DMG post-boot divider phase used when the boot ROM is skipped.
+     */
+    public void InitialiseDmgBootState() {
+        internalCounter = 0xABCC;
+        memory.SetDividerFromTimer((internalCounter >> 8) & 0xFF);
+        SyncTimerBit();
+    }
+
+    /**
+     * Advances the timer by one T-cycle.
+     */
+    public void Tick() {
         if (overflowCounter > 0) {
             overflowCounter--;
             if (overflowCounter == 0 && timaOverflowPending) {
-                // Delay finished: Reload TMA and Request Interrupt
-                memory.setTIMAFromTimer(memory.read(DuckAddresses.TMA));
-                cpu.requestInterrupt(DuckCPU.Interrupt.TIMER);
+                memory.SetTimaFromTimer(memory.Read(DuckAddresses.TMA));
+                cpu.RequestInterrupt(DuckCPU.Interrupt.TIMER);
                 timaOverflowPending = false;
             }
         }
 
-        // 2. Increment Internal Counter
         internalCounter = (internalCounter + 1) & 0xFFFF;
-
-        // 3. Update DIV Register (Upper 8 bits of internal counter)
-        // Bit 15 of internal = Bit 7 of DIV.
-        memory.setDividerFromTimer((internalCounter >> 8) & 0xFF);
-
-        // 4. Detect Falling Edge to increment TIMA
-        updateTIMA();
+        memory.SetDividerFromTimer((internalCounter >> 8) & 0xFF);
+        UpdateTima();
     }
 
-    private void updateTIMA() {
-        int tac = memory.read(DuckAddresses.TAC);
-        boolean timerEnabled = (tac & TAC_ENABLE_BIT) != 0;
-        int monitoredBit = getMonitoredBit(tac);
+    /**
+     * Resets the divider and applies the usual divider glitch behaviour.
+     */
+    public void ResetDiv() {
+        int tac = memory.Read(DuckAddresses.TAC);
+        boolean timerEnabled = (tac & tacEnableBit) != 0;
+        int monitoredBit = GetMonitoredBit(tac);
+        boolean wasOne = timerEnabled && ((internalCounter & (1 << monitoredBit)) != 0);
 
-        // Timer ticks on the FALLING EDGE of this specific bit
+        internalCounter = 0;
+        if (wasOne) {
+            IncrementTima();
+        }
+
+        previousTimerBit = false;
+        memory.SetDividerFromTimer(0);
+    }
+
+    /**
+     * Recomputes the sampled timer bit after external state changes.
+     */
+    public void SyncTimerBit() {
+        int tac = memory.Read(DuckAddresses.TAC);
+        boolean timerEnabled = (tac & tacEnableBit) != 0;
+        int monitoredBit = GetMonitoredBit(tac);
+        previousTimerBit = timerEnabled && ((internalCounter & (1 << monitoredBit)) != 0);
+    }
+
+    /**
+     * Writes TAC and applies the edge-triggered glitch when the selected timer
+     * bit falls from high to low.
+     *
+     * @param value new TAC value
+     */
+    public void WriteTac(int value) {
+        int oldTac = memory.Read(DuckAddresses.TAC);
+        boolean oldTimerBit = GetTimerBit(oldTac);
+
+        memory.WriteDirect(DuckAddresses.TAC, 0xF8 | (value & 0x07));
+
+        boolean newTimerBit = GetTimerBit(value);
+        if (oldTimerBit && !newTimerBit) {
+            IncrementTima();
+        }
+
+        previousTimerBit = newTimerBit;
+    }
+
+    /**
+     * Returns the internal 16-bit divider counter.
+     *
+     * @return raw internal counter
+     */
+    public int GetInternalCounter() {
+        return internalCounter;
+    }
+
+    /**
+     * Cancels a pending delayed TIMA reload.
+     */
+    public void CancelPendingOverflow() {
+        timaOverflowPending = false;
+        overflowCounter = 0;
+    }
+
+    /**
+     * Captures the internal divider and overflow timing state.
+     *
+     * @return timer state snapshot
+     */
+    public TimerState CaptureState() {
+        return new TimerState(internalCounter, previousTimerBit, overflowCounter, timaOverflowPending);
+    }
+
+    /**
+     * Restores the internal divider and overflow timing state.
+     *
+     * @param state timer snapshot to restore
+     */
+    public void RestoreState(TimerState state) {
+        if (state == null) {
+            throw new IllegalArgumentException("A timer quick state is required.");
+        }
+
+        internalCounter = state.internalCounter() & 0xFFFF;
+        previousTimerBit = state.previousTimerBit();
+        overflowCounter = Math.max(0, state.overflowCounter());
+        timaOverflowPending = state.timaOverflowPending();
+    }
+
+    private void UpdateTima() {
+        int tac = memory.Read(DuckAddresses.TAC);
+        boolean timerEnabled = (tac & tacEnableBit) != 0;
+        int monitoredBit = GetMonitoredBit(tac);
         boolean currentTimerBit = timerEnabled && ((internalCounter & (1 << monitoredBit)) != 0);
 
         if (previousTimerBit && !currentTimerBit) {
-            incrementTIMA();
+            IncrementTima();
         }
 
         previousTimerBit = currentTimerBit;
     }
 
-    /**
-     * Shared logic for incrementing TIMA.
-     * Handles the overflow check and the 4-cycle delay initialization.
-     */
-    private void incrementTIMA() {
-        int tima = memory.read(DuckAddresses.TIMA) & 0xFF;
-
+    private void IncrementTima() {
+        int tima = memory.Read(DuckAddresses.TIMA) & 0xFF;
         if (tima == 0xFF) {
-            // Overflow!
-            memory.setTIMAFromTimer(0x00); // Wrap to 0 immediately
-            timaOverflowPending = true; // Mark pending
-            overflowCounter = 4; // Set delay (4 T-Cycles)
+            memory.SetTimaFromTimer(0x00);
+            timaOverflowPending = true;
+            overflowCounter = 4;
         } else {
-            // Normal increment
-            memory.setTIMAFromTimer((tima + 1) & 0xFF);
+            memory.SetTimaFromTimer((tima + 1) & 0xFF);
         }
     }
 
-    /**
-     * Called when writing to the DIV register (at address 0xFF04).
-     * This resets the internal counter and can trigger the "DIV Glitch".
-     */
-    public void resetDIV() {
-        int tac = memory.read(DuckAddresses.TAC);
-        boolean timerEnabled = (tac & TAC_ENABLE_BIT) != 0;
-        int monitoredBit = getMonitoredBit(tac);
-
-        // Check if the monitored bit is currently High
-        boolean wasOne = timerEnabled && ((internalCounter & (1 << monitoredBit)) != 0);
-
-        // Reset Internal Counter
-        internalCounter = 0;
-
-        // Since internalCounter is now 0, the bit is now Low.
-        // If it WAS High, we just created a Falling Edge -> Increment TIMA immediately.
-        if (wasOne) {
-            incrementTIMA();
-        }
-
-        // Update state to match new counter value
-        previousTimerBit = false;
-
-        // Update the Memory's view of DIV immediately
-        memory.setDividerFromTimer(0);
-    }
-
-    public void syncTimerBit() {
-        int tac = memory.read(DuckAddresses.TAC);
-        boolean timerEnabled = (tac & TAC_ENABLE_BIT) != 0;
-        int monitoredBit = getMonitoredBit(tac);
-        previousTimerBit = timerEnabled && ((internalCounter & (1 << monitoredBit)) != 0);
-    }
-
-    public int getInternalCounter() {
-        return internalCounter;
-    }
-
-    private int getMonitoredBit(int tac) {
-        return switch (tac & TAC_CLOCK_SELECT_MASK) {
-            case 0 -> 9; // 4096 Hz
-            case 1 -> 3; // 262144 Hz
-            case 2 -> 5; // 65536 Hz
-            case 3 -> 7; // 16384 Hz
+    private int GetMonitoredBit(int tac) {
+        return switch (tac & tacClockSelectMask) {
+            case 0 -> 9;
+            case 1 -> 3;
+            case 2 -> 5;
+            case 3 -> 7;
             default -> 9;
         };
     }
 
-    public void cancelPendingOverflow() {
-        timaOverflowPending = false;
-        overflowCounter = 0;
+    private boolean GetTimerBit(int tac) {
+        boolean timerEnabled = (tac & tacEnableBit) != 0;
+        int monitoredBit = GetMonitoredBit(tac);
+        return timerEnabled && ((internalCounter & (1 << monitoredBit)) != 0);
     }
+
+    @Deprecated public void initializeDMGBootState() { InitialiseDmgBootState(); }
+    @Deprecated public void tick() { Tick(); }
+    @Deprecated public void resetDIV() { ResetDiv(); }
+    @Deprecated public void syncTimerBit() { SyncTimerBit(); }
+    @Deprecated public void writeTAC(int value) { WriteTac(value); }
+    @Deprecated public int getInternalCounter() { return GetInternalCounter(); }
+    @Deprecated public void cancelPendingOverflow() { CancelPendingOverflow(); }
 }

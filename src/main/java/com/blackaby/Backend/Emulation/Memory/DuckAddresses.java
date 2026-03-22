@@ -87,6 +87,29 @@ public class DuckAddresses {
     public static final int AUDIO_END = 0xFF26;
     public static final int WAVE_PATTERN_START = 0xFF30;
     public static final int WAVE_PATTERN_END = 0xFF3F;
+    public static final int NR10 = 0xFF10;
+    public static final int NR11 = 0xFF11;
+    public static final int NR12 = 0xFF12;
+    public static final int NR13 = 0xFF13;
+    public static final int NR14 = 0xFF14;
+    public static final int NR15 = 0xFF15;
+    public static final int NR21 = 0xFF16;
+    public static final int NR22 = 0xFF17;
+    public static final int NR23 = 0xFF18;
+    public static final int NR24 = 0xFF19;
+    public static final int NR30 = 0xFF1A;
+    public static final int NR31 = 0xFF1B;
+    public static final int NR32 = 0xFF1C;
+    public static final int NR33 = 0xFF1D;
+    public static final int NR34 = 0xFF1E;
+    public static final int NR1F = 0xFF1F;
+    public static final int NR41 = 0xFF20;
+    public static final int NR42 = 0xFF21;
+    public static final int NR43 = 0xFF22;
+    public static final int NR44 = 0xFF23;
+    public static final int NR50 = 0xFF24;
+    public static final int NR51 = 0xFF25;
+    public static final int NR52 = 0xFF26;
 
     // Graphics (LCD / PPU)
     public static final int LCDC = 0xFF40; // LCD Control
@@ -101,6 +124,20 @@ public class DuckAddresses {
     public static final int OBP1 = 0xFF49; // Object Palette 1
     public static final int WY = 0xFF4A; // Window Y Position
     public static final int WX = 0xFF4B; // Window X Position (+7)
+    public static final int KEY1 = 0xFF4D; // CGB speed switch
+    public static final int VBK = 0xFF4F; // CGB VRAM bank
+    public static final int HDMA1 = 0xFF51; // CGB DMA source high
+    public static final int HDMA2 = 0xFF52; // CGB DMA source low
+    public static final int HDMA3 = 0xFF53; // CGB DMA destination high
+    public static final int HDMA4 = 0xFF54; // CGB DMA destination low
+    public static final int HDMA5 = 0xFF55; // CGB DMA length/mode/start
+    public static final int RP = 0xFF56; // CGB infrared
+    public static final int BCPS = 0xFF68; // CGB BG palette index
+    public static final int BCPD = 0xFF69; // CGB BG palette data
+    public static final int OCPS = 0xFF6A; // CGB OBJ palette index
+    public static final int OCPD = 0xFF6B; // CGB OBJ palette data
+    public static final int OPRI = 0xFF6C; // CGB object priority mode
+    public static final int SVBK = 0xFF70; // CGB WRAM bank
 
     // Misc
     public static final int BOOT_ROM_DISABLE = 0xFF50; // Write 1 to disable boot ROM

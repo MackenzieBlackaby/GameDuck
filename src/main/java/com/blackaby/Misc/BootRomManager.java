@@ -3,7 +3,6 @@ package com.blackaby.Misc;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 
 /**
  * Manages the user-installed DMG and CGB boot ROM files used by the emulator.
@@ -12,6 +11,7 @@ public final class BootRomManager {
 
     public static final int dmgBootRomSizeBytes = 0x100;
     public static final int cgbBootRomSizeBytes = 0x800;
+    public static final int cgbBootRomFullDumpSizeBytes = 0x900;
 
     private static final Path bootRomDirectoryPath = Path.of(System.getProperty("user.home"), ".gameduck");
     private static final Path dmgBootRomPath = bootRomDirectoryPath.resolve("dmg_boot.bin");
@@ -76,8 +76,7 @@ public final class BootRomManager {
      */
     public static byte[] LoadCgbBootRom() throws IOException {
         byte[] bytes = Files.readAllBytes(cgbBootRomPath);
-        ValidateCgbBootRom(bytes);
-        return bytes;
+        return NormaliseCgbBootRom(bytes);
     }
 
     /**
@@ -90,7 +89,7 @@ public final class BootRomManager {
         byte[] bytes = Files.readAllBytes(sourcePath);
         ValidateDmgBootRom(bytes);
         EnsureBootRomDirectory();
-        Files.copy(sourcePath, dmgBootRomPath, StandardCopyOption.REPLACE_EXISTING);
+        Files.write(dmgBootRomPath, bytes);
     }
 
     /**
@@ -101,9 +100,9 @@ public final class BootRomManager {
      */
     public static void InstallCgbBootRom(Path sourcePath) throws IOException {
         byte[] bytes = Files.readAllBytes(sourcePath);
-        ValidateCgbBootRom(bytes);
+        byte[] normalisedBytes = NormaliseCgbBootRom(bytes);
         EnsureBootRomDirectory();
-        Files.copy(sourcePath, cgbBootRomPath, StandardCopyOption.REPLACE_EXISTING);
+        Files.write(cgbBootRomPath, normalisedBytes);
     }
 
     /**
@@ -183,9 +182,26 @@ public final class BootRomManager {
     }
 
     private static void ValidateCgbBootRom(byte[] bytes) {
-        if (bytes == null || bytes.length != cgbBootRomSizeBytes) {
+        if (bytes == null
+                || (bytes.length != cgbBootRomSizeBytes && bytes.length != cgbBootRomFullDumpSizeBytes)) {
             throw new IllegalArgumentException(
-                    "The CGB boot ROM must be exactly " + cgbBootRomSizeBytes + " bytes.");
+                    "The CGB boot ROM must be either "
+                            + cgbBootRomSizeBytes
+                            + " bytes (mapped image) or "
+                            + cgbBootRomFullDumpSizeBytes
+                            + " bytes (full dump).");
         }
+    }
+
+    private static byte[] NormaliseCgbBootRom(byte[] bytes) {
+        ValidateCgbBootRom(bytes);
+        if (bytes.length == cgbBootRomSizeBytes) {
+            return bytes;
+        }
+
+        byte[] normalisedBytes = new byte[cgbBootRomSizeBytes];
+        System.arraycopy(bytes, 0, normalisedBytes, 0, 0x100);
+        System.arraycopy(bytes, 0x200, normalisedBytes, 0x100, 0x700);
+        return normalisedBytes;
     }
 }

@@ -860,7 +860,7 @@ public final class UiText {
         }
 
         public static String CgbBootRomRequiredMessage() {
-            return "Install a 2048-byte CGB boot ROM first. GameDuck does not bundle the original Nintendo boot ROM.";
+            return "Install a 2048-byte mapped or 2304-byte full-dump CGB boot ROM first. GameDuck does not bundle the original Nintendo boot ROM.";
         }
 
         // -----------------------------------------------------------------

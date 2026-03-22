@@ -171,7 +171,7 @@ public class DuckMemory {
         if (bootRomBytes == null) {
             throw new IllegalArgumentException("A boot ROM is required.");
         }
-        LoadBootRom(bootRomBytes, bootRomBytes.length == 0x800);
+        LoadBootRom(bootRomBytes, bootRomBytes.length == 0x800 || bootRomBytes.length == 0x900);
     }
 
     /**
@@ -181,6 +181,10 @@ public class DuckMemory {
      * @param isCgbBootRom whether the boot ROM uses the CGB split mapping
      */
     public void LoadBootRom(byte[] bootRomBytes, boolean isCgbBootRom) {
+        if (isCgbBootRom && bootRomBytes != null && bootRomBytes.length == 0x900) {
+            bootRomBytes = NormaliseCgbBootRom(bootRomBytes);
+        }
+
         int expectedLength = isCgbBootRom ? 0x800 : 0x100;
         if (bootRomBytes == null || bootRomBytes.length != expectedLength) {
             throw new IllegalArgumentException(
@@ -956,6 +960,13 @@ public class DuckMemory {
 
     private int BootRomIndex(int address) {
         return address <= 0x00FF ? address : address - 0x0100;
+    }
+
+    private byte[] NormaliseCgbBootRom(byte[] bootRomBytes) {
+        byte[] normalisedBytes = new byte[0x800];
+        System.arraycopy(bootRomBytes, 0, normalisedBytes, 0, 0x100);
+        System.arraycopy(bootRomBytes, 0x200, normalisedBytes, 0x100, 0x700);
+        return normalisedBytes;
     }
 
     private int DecodeWramBank(int value) {

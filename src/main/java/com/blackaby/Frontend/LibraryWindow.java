@@ -736,7 +736,7 @@ public final class LibraryWindow extends DuckWindow {
     }
 
     private void setDetailPreviewImage(BufferedImage image) {
-        BufferedImage scaled = GameArtScaler.ScaleToFit(image, detailPreviewWidth, detailPreviewHeight);
+        BufferedImage scaled = GameArtScaler.ScaleToFit(image, detailPreviewWidth, detailPreviewHeight, true);
         detailPreviewLabel.setIcon(scaled == null ? null : new ImageIcon(scaled));
         detailPreviewLabel.setText(scaled == null ? UiText.LibraryWindow.TITLE_SCREEN_MISSING : "");
         detailPreviewLabel.setForeground(mutedTextColour);
@@ -751,7 +751,7 @@ public final class LibraryWindow extends DuckWindow {
         if (source == null) {
             return null;
         }
-        BufferedImage scaled = GameArtScaler.ScaleToFit(source, maxWidth, maxHeight);
+        BufferedImage scaled = GameArtScaler.ScaleToFit(source, maxWidth, maxHeight, true);
         return scaled == null ? null : new ImageIcon(scaled);
     }
 

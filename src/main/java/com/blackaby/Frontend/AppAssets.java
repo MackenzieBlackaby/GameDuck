@@ -2,9 +2,7 @@ package com.blackaby.Frontend;
 
 import javax.imageio.ImageIO;
 import javax.swing.ImageIcon;
-import java.awt.Graphics2D;
 import java.awt.Image;
-import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -28,16 +26,21 @@ public final class AppAssets {
      * @return ordered icon images for the frame chrome
      */
     public static List<Image> WindowIcons() {
-        BufferedImage baseIcon = LoadBufferedImage(LOGO_NO_BG_128_PATH);
+        BufferedImage baseIcon = LoadBufferedImage(LOGO_NO_BG_PATH);
+        if (baseIcon == null) {
+            baseIcon = LoadBufferedImage(LOGO_NO_BG_128_PATH);
+        }
         if (baseIcon == null) {
             return List.of();
         }
         return List.of(
-                ScaleImage(baseIcon, 16, 16),
-                ScaleImage(baseIcon, 24, 24),
-                ScaleImage(baseIcon, 32, 32),
-                ScaleImage(baseIcon, 48, 48),
-                baseIcon);
+                GameArtScaler.ScaleToSize(baseIcon, 16, 16),
+                GameArtScaler.ScaleToSize(baseIcon, 24, 24),
+                GameArtScaler.ScaleToSize(baseIcon, 32, 32),
+                GameArtScaler.ScaleToSize(baseIcon, 48, 48),
+                GameArtScaler.ScaleToSize(baseIcon, 64, 64),
+                GameArtScaler.ScaleToSize(baseIcon, 128, 128),
+                GameArtScaler.ScaleToSize(baseIcon, 256, 256));
     }
 
     /**
@@ -65,7 +68,7 @@ public final class AppAssets {
         if (image == null) {
             return null;
         }
-        return new ImageIcon(ScaleImage(image, width, height));
+        return new ImageIcon(GameArtScaler.ScaleToSize(image, width, height));
     }
 
     private static BufferedImage LoadBufferedImage(String resourcePath) {
@@ -77,16 +80,5 @@ public final class AppAssets {
         } catch (IOException exception) {
             return null;
         }
-    }
-
-    private static BufferedImage ScaleImage(BufferedImage source, int width, int height) {
-        BufferedImage scaled = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D graphics = scaled.createGraphics();
-        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-        graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        graphics.drawImage(source.getScaledInstance(width, height, Image.SCALE_SMOOTH), 0, 0, null);
-        graphics.dispose();
-        return scaled;
     }
 }

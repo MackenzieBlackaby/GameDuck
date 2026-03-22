@@ -5,7 +5,7 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
 /**
- * Shared high-quality box-art scaling helpers for host UI previews.
+ * Shared high-quality image scaling helpers for host UI artwork.
  */
 public final class GameArtScaler {
 
@@ -49,25 +49,7 @@ public final class GameArtScaler {
         int targetWidth = Math.max(1, (int) Math.round(source.getWidth() * scale));
         int targetHeight = Math.max(1, (int) Math.round(source.getHeight() * scale));
 
-        if (targetWidth == source.getWidth() && targetHeight == source.getHeight()) {
-            return source;
-        }
-
-        BufferedImage current = source;
-        int currentWidth = source.getWidth();
-        int currentHeight = source.getHeight();
-
-        while (currentWidth / 2 >= targetWidth && currentHeight / 2 >= targetHeight) {
-            currentWidth = Math.max(targetWidth, currentWidth / 2);
-            currentHeight = Math.max(targetHeight, currentHeight / 2);
-            current = Resize(current, currentWidth, currentHeight);
-        }
-
-        if (currentWidth != targetWidth || currentHeight != targetHeight) {
-            current = Resize(current, targetWidth, targetHeight);
-        }
-
-        return current;
+        return ScaleToSize(source, targetWidth, targetHeight);
     }
 
     /**
@@ -90,14 +72,14 @@ public final class GameArtScaler {
         int scaledWidth = Math.max(1, (int) Math.round(source.getWidth() * scale));
         int scaledHeight = Math.max(1, (int) Math.round(source.getHeight() * scale));
 
-        BufferedImage scaledImage = Resize(source, scaledWidth, scaledHeight);
+        BufferedImage scaledImage = ScaleToSize(source, scaledWidth, scaledHeight);
         if (scaledWidth == targetWidth && scaledHeight == targetHeight) {
             return scaledImage;
         }
 
         int cropX = Math.max(0, (scaledWidth - targetWidth) / 2);
         int cropY = Math.max(0, (scaledHeight - targetHeight) / 2);
-        BufferedImage croppedImage = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage croppedImage = new BufferedImage(targetWidth, targetHeight, ImageTypeFor(source));
         Graphics2D graphics = croppedImage.createGraphics();
         graphics.drawImage(scaledImage,
                 0, 0, targetWidth, targetHeight,
@@ -107,16 +89,70 @@ public final class GameArtScaler {
         return croppedImage;
     }
 
+    /**
+     * Scales an image to the exact target size using progressive downscaling
+     * when shrinking and high-quality interpolation when enlarging.
+     *
+     * @param source source image
+     * @param targetWidth target width
+     * @param targetHeight target height
+     * @return scaled image
+     */
+    public static BufferedImage ScaleToSize(BufferedImage source, int targetWidth, int targetHeight) {
+        if (source == null || targetWidth <= 0 || targetHeight <= 0) {
+            return null;
+        }
+        if (targetWidth == source.getWidth() && targetHeight == source.getHeight()) {
+            return source;
+        }
+
+        BufferedImage current = source;
+        int currentWidth = source.getWidth();
+        int currentHeight = source.getHeight();
+
+        while (currentWidth > targetWidth || currentHeight > targetHeight) {
+            int nextWidth = currentWidth;
+            int nextHeight = currentHeight;
+
+            if (nextWidth > targetWidth) {
+                nextWidth = Math.max(targetWidth, Math.max(1, nextWidth / 2));
+            }
+            if (nextHeight > targetHeight) {
+                nextHeight = Math.max(targetHeight, Math.max(1, nextHeight / 2));
+            }
+
+            if (nextWidth == currentWidth && nextHeight == currentHeight) {
+                break;
+            }
+
+            current = Resize(current, nextWidth, nextHeight);
+            currentWidth = current.getWidth();
+            currentHeight = current.getHeight();
+        }
+
+        if (currentWidth != targetWidth || currentHeight != targetHeight) {
+            current = Resize(current, targetWidth, targetHeight);
+        }
+
+        return current;
+    }
+
     private static BufferedImage Resize(BufferedImage source, int targetWidth, int targetHeight) {
-        BufferedImage scaledImage = new BufferedImage(targetWidth, targetHeight, BufferedImage.TYPE_INT_ARGB);
+        BufferedImage scaledImage = new BufferedImage(targetWidth, targetHeight, ImageTypeFor(source));
         Graphics2D graphics = scaledImage.createGraphics();
         graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
         graphics.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
         graphics.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        graphics.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);
+        graphics.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
         graphics.drawImage(source, 0, 0, targetWidth, targetHeight, null);
         graphics.dispose();
         return scaledImage;
+    }
+
+    private static int ImageTypeFor(BufferedImage source) {
+        return source.getColorModel().hasAlpha() ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
     }
 }

@@ -113,7 +113,7 @@ public class DuckEmulation implements Runnable {
         }
 
         InstructionLogic.Initialise(cpu, memory);
-        mainWindow.SetSubtitle(romName, "[0 FPS]");
+        mainWindow.SetSubtitle(romName);
         mainWindow.SetLoadedRom(this.rom, false);
         mainWindow.LoadGameArt(this.rom);
 
@@ -129,7 +129,7 @@ public class DuckEmulation implements Runnable {
         if (paused) {
             mainWindow.SetSubtitle(romName, ": Paused");
         } else {
-            mainWindow.SetSubtitle(romName, "[" + frames + " FPS]");
+            mainWindow.SetSubtitle(romName);
         }
     }
 
@@ -531,7 +531,7 @@ public class DuckEmulation implements Runnable {
                         continue;
                     }
                     mainWindow.UpdateFrameCounter(frames);
-                    mainWindow.SetSubtitle(romName, "[" + frames + " FPS]");
+                    mainWindow.SetSubtitle(romName);
                     frames = 0;
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();

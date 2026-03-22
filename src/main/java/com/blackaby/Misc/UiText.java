@@ -43,20 +43,16 @@ public final class UiText {
     public static final class AboutWindow {
         // Window chrome.
         public static final String WINDOW_TITLE = "About";
+        public static final String VERSION = "Version 0.1";
+        public static final String SUMMARY = "Nintendo Game Boy Emulator";
+        public static final String AUTHOR = "By Mackenzie Blackaby";
+        public static final String PROJECT_NOTE = "Final year project for Lancaster University";
+        public static final String LEGAL_NOTE = "This emulator contains no IP or copyrighted material.";
+        public static final String LICENSE_TITLE = "Mozilla Public License 2.0";
+        public static final String LICENSE_HINT = "Open-source license included with GameDuck";
+        public static final String LICENSE_LOAD_ERROR = "Unable to load the packaged license text.";
 
         private AboutWindow() {
-        }
-
-        // Rich text body shown in the About dialog.
-        public static String HtmlBody() {
-            return "<html>"
-                    + "<h1>" + Common.APP_NAME + "</h1>"
-                    + "<h2>Version 0.1</h2>"
-                    + "<p><b>Nintendo Game Boy Emulator</b><br>"
-                    + "By Mackenzie Blackaby<br>"
-                    + "Final year project for Lancaster University<br><br>"
-                    + "<i>This emulator contains no IP or copyrighted material</i></p>"
-                    + "</html>";
         }
     }
 

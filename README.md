@@ -27,7 +27,7 @@ The project is aimed at original Game Boy and Game Boy Color software. The deskt
 ## Main features
 
 - Runs `.gb`, `.gbc`, and compatible patched ROMs.
-- Loads IPS patches on top of a base ROM WITHOUT needing to modify the original ROM to run the ROMhack (Both the ROM and IPS file are stored separately in the library, with separate save data. The romhack is patched onto the ROM at launch)
+- Loads IPS patches on top of a base ROM WITHOUT needing to modify the original ROM to run the ROMhack (Both the ROM and IPS file are stored separately in the library, with separate save data. The ROMhack is patched onto the ROM at launch)
 - Supports save data management for compatible carts.
 - Supports managed quick saves and numbered save-state slots.
 - Copies and tracks played ROMs to a local library with a "favourites" playlist

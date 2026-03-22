@@ -15,6 +15,7 @@ public final class AppAssets {
 
     private static final String LOGO_NO_BG_PATH = "/Images/LogoNoBG.png";
     private static final String LOGO_NO_BG_128_PATH = "/Images/LogoNoBG128.png";
+    private static final String LOGO_CROPPED_NO_BG_128_PATH = "/Images/LogoCroppedNoBG128.png";
     private static final String LOGO_BG_PATH = "/Images/LogoBG.png";
 
     private AppAssets() {
@@ -26,7 +27,10 @@ public final class AppAssets {
      * @return ordered icon images for the frame chrome
      */
     public static List<Image> WindowIcons() {
-        BufferedImage baseIcon = LoadBufferedImage(LOGO_NO_BG_PATH);
+        BufferedImage baseIcon = LoadBufferedImage(LOGO_CROPPED_NO_BG_128_PATH);
+        if (baseIcon == null) {
+            baseIcon = LoadBufferedImage(LOGO_NO_BG_PATH);
+        }
         if (baseIcon == null) {
             baseIcon = LoadBufferedImage(LOGO_NO_BG_128_PATH);
         }

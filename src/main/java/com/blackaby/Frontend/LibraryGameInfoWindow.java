@@ -111,9 +111,9 @@ public final class LibraryGameInfoWindow extends DuckWindow {
         content.setOpaque(false);
         content.add(createDetailRow(UiText.LibraryWindow.INFO_LAST_PLAYED_TITLE, formatLastPlayed(entry.lastPlayedMillis())));
         content.add(createDetailRow(UiText.LibraryWindow.INFO_TARGET_HARDWARE_TITLE,
-                UiText.LibraryWindow.InfoTargetHardware(rom.IsCgbOnly(), rom.IsCgbCompatible())));
+                UiText.LibraryWindow.InfoTargetHardware(rom.IsCgbOnly(), rom.IsCgbEnhanced())));
         content.add(createDetailRow(UiText.LibraryWindow.INFO_COMPATIBILITY_TITLE,
-                UiText.LibraryWindow.InfoCompatibility(rom.IsCgbOnly(), rom.IsCgbCompatible())));
+                UiText.LibraryWindow.InfoCompatibility(rom.IsCgbOnly(), rom.IsCgbEnhanced())));
         content.add(createDetailRow(UiText.LibraryWindow.INFO_HEADER_TITLE, valueOrUnknown(rom.GetHeaderTitle())));
         content.add(createDetailRow(UiText.LibraryWindow.INFO_MAPPER_TITLE, mapperDisplayName()));
         content.add(createDetailRow(UiText.LibraryWindow.INFO_ROM_SIZE_TITLE, buildRomSizeSummary()));

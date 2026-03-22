@@ -235,6 +235,16 @@ public class ROM {
     }
 
     /**
+     * Returns whether the cartridge can boot on both GB and GBC hardware while
+     * exposing GBC-specific enhancements when available.
+     *
+     * @return {@code true} when the ROM is dual-mode rather than GBC-only
+     */
+    public boolean IsCgbEnhanced() {
+        return cgbCompatible && !cgbOnly;
+    }
+
+    /**
      * Returns whether the cartridge requires Game Boy Color hardware.
      *
      * @return {@code true} when the ROM cannot boot in DMG mode
@@ -450,6 +460,7 @@ public class ROM {
     @Deprecated public int getExternalRamSizeBytes() { return GetExternalRamSizeBytes(); }
     @Deprecated public boolean hasBatteryBackedSave() { return HasBatteryBackedSave(); }
     @Deprecated public boolean isCgbCompatible() { return IsCgbCompatible(); }
+    @Deprecated public boolean isCgbEnhanced() { return IsCgbEnhanced(); }
     @Deprecated public boolean isCgbOnly() { return IsCgbOnly(); }
     @Deprecated public String getSourcePath() { return GetSourcePath(); }
     @Deprecated public String getName() { return GetName(); }

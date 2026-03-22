@@ -22,8 +22,9 @@ import java.util.Properties;
 public final class GameLibraryStore {
 
     public record LibraryEntry(String key, Path romPath, String sourcePath, String sourceName, String displayName,
-                               List<String> patchNames, List<String> patchSourcePaths, String headerTitle, boolean cgbCompatible,
-                               long addedAtMillis, long lastPlayedMillis, boolean favourite) {
+                               List<String> patchNames, List<String> patchSourcePaths, String headerTitle,
+                               boolean cgbCompatible, boolean cgbOnly, long addedAtMillis, long lastPlayedMillis,
+                               boolean favourite) {
         public LibraryEntry {
             patchNames = List.copyOf(patchNames == null ? List.of() : patchNames);
             patchSourcePaths = List.copyOf(patchSourcePaths == null ? List.of() : patchSourcePaths);
@@ -54,6 +55,7 @@ public final class GameLibraryStore {
     private static final String patchSourcePrefix = ".patch_source.";
     private static final String headerTitleSuffix = ".header_title";
     private static final String cgbCompatibleSuffix = ".cgb_compatible";
+    private static final String cgbOnlySuffix = ".cgb_only";
     private static final String addedAtSuffix = ".added_at";
     private static final String lastPlayedSuffix = ".last_played";
     private static final String favouriteSuffix = ".favourite";
@@ -95,6 +97,7 @@ public final class GameLibraryStore {
         properties.setProperty(prefix + displayNameSuffix, NullToEmpty(rom.GetName()));
         properties.setProperty(prefix + headerTitleSuffix, NullToEmpty(rom.GetHeaderTitle()));
         properties.setProperty(prefix + cgbCompatibleSuffix, String.valueOf(RomConsoleSupport.IsGbc(rom)));
+        properties.setProperty(prefix + cgbOnlySuffix, String.valueOf(RomConsoleSupport.IsCgbOnly(rom)));
         properties.setProperty(prefix + addedAtSuffix, String.valueOf(addedAt));
         properties.setProperty(prefix + lastPlayedSuffix, String.valueOf(now));
         WriteIndexedList(prefix + patchNamePrefix, prefix + patchNameCountSuffix, rom.GetPatchNames());
@@ -177,6 +180,7 @@ public final class GameLibraryStore {
                 ReadIndexedList(prefix + patchSourcePrefix, prefix + patchSourceCountSuffix),
                 properties.getProperty(prefix + headerTitleSuffix, ""),
                 ResolveCgbCompatible(prefix, Path.of(romPathValue), properties.getProperty(prefix + sourcePathSuffix, "")),
+                ResolveCgbOnly(prefix, Path.of(romPathValue), properties.getProperty(prefix + sourcePathSuffix, "")),
                 ParseLong(properties.getProperty(prefix + addedAtSuffix), 0L),
                 ParseLong(properties.getProperty(prefix + lastPlayedSuffix), 0L),
                 Boolean.parseBoolean(properties.getProperty(prefix + favouriteSuffix, "false")));
@@ -342,6 +346,18 @@ public final class GameLibraryStore {
         properties.setProperty(prefix + cgbCompatibleSuffix, String.valueOf(cgbCompatible));
         Persist();
         return cgbCompatible;
+    }
+
+    private static boolean ResolveCgbOnly(String prefix, Path romPath, String sourcePath) {
+        String storedValue = properties.getProperty(prefix + cgbOnlySuffix);
+        if (storedValue != null) {
+            return Boolean.parseBoolean(storedValue);
+        }
+
+        boolean cgbOnly = RomConsoleSupport.IsCgbOnly(romPath);
+        properties.setProperty(prefix + cgbOnlySuffix, String.valueOf(cgbOnly));
+        Persist();
+        return cgbOnly;
     }
 
     private static String Hash(byte[] value) {

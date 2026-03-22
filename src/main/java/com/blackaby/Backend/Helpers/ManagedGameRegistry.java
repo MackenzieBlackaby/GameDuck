@@ -23,7 +23,8 @@ import java.util.Properties;
 public final class ManagedGameRegistry {
 
     public record StoredGame(String key, SaveFileManager.SaveIdentity saveIdentity, List<String> patchSourcePaths,
-                             String headerTitle, boolean cgbCompatible, int expectedSaveSizeBytes, long lastSeenMillis) {
+                             String headerTitle, boolean cgbCompatible, boolean cgbOnly, int expectedSaveSizeBytes,
+                             long lastSeenMillis) {
         public StoredGame {
             patchSourcePaths = List.copyOf(patchSourcePaths == null ? List.of() : patchSourcePaths);
         }
@@ -66,6 +67,7 @@ public final class ManagedGameRegistry {
     private static final String patchSourcePrefix = ".patch_source.";
     private static final String headerTitleSuffix = ".header_title";
     private static final String cgbCompatibleSuffix = ".cgb_compatible";
+    private static final String cgbOnlySuffix = ".cgb_only";
     private static final String expectedSaveSizeSuffix = ".expected_save_size";
     private static final String lastSeenSuffix = ".last_seen";
 
@@ -95,6 +97,7 @@ public final class ManagedGameRegistry {
         properties.setProperty(prefix + displayNameSuffix, NullToEmpty(saveIdentity.displayName()));
         properties.setProperty(prefix + headerTitleSuffix, NullToEmpty(rom.GetHeaderTitle()));
         properties.setProperty(prefix + cgbCompatibleSuffix, String.valueOf(RomConsoleSupport.IsGbc(rom)));
+        properties.setProperty(prefix + cgbOnlySuffix, String.valueOf(RomConsoleSupport.IsCgbOnly(rom)));
         properties.setProperty(prefix + expectedSaveSizeSuffix, String.valueOf(rom.GetExternalRamSizeBytes()));
         properties.setProperty(prefix + lastSeenSuffix, String.valueOf(System.currentTimeMillis()));
 
@@ -173,6 +176,7 @@ public final class ManagedGameRegistry {
                 patchSourcePaths,
                 properties.getProperty(prefix + headerTitleSuffix, ""),
                 ResolveCgbCompatible(prefix, sourcePath, saveIdentity, patchSourcePaths),
+                ResolveCgbOnly(prefix, sourcePath, saveIdentity, patchSourcePaths),
                 ParseInt(properties.getProperty(prefix + expectedSaveSizeSuffix), 0),
                 ParseLong(properties.getProperty(prefix + lastSeenSuffix), 0L));
     }
@@ -303,6 +307,38 @@ public final class ManagedGameRegistry {
         properties.setProperty(prefix + cgbCompatibleSuffix, String.valueOf(cgbCompatible));
         Persist();
         return cgbCompatible;
+    }
+
+    private static boolean ResolveCgbOnly(String prefix, String sourcePath, SaveFileManager.SaveIdentity saveIdentity,
+                                          List<String> patchSourcePaths) {
+        String storedValue = properties.getProperty(prefix + cgbOnlySuffix);
+        if (storedValue != null) {
+            return Boolean.parseBoolean(storedValue);
+        }
+
+        boolean cgbOnly = false;
+        if (sourcePath != null && !sourcePath.isBlank()) {
+            try {
+                ROM rom = new ROM(sourcePath);
+                List<String> patchNames = saveIdentity == null ? List.of() : saveIdentity.patchNames();
+                for (int index = 0; index < patchSourcePaths.size(); index++) {
+                    String patchSourcePath = patchSourcePaths.get(index);
+                    String patchName = index < patchNames.size() ? patchNames.get(index) : null;
+                    if (patchSourcePath == null || patchSourcePath.isBlank()) {
+                        cgbOnly = RomConsoleSupport.IsCgbOnly(rom);
+                        break;
+                    }
+                    rom = ROM.LoadPatched(rom, patchSourcePath, patchName);
+                }
+                cgbOnly = RomConsoleSupport.IsCgbOnly(rom);
+            } catch (IOException | IllegalArgumentException exception) {
+                // Leave CGB-only false when the original files are unavailable.
+            }
+        }
+
+        properties.setProperty(prefix + cgbOnlySuffix, String.valueOf(cgbOnly));
+        Persist();
+        return cgbOnly;
     }
 
     private static String Hash(String value) {

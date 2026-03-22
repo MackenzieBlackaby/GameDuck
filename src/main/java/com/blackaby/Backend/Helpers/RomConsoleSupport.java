@@ -25,6 +25,16 @@ public final class RomConsoleSupport {
     }
 
     /**
+     * Returns whether the supplied ROM requires Game Boy Color hardware.
+     *
+     * @param rom ROM to inspect
+     * @return {@code true} when the ROM is CGB-only
+     */
+    public static boolean IsCgbOnly(ROM rom) {
+        return rom != null && rom.IsCgbOnly();
+    }
+
+    /**
      * Resolves a stored ROM file to a console family.
      *
      * @param romPath managed or source ROM path
@@ -35,6 +45,19 @@ public final class RomConsoleSupport {
             return false;
         }
         return IsGbc(new ROM(romPath.toString()));
+    }
+
+    /**
+     * Resolves whether a stored ROM file requires Game Boy Color hardware.
+     *
+     * @param romPath managed or source ROM path
+     * @return {@code true} when the ROM is CGB-only
+     */
+    public static boolean IsCgbOnly(Path romPath) {
+        if (romPath == null || !Files.isRegularFile(romPath)) {
+            return false;
+        }
+        return IsCgbOnly(new ROM(romPath.toString()));
     }
 
     /**

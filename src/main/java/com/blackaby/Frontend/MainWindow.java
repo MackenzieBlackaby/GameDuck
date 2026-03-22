@@ -599,9 +599,15 @@ public class MainWindow extends DuckWindow {
 
     @Override
     public void SetSubtitle(String... subtitleParts) {
-        super.SetSubtitle(subtitleParts);
+        String[] titleParts = subtitleParts == null ? new String[0] : subtitleParts.clone();
+        if (titleParts.length > 0) {
+            titleParts[0] = ApplyGameNameDisplayMode(titleParts[0]);
+        }
+        super.SetSubtitle(titleParts);
 
-        String stateText = subtitleParts.length > 1 ? subtitleParts[1] : UiText.Common.READY;
+        String stateText = subtitleParts != null && subtitleParts.length > 1
+                ? subtitleParts[1]
+                : UiText.Common.READY;
         Runnable update = () -> {
             if (stateLabel != null) {
                 stateLabel.setText(CleanStateText(stateText));

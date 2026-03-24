@@ -162,7 +162,7 @@ public class DuckAPU {
         sampleAccumulator += 1.0;
         while (sampleAccumulator >= cyclesPerSample) {
             sampleAccumulator -= cyclesPerSample;
-            audioOutput.WriteSample(MixLeft(), MixRight());
+            WriteMixedSample();
         }
     }
 
@@ -396,53 +396,57 @@ public class DuckAPU {
         frameSequencerStep = (frameSequencerStep + 1) & 0x07;
     }
 
-    private double MixLeft() {
-        return Mix(true);
-    }
-
-    private double MixRight() {
-        return Mix(false);
-    }
-
-    private double Mix(boolean left) {
-        if (!powerEnabled) {
-            return 0.0;
+    private void WriteMixedSample() {
+        if (!powerEnabled || !Settings.soundEnabled || Settings.masterVolume <= 0) {
+            return;
         }
 
-        double[] channelSamples = {
-                ChannelContribution(0, channel1.Sample()),
-                ChannelContribution(1, channel2.Sample()),
-                ChannelContribution(2, channel3.Sample()),
-                ChannelContribution(3, channel4.Sample())
-        };
+        boolean[] muted = Settings.channelMuted;
+        int[] volumes = Settings.channelVolume;
 
+        double channel1Sample = ApplyChannelSettings(channel1.Sample(), muted[0], volumes[0]);
+        double channel2Sample = ApplyChannelSettings(channel2.Sample(), muted[1], volumes[1]);
+        double channel3Sample = ApplyChannelSettings(channel3.Sample(), muted[2], volumes[2]);
+        double channel4Sample = ApplyChannelSettings(channel4.Sample(), muted[3], volumes[3]);
+
+        int leftRouteMask = (nr51 >>> 4) & 0x0F;
+        int rightRouteMask = nr51 & 0x0F;
+
+        double leftMix = MixChannels(leftRouteMask, channel1Sample, channel2Sample, channel3Sample, channel4Sample);
+        double rightMix = MixChannels(rightRouteMask, channel1Sample, channel2Sample, channel3Sample, channel4Sample);
+
+        double masterVolume = Settings.masterVolume / 100.0;
+        double leftVolume = ((nr50 >>> 4) & 0x07) / 7.0;
+        double rightVolume = (nr50 & 0x07) / 7.0;
+
+        audioOutput.WriteSample(
+                (leftMix / 4.0) * leftVolume * masterVolume * 0.30,
+                (rightMix / 4.0) * rightVolume * masterVolume * 0.30);
+    }
+
+    private double ApplyChannelSettings(double sample, boolean muted, int volume) {
+        if (muted || volume <= 0) {
+            return 0.0;
+        }
+        return sample * (volume / 100.0);
+    }
+
+    private double MixChannels(int routeMask, double channel1Sample, double channel2Sample,
+            double channel3Sample, double channel4Sample) {
         double mix = 0.0;
-        int routeMask = left ? (nr51 >>> 4) : nr51;
-
         if ((routeMask & 0x01) != 0) {
-            mix += channelSamples[0];
+            mix += channel1Sample;
         }
         if ((routeMask & 0x02) != 0) {
-            mix += channelSamples[1];
+            mix += channel2Sample;
         }
         if ((routeMask & 0x04) != 0) {
-            mix += channelSamples[2];
+            mix += channel3Sample;
         }
         if ((routeMask & 0x08) != 0) {
-            mix += channelSamples[3];
+            mix += channel4Sample;
         }
-
-        int volume = left ? ((nr50 >>> 4) & 0x07) : (nr50 & 0x07);
-        double masterVolume = Settings.soundEnabled ? (Settings.masterVolume / 100.0) : 0.0;
-        double scaled = (mix / 4.0) * (volume / 7.0) * masterVolume;
-        return scaled * 0.30;
-    }
-
-    private double ChannelContribution(int channelIndex, double sample) {
-        if (Settings.IsChannelMuted(channelIndex)) {
-            return 0.0;
-        }
-        return sample * (Settings.GetChannelVolume(channelIndex) / 100.0);
+        return mix;
     }
 
     private PulseChannelState CapturePulseChannel(PulseChannel channel) {

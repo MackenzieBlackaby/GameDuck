@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$Version = "0.1",
+    [string]$Version = "0.1.1",
     [string]$MainClass = "com.blackaby.Main",
     [string]$AppName = "GameDuck",
     [switch]$RunTests

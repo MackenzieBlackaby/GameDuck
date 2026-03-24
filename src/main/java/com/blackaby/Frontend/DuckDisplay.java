@@ -4,6 +4,7 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.*;
 
 import com.blackaby.Backend.Emulation.Misc.Specifics;
@@ -20,6 +21,7 @@ public class DuckDisplay extends JPanel {
     }
 
     private final Object frameLock = new Object();
+    private final AtomicBoolean repaintQueued = new AtomicBoolean();
     private BufferedImage image;
     private int[] frontBuffer;
     private int[] backBuffer;
@@ -128,7 +130,7 @@ public class DuckDisplay extends JPanel {
             Arrays.fill(frontBuffer, Color.BLACK.getRGB());
         }
 
-        SwingUtilities.invokeLater(this::repaint);
+        RequestRepaint();
     }
 
     /**
@@ -143,7 +145,7 @@ public class DuckDisplay extends JPanel {
             System.arraycopy(backBuffer, 0, frontBuffer, 0, backBuffer.length);
         }
 
-        SwingUtilities.invokeLater(this::repaint);
+        RequestRepaint();
     }
 
     /**
@@ -183,7 +185,7 @@ public class DuckDisplay extends JPanel {
             System.arraycopy(frameState.backBuffer(), 0, backBuffer, 0, backBuffer.length);
         }
 
-        SwingUtilities.invokeLater(this::repaint);
+        RequestRepaint();
     }
 
     /**
@@ -224,7 +226,7 @@ public class DuckDisplay extends JPanel {
      */
     public void resizeImage() {
         initializeBuffers();
-        SwingUtilities.invokeLater(this::repaint);
+        RequestRepaint();
     }
 
     /**
@@ -259,5 +261,16 @@ public class DuckDisplay extends JPanel {
         backBuffer = new int[Specifics.gameBoyDisplayWidth * Specifics.gameBoyDisplayHeight];
         Arrays.fill(frontBuffer, Color.BLACK.getRGB());
         Arrays.fill(backBuffer, Color.BLACK.getRGB());
+    }
+
+    private void RequestRepaint() {
+        if (!repaintQueued.compareAndSet(false, true)) {
+            return;
+        }
+
+        SwingUtilities.invokeLater(() -> {
+            repaintQueued.set(false);
+            repaint();
+        });
     }
 }

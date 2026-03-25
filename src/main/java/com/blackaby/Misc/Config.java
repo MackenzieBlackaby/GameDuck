@@ -17,14 +17,18 @@ import java.util.Properties;
 /**
  * Loads and saves the persistent application configuration.
  * <p>
- * The config file keeps palette data, host theme values, control bindings,
- * shortcut bindings, sound options, and simple window preferences. The class is
- * stateful by design so the rest of the application can request a load once and
- * then work with in-memory settings.
+ * The config file keeps host theme values, control bindings, shortcut bindings,
+ * sound options, and simple window preferences. Palette data is stored in a
+ * separate JSON document, but loaded through the same facade here so the rest of
+ * the application can request a load once and then work with in-memory settings.
  */
 public final class Config {
 
-    private static final Path configPath = Path.of(System.getProperty("user.home"), ".gameduck.properties");
+    private static final Path appDataDirectoryPath = Path.of(System.getProperty("user.home"), ".gameduck");
+    private static final Path legacyConfigPath = Path.of(System.getProperty("user.home"), ".gameduck.properties");
+    private static final Path legacyPaletteConfigPath = Path.of(System.getProperty("user.home"), ".gameduck-palettes.json");
+    private static final Path configPath = appDataDirectoryPath.resolve("config.properties");
+    private static final Path paletteConfigPath = appDataDirectoryPath.resolve("palettes.json");
     private static final String currentPalettePrefix = "palette.current.";
     private static final String savedPaletteListKey = "palette.names";
     private static final String savedPalettePrefix = "palette.saved.";
@@ -59,6 +63,7 @@ public final class Config {
     private static final String gbcSpritePalette1Prefix = "palette.gbc.sprite1.";
 
     private static final Properties properties = new Properties();
+    private static PaletteStore paletteStore = new PaletteStore();
     private static boolean loaded;
 
     private Config() {
@@ -68,6 +73,8 @@ public final class Config {
      * Loads the configuration file into {@link Settings}.
      */
     public static synchronized void Load() {
+        MigrateLegacyFileIfNeeded(legacyConfigPath, configPath);
+        MigrateLegacyFileIfNeeded(legacyPaletteConfigPath, paletteConfigPath);
         properties.clear();
         if (Files.exists(configPath)) {
             try (InputStream inputStream = Files.newInputStream(configPath)) {
@@ -77,6 +84,8 @@ public final class Config {
             }
         }
 
+        PaletteStore.LoadResult paletteLoadResult = PaletteStore.Load(paletteConfigPath, properties);
+        paletteStore = paletteLoadResult.store();
         ApplyCurrentPalette();
         ApplyAppTheme();
         ApplyInputBindings();
@@ -87,6 +96,10 @@ public final class Config {
         ApplyWindowSettings();
         ApplyLibrarySettings();
         loaded = true;
+
+        if (paletteLoadResult.migratedFromLegacy()) {
+            Persist();
+        }
     }
 
     /**
@@ -114,19 +127,8 @@ public final class Config {
     public static void SavePalette(String name) {
         synchronized (Config.class) {
             EnsureLoaded();
-
-            String encodedName = EncodeName(name);
-            List<String> paletteNames = GetSavedPaletteNamesInternal();
-            if (!paletteNames.contains(name)) {
-                paletteNames.add(name);
-            }
-
-            GBColor[] palette = Settings.CurrentPalette();
-            for (int index = 0; index < palette.length; index++) {
-                properties.setProperty(savedPalettePrefix + encodedName + "." + index, palette[index].ToHex());
-            }
-            properties.setProperty(savedPaletteListKey, String.join(",", EncodeNames(paletteNames)));
             SyncCurrentPalette();
+            paletteStore.SaveDmgPalette(name, paletteStore.CurrentDmgPalette());
             SyncAppTheme();
             SyncInputBindings();
             SyncControllerBindings();
@@ -147,18 +149,12 @@ public final class Config {
     public static void SaveGbcPalette(String name) {
         synchronized (Config.class) {
             EnsureLoaded();
-
-            String encodedName = EncodeName(name);
-            List<String> paletteNames = GetSavedGbcPaletteNamesInternal();
-            if (!paletteNames.contains(name)) {
-                paletteNames.add(name);
-            }
-
-            SyncSavedGbcPalette(savedGbcPalettePrefix + encodedName + ".background.", Settings.CurrentGbcBackgroundPalette());
-            SyncSavedGbcPalette(savedGbcPalettePrefix + encodedName + ".sprite0.", Settings.CurrentGbcSpritePalette0());
-            SyncSavedGbcPalette(savedGbcPalettePrefix + encodedName + ".sprite1.", Settings.CurrentGbcSpritePalette1());
-            properties.setProperty(savedGbcPaletteListKey, String.join(",", EncodeNames(paletteNames)));
             SyncCurrentPalette();
+            paletteStore.SaveGbcPalette(
+                    name,
+                    paletteStore.CurrentGbcBackgroundPalette(),
+                    paletteStore.CurrentGbcSpritePalette0(),
+                    paletteStore.CurrentGbcSpritePalette1());
             SyncAppTheme();
             SyncInputBindings();
             SyncControllerBindings();
@@ -211,7 +207,7 @@ public final class Config {
      */
     public static synchronized List<String> GetSavedPaletteNames() {
         EnsureLoaded();
-        return new ArrayList<>(GetSavedPaletteNamesInternal());
+        return new ArrayList<>(paletteStore.SavedDmgPaletteNames());
     }
 
     /**
@@ -221,7 +217,7 @@ public final class Config {
      */
     public static synchronized List<String> GetSavedGbcPaletteNames() {
         EnsureLoaded();
-        return new ArrayList<>(GetSavedGbcPaletteNamesInternal());
+        return new ArrayList<>(paletteStore.SavedGbcPaletteNames());
     }
 
     /**
@@ -243,30 +239,23 @@ public final class Config {
     public static synchronized boolean LoadPalette(String name) {
         EnsureLoaded();
 
-        String encodedName = EncodeName(name);
-        boolean found = false;
-        for (int index = 0; index < 4; index++) {
-            String value = properties.getProperty(savedPalettePrefix + encodedName + "." + index);
-            if (value == null) {
-                continue;
-            }
-            Settings.SetPaletteColour(index, value);
-            found = true;
+        String[] palette = paletteStore.FindDmgPalette(name);
+        if (palette == null) {
+            return false;
         }
 
-        if (found) {
-            SyncCurrentPalette();
-            SyncAppTheme();
-            SyncInputBindings();
-            SyncControllerBindings();
-            SyncAppShortcuts();
-            SyncSoundSettings();
-            SyncWindowSettings();
-            SyncLibrarySettings();
-            Persist();
-        }
+        ApplyPaletteToSettings(palette);
+        SyncCurrentPalette();
+        SyncAppTheme();
+        SyncInputBindings();
+        SyncControllerBindings();
+        SyncAppShortcuts();
+        SyncSoundSettings();
+        SyncWindowSettings();
+        SyncLibrarySettings();
+        Persist();
 
-        return found;
+        return true;
     }
 
     /**
@@ -278,25 +267,25 @@ public final class Config {
     public static synchronized boolean LoadGbcPalette(String name) {
         EnsureLoaded();
 
-        String encodedName = EncodeName(name);
-        boolean found = false;
-        found |= ApplySavedGbcPalette(savedGbcPalettePrefix + encodedName + ".background.", 0);
-        found |= ApplySavedGbcPalette(savedGbcPalettePrefix + encodedName + ".sprite0.", 1);
-        found |= ApplySavedGbcPalette(savedGbcPalettePrefix + encodedName + ".sprite1.", 2);
-
-        if (found) {
-            SyncCurrentPalette();
-            SyncAppTheme();
-            SyncInputBindings();
-            SyncControllerBindings();
-            SyncAppShortcuts();
-            SyncSoundSettings();
-            SyncWindowSettings();
-            SyncLibrarySettings();
-            Persist();
+        PaletteStore.StoredGbcPalette palette = paletteStore.FindGbcPalette(name);
+        if (palette == null) {
+            return false;
         }
 
-        return found;
+        ApplyGbcPaletteToSettings(0, palette.background());
+        ApplyGbcPaletteToSettings(1, palette.sprite0());
+        ApplyGbcPaletteToSettings(2, palette.sprite1());
+        SyncCurrentPalette();
+        SyncAppTheme();
+        SyncInputBindings();
+        SyncControllerBindings();
+        SyncAppShortcuts();
+        SyncSoundSettings();
+        SyncWindowSettings();
+        SyncLibrarySettings();
+        Persist();
+
+        return true;
     }
 
     /**
@@ -345,15 +334,7 @@ public final class Config {
      */
     public static synchronized void DeletePalette(String name) {
         EnsureLoaded();
-
-        String encodedName = EncodeName(name);
-        for (int index = 0; index < 4; index++) {
-            properties.remove(savedPalettePrefix + encodedName + "." + index);
-        }
-
-        List<String> paletteNames = GetSavedPaletteNamesInternal();
-        paletteNames.remove(name);
-        properties.setProperty(savedPaletteListKey, String.join(",", EncodeNames(paletteNames)));
+        paletteStore.DeleteDmgPalette(name);
         SyncCurrentPalette();
         SyncAppTheme();
         SyncInputBindings();
@@ -373,15 +354,7 @@ public final class Config {
      */
     public static synchronized void DeleteGbcPalette(String name) {
         EnsureLoaded();
-
-        String encodedName = EncodeName(name);
-        RemoveSavedGbcPalette(savedGbcPalettePrefix + encodedName + ".background.");
-        RemoveSavedGbcPalette(savedGbcPalettePrefix + encodedName + ".sprite0.");
-        RemoveSavedGbcPalette(savedGbcPalettePrefix + encodedName + ".sprite1.");
-
-        List<String> paletteNames = GetSavedGbcPaletteNamesInternal();
-        paletteNames.remove(name);
-        properties.setProperty(savedGbcPaletteListKey, String.join(",", EncodeNames(paletteNames)));
+        paletteStore.DeleteGbcPalette(name);
         SyncCurrentPalette();
         SyncAppTheme();
         SyncInputBindings();
@@ -423,24 +396,13 @@ public final class Config {
     }
 
     private static void ApplyCurrentPalette() {
-        String[] defaults = {
-                Settings.gbColour0,
-                Settings.gbColour1,
-                Settings.gbColour2,
-                Settings.gbColour3
-        };
-
-        for (int index = 0; index < defaults.length; index++) {
-            Settings.SetPaletteColour(index, properties.getProperty(currentPalettePrefix + index, defaults[index]));
-        }
-
+        ApplyPaletteToSettings(paletteStore.CurrentDmgPalette());
         Settings.ResetGbcPaletteMode();
-        Settings.preferDmgModeForGbcCompatibleGames = Boolean.parseBoolean(
-                properties.getProperty(preferDmgModeForGbcCompatibleGamesKey, "false"));
-        Settings.gbcPaletteModeEnabled = Boolean.parseBoolean(properties.getProperty(gbcPaletteModeEnabledKey, "false"));
-        ApplyGbcPalette(gbcBackgroundPalettePrefix, Settings.gbcBackgroundPaletteDefaults, 0);
-        ApplyGbcPalette(gbcSpritePalette0Prefix, Settings.gbcSpritePalette0Defaults, 1);
-        ApplyGbcPalette(gbcSpritePalette1Prefix, Settings.gbcSpritePalette1Defaults, 2);
+        Settings.preferDmgModeForGbcCompatibleGames = paletteStore.PreferDmgModeForGbcCompatibleGames();
+        Settings.gbcPaletteModeEnabled = paletteStore.GbcPaletteModeEnabled();
+        ApplyGbcPaletteToSettings(0, paletteStore.CurrentGbcBackgroundPalette());
+        ApplyGbcPaletteToSettings(1, paletteStore.CurrentGbcSpritePalette0());
+        ApplyGbcPaletteToSettings(2, paletteStore.CurrentGbcSpritePalette1());
     }
 
     private static void ApplyAppTheme() {
@@ -564,16 +526,12 @@ public final class Config {
     }
 
     private static void SyncCurrentPalette() {
-        GBColor[] palette = Settings.CurrentPalette();
-        for (int index = 0; index < palette.length; index++) {
-            properties.setProperty(currentPalettePrefix + index, palette[index].ToHex());
-        }
-        properties.setProperty(preferDmgModeForGbcCompatibleGamesKey,
-                String.valueOf(Settings.preferDmgModeForGbcCompatibleGames));
-        properties.setProperty(gbcPaletteModeEnabledKey, String.valueOf(Settings.gbcPaletteModeEnabled));
-        SyncGbcPalette(gbcBackgroundPalettePrefix, Settings.CurrentGbcBackgroundPalette());
-        SyncGbcPalette(gbcSpritePalette0Prefix, Settings.CurrentGbcSpritePalette0());
-        SyncGbcPalette(gbcSpritePalette1Prefix, Settings.CurrentGbcSpritePalette1());
+        paletteStore.SetCurrentDmgPalette(ToHexPalette(Settings.CurrentPalette()));
+        paletteStore.SetPreferDmgModeForGbcCompatibleGames(Settings.preferDmgModeForGbcCompatibleGames);
+        paletteStore.SetGbcPaletteModeEnabled(Settings.gbcPaletteModeEnabled);
+        paletteStore.SetCurrentGbcBackgroundPalette(ToHexPalette(Settings.CurrentGbcBackgroundPalette()));
+        paletteStore.SetCurrentGbcSpritePalette0(ToHexPalette(Settings.CurrentGbcSpritePalette0()));
+        paletteStore.SetCurrentGbcSpritePalette1(ToHexPalette(Settings.CurrentGbcSpritePalette1()));
     }
 
     private static void SyncAppTheme() {
@@ -639,36 +597,6 @@ public final class Config {
                 Settings.libraryViewMode == null || Settings.libraryViewMode.isBlank() ? "LIST" : Settings.libraryViewMode);
     }
 
-    private static List<String> GetSavedPaletteNamesInternal() {
-        String stored = properties.getProperty(savedPaletteListKey, "");
-        List<String> names = new ArrayList<>();
-        if (stored.isBlank()) {
-            return names;
-        }
-
-        for (String encodedName : stored.split(",")) {
-            if (!encodedName.isBlank()) {
-                names.add(DecodeName(encodedName));
-            }
-        }
-        return names;
-    }
-
-    private static List<String> GetSavedGbcPaletteNamesInternal() {
-        String stored = properties.getProperty(savedGbcPaletteListKey, "");
-        List<String> names = new ArrayList<>();
-        if (stored.isBlank()) {
-            return names;
-        }
-
-        for (String encodedName : stored.split(",")) {
-            if (!encodedName.isBlank()) {
-                names.add(DecodeName(encodedName));
-            }
-        }
-        return names;
-    }
-
     private static List<String> GetSavedThemeNamesInternal() {
         String stored = properties.getProperty(savedThemeListKey, "");
         List<String> names = new ArrayList<>();
@@ -706,39 +634,46 @@ public final class Config {
         }
     }
 
-    private static void ApplyGbcPalette(String keyPrefix, String[] defaults, int paletteIndex) {
-        for (int colourIndex = 0; colourIndex < defaults.length; colourIndex++) {
-            Settings.SetGbcPaletteColour(paletteIndex, colourIndex,
-                    properties.getProperty(keyPrefix + colourIndex, defaults[colourIndex]));
+    private static void ApplyPaletteToSettings(String[] palette) {
+        for (int index = 0; index < palette.length; index++) {
+            Settings.SetPaletteColour(index, palette[index]);
         }
     }
 
-    private static void SyncGbcPalette(String keyPrefix, GBColor[] palette) {
+    private static void ApplyGbcPaletteToSettings(int paletteIndex, String[] palette) {
         for (int colourIndex = 0; colourIndex < palette.length; colourIndex++) {
-            properties.setProperty(keyPrefix + colourIndex, palette[colourIndex].ToHex());
+            Settings.SetGbcPaletteColour(paletteIndex, colourIndex, palette[colourIndex]);
         }
     }
 
-    private static void SyncSavedGbcPalette(String keyPrefix, GBColor[] palette) {
-        SyncGbcPalette(keyPrefix, palette);
+    private static String[] ToHexPalette(GBColor[] palette) {
+        String[] hexPalette = new String[palette.length];
+        for (int index = 0; index < palette.length; index++) {
+            hexPalette[index] = palette[index].ToHex();
+        }
+        return hexPalette;
     }
 
-    private static boolean ApplySavedGbcPalette(String keyPrefix, int paletteIndex) {
-        boolean found = false;
-        for (int colourIndex = 0; colourIndex < 4; colourIndex++) {
-            String value = properties.getProperty(keyPrefix + colourIndex);
-            if (value == null) {
-                continue;
+    private static void RemoveLegacyPaletteProperties() {
+        properties.remove(savedPaletteListKey);
+        properties.remove(savedGbcPaletteListKey);
+        properties.remove(preferDmgModeForGbcCompatibleGamesKey);
+        properties.remove(gbcPaletteModeEnabledKey);
+
+        List<String> keysToRemove = new ArrayList<>();
+        for (String key : properties.stringPropertyNames()) {
+            if (key.startsWith(currentPalettePrefix)
+                    || key.startsWith(savedPalettePrefix)
+                    || key.startsWith(savedGbcPalettePrefix)
+                    || key.startsWith(gbcBackgroundPalettePrefix)
+                    || key.startsWith(gbcSpritePalette0Prefix)
+                    || key.startsWith(gbcSpritePalette1Prefix)) {
+                keysToRemove.add(key);
             }
-            Settings.SetGbcPaletteColour(paletteIndex, colourIndex, value);
-            found = true;
         }
-        return found;
-    }
 
-    private static void RemoveSavedGbcPalette(String keyPrefix) {
-        for (int colourIndex = 0; colourIndex < 4; colourIndex++) {
-            properties.remove(keyPrefix + colourIndex);
+        for (String key : keysToRemove) {
+            properties.remove(key);
         }
     }
 
@@ -773,12 +708,25 @@ public final class Config {
 
     private static void Persist() {
         try {
-            if (configPath.getParent() != null) {
-                Files.createDirectories(configPath.getParent());
-            }
+            RemoveLegacyPaletteProperties();
+            paletteStore.Save(paletteConfigPath);
+            Files.createDirectories(appDataDirectoryPath);
             try (OutputStream outputStream = Files.newOutputStream(configPath)) {
                 properties.store(outputStream, "GameDuck configuration");
             }
+        } catch (IOException exception) {
+            exception.printStackTrace();
+        }
+    }
+
+    private static void MigrateLegacyFileIfNeeded(Path legacyPath, Path newPath) {
+        if (!Files.exists(legacyPath) || Files.exists(newPath)) {
+            return;
+        }
+
+        try {
+            Files.createDirectories(appDataDirectoryPath);
+            Files.move(legacyPath, newPath);
         } catch (IOException exception) {
             exception.printStackTrace();
         }

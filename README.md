@@ -106,7 +106,8 @@ javadoc -d docs -sourcepath src/main/java -subpackages com.blackaby
 
 Not everything lives in the working tree.
 
-- The main settings file is written to `~/.gameduck.properties`.
+- The main settings file is written to `~/.gameduck/config.properties`.
+- Palettes are written to `~/.gameduck/palettes.json`.
 - Installed boot ROMs are kept in `~/.gameduck/`.
 
 That split is deliberate. Runtime data tied to the current checkout stays in the project folders, while configuration and boot ROMs live in the user profile.

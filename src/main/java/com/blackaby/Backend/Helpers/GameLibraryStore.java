@@ -1,6 +1,7 @@
 package com.blackaby.Backend.Helpers;
 
 import com.blackaby.Backend.Emulation.Misc.ROM;
+import com.blackaby.Backend.Platform.EmulatorGame;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -16,7 +17,7 @@ public final class GameLibraryStore {
     public record LibraryEntry(String key, Path romPath, String sourcePath, String sourceName, String displayName,
                                List<String> patchNames, List<String> patchSourcePaths, String headerTitle,
                                boolean cgbCompatible, boolean cgbOnly, long addedAtMillis, long lastPlayedMillis,
-                               boolean favourite) {
+                               boolean favourite) implements EmulatorGame {
         public LibraryEntry {
             patchNames = List.copyOf(patchNames == null ? List.of() : patchNames);
             patchSourcePaths = List.copyOf(patchSourcePaths == null ? List.of() : patchSourcePaths);

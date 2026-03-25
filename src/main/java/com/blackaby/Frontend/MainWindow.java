@@ -1,6 +1,6 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.Emulation.DuckEmulation;
+import com.blackaby.Backend.Emulation.DuckBackend;
 import com.blackaby.Backend.Emulation.Misc.ROM;
 import com.blackaby.Backend.Helpers.GameMetadataStore;
 import com.blackaby.Backend.Helpers.GUIActions;
@@ -8,6 +8,11 @@ import com.blackaby.Backend.Helpers.GUIActions.Action;
 import com.blackaby.Backend.Helpers.GameArtProvider;
 import com.blackaby.Backend.Helpers.GameArtProvider.GameArtResult;
 import com.blackaby.Backend.Helpers.QuickStateManager;
+import com.blackaby.Backend.Platform.EmulatorBackend;
+import com.blackaby.Backend.Platform.EmulatorGame;
+import com.blackaby.Backend.Platform.EmulatorHost;
+import com.blackaby.Backend.Platform.EmulatorRuntime;
+import com.blackaby.Backend.Platform.EmulatorStateSlot;
 import com.blackaby.Misc.AppShortcut;
 import com.blackaby.Misc.Config;
 import com.blackaby.Misc.GameArtDisplayMode;
@@ -55,14 +60,15 @@ import java.util.concurrent.atomic.AtomicInteger;
  * The window owns the display surface, menu bar, status strips, and the quick
  * actions used to drive the active emulator instance.
  */
-public class MainWindow extends DuckWindow {
+public class MainWindow extends DuckWindow implements EmulatorHost {
 
     private static final int gameArtPreviewWidth = 280;
     private static final int gameArtPreviewHeight = 220;
     private static final DateTimeFormatter saveStateTimestampFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
 
+    private final EmulatorBackend backend;
     private final DuckDisplay display;
-    private final DuckEmulation emulation;
+    private final EmulatorRuntime emulation;
     private final InputRouter inputRouter;
     private final List<JButton> headerButtons = new ArrayList<>();
     private final EnumMap<Action, JMenuItem> menuItemsByAction = new EnumMap<>(Action.class);
@@ -109,7 +115,7 @@ public class MainWindow extends DuckWindow {
     private JPanel statusBar;
     private JTextArea serialOutputArea;
     private JScrollPane serialOutputScrollPane;
-    private ROM currentLoadedRom;
+    private EmulatorGame currentLoadedGame;
     private boolean romNameLookupPending;
 
     private final String[][] menuItems = UiText.MainWindow.MENU_ITEMS;
@@ -128,9 +134,10 @@ public class MainWindow extends DuckWindow {
     public MainWindow() {
         super(UiText.MainWindow.WINDOW_TITLE);
 
-        display = new DuckDisplay();
-        emulation = new DuckEmulation(this, display);
-        inputRouter = new InputRouter(this, emulation);
+        backend = DuckBackend.instance;
+        display = new DuckDisplay(backend.Profile().displaySpec());
+        emulation = backend.CreateRuntime(this, display);
+        inputRouter = new InputRouter(this, emulation, backend.Profile());
         inputRouter.Install();
 
         setLayout(new BorderLayout(0, 0));
@@ -755,7 +762,7 @@ public class MainWindow extends DuckWindow {
      * @param rom active ROM
      */
     public void SetLoadedRom(ROM rom) {
-        SetLoadedRom(rom, true);
+        SetLoadedGame(rom, true);
     }
 
     /**
@@ -765,10 +772,16 @@ public class MainWindow extends DuckWindow {
      * @param rom           active ROM
      * @param allowFallback whether filename fallback should be used
      */
-    public void SetLoadedRom(ROM rom, boolean allowFallback) {
-        currentLoadedRom = rom;
-        romNameLookupPending = rom != null && !allowFallback && GameMetadataStore.GetLibretroTitle(rom).isEmpty();
-        String romText = ResolveDisplayedRomName(rom, allowFallback);
+    @Override
+    public void SetLoadedGame(EmulatorGame game) {
+        SetLoadedGame(game, true);
+    }
+
+    @Override
+    public void SetLoadedGame(EmulatorGame game, boolean allowFallback) {
+        currentLoadedGame = game;
+        romNameLookupPending = game != null && !allowFallback && GameMetadataStore.GetLibretroTitle(game).isEmpty();
+        String romText = ResolveDisplayedRomName(game, allowFallback);
         Runnable update = () -> {
             if (romLabel != null) {
                 romLabel.setText(romText);
@@ -787,15 +800,15 @@ public class MainWindow extends DuckWindow {
      * Reapplies the active library naming settings to the current ROM label.
      */
     public void RefreshLoadedRomDisplay() {
-        SetLoadedRom(currentLoadedRom, !romNameLookupPending);
+        SetLoadedGame(currentLoadedGame, !romNameLookupPending);
     }
 
-    private String ResolveDisplayedRomName(ROM rom, boolean allowFallback) {
-        if (rom == null) {
+    private String ResolveDisplayedRomName(EmulatorGame game, boolean allowFallback) {
+        if (game == null) {
             return UiText.MainWindow.NO_ROM_LOADED;
         }
 
-        Optional<String> libretroTitle = GameMetadataStore.GetLibretroTitle(rom);
+        Optional<String> libretroTitle = GameMetadataStore.GetLibretroTitle(game);
         if (libretroTitle.isPresent()) {
             return ApplyGameNameDisplayMode(libretroTitle.get());
         }
@@ -804,14 +817,14 @@ public class MainWindow extends DuckWindow {
             return UiText.MainWindow.RETRIEVING_GAME_NAME;
         }
 
-        String sourceName = rom.GetSourceName();
+        String sourceName = game.sourceName();
         if (sourceName != null && !sourceName.isBlank()) {
             return ApplyGameNameDisplayMode(sourceName);
         }
 
-        return rom.GetName() == null || rom.GetName().isBlank()
+        return game.displayName() == null || game.displayName().isBlank()
                 ? UiText.MainWindow.NO_ROM_LOADED
-                : ApplyGameNameDisplayMode(rom.GetName());
+                : ApplyGameNameDisplayMode(game.displayName());
     }
 
     public static String ApplyGameNameDisplayMode(String name) {
@@ -841,10 +854,10 @@ public class MainWindow extends DuckWindow {
                 loadStateMenu.setText(UiText.MainWindow.GAME_MENU_LOAD_STATE);
             }
 
-            List<QuickStateManager.StateSlotInfo> slots = QuickStateManager.DescribeSlots(currentLoadedRom);
-            boolean hasLoadedRom = currentLoadedRom != null;
+            List<EmulatorStateSlot> slots = emulation.DescribeCurrentStateSlots();
+            boolean hasLoadedRom = currentLoadedGame != null;
 
-            for (QuickStateManager.StateSlotInfo slotInfo : slots) {
+            for (EmulatorStateSlot slotInfo : slots) {
                 int slot = slotInfo.slot();
                 String timestampText = slotInfo.exists() ? FormatSaveStateTimestamp(slotInfo.lastModified()) : "";
                 String label = UiText.MainWindow.SaveStateSlotLabel(slot, timestampText);
@@ -918,21 +931,22 @@ public class MainWindow extends DuckWindow {
      *
      * @param rom active ROM
      */
-    public void LoadGameArt(ROM rom) {
-        if (rom == null || Settings.gameArtDisplayMode == GameArtDisplayMode.NONE) {
+    @Override
+    public void LoadGameArt(EmulatorGame game) {
+        if (game == null || Settings.gameArtDisplayMode == GameArtDisplayMode.NONE) {
             ClearGameArt();
             return;
         }
 
         int requestVersion = gameArtRequestVersion.incrementAndGet();
         SetGameArtPlaceholder(UiText.MainWindow.FETCHING_ARTWORK,
-                UiText.MainWindow.LookingUpArtwork(Settings.gameArtDisplayMode.Label(), rom.GetName()));
+                UiText.MainWindow.LookingUpArtwork(Settings.gameArtDisplayMode.Label(), game.displayName()));
 
         CompletableFuture
-                .supplyAsync(() -> GameArtProvider.FindGameArt(rom, Settings.gameArtDisplayMode))
-                .thenAccept(result -> ApplyGameArtResult(rom, requestVersion, result))
+                .supplyAsync(() -> GameArtProvider.FindGameArt(game, Settings.gameArtDisplayMode))
+                .thenAccept(result -> ApplyGameArtResult(game, requestVersion, result))
                 .exceptionally(exception -> {
-                    ApplyGameArtResult(rom, requestVersion, Optional.empty());
+                    ApplyGameArtResult(game, requestVersion, Optional.empty());
                     return null;
                 });
     }
@@ -955,8 +969,20 @@ public class MainWindow extends DuckWindow {
      *
      * @return emulator controller
      */
-    public DuckEmulation GetEmulation() {
+    public EmulatorRuntime GetEmulation() {
         return emulation;
+    }
+
+    public EmulatorBackend GetBackend() {
+        return backend;
+    }
+
+    public com.blackaby.Backend.Platform.EmulatorProfile GetBackendProfile() {
+        return backend.Profile();
+    }
+
+    public EmulatorGame GetCurrentLoadedGame() {
+        return currentLoadedGame;
     }
 
     /**
@@ -965,7 +991,7 @@ public class MainWindow extends DuckWindow {
      * @return loaded ROM or {@code null}
      */
     public ROM GetCurrentLoadedRom() {
-        return currentLoadedRom;
+        return currentLoadedGame instanceof ROM rom ? rom : null;
     }
 
     /**
@@ -974,10 +1000,10 @@ public class MainWindow extends DuckWindow {
      * @return displayed ROM name
      */
     public String GetCurrentLoadedRomDisplayName() {
-        return ResolveDisplayedRomName(currentLoadedRom, !romNameLookupPending);
+        return ResolveDisplayedRomName(currentLoadedGame, !romNameLookupPending);
     }
 
-    private void ApplyGameArtResult(ROM rom, int requestVersion, Optional<GameArtResult> result) {
+    private void ApplyGameArtResult(EmulatorGame game, int requestVersion, Optional<GameArtResult> result) {
         Runnable apply = () -> {
             if (gameArtRequestVersion.get() != requestVersion) {
                 return;
@@ -985,8 +1011,8 @@ public class MainWindow extends DuckWindow {
 
             if (result.isPresent()) {
                 if (result.get().matchedGameName() != null && !result.get().matchedGameName().isBlank()) {
-                    GameMetadataStore.RememberLibretroTitle(rom, result.get().matchedGameName());
-                    SetLoadedRom(rom);
+                    GameMetadataStore.RememberLibretroTitle(game, result.get().matchedGameName());
+                    SetLoadedGame(game);
                 }
                 BufferedImage scaledImage = GameArtScaler.ScaleToFit(result.get().image(), gameArtPreviewWidth - 24,
                         gameArtPreviewHeight - 24, true);
@@ -999,7 +1025,7 @@ public class MainWindow extends DuckWindow {
 
             SetGameArtPlaceholder(UiText.MainWindow.NO_ARTWORK_FOUND,
                     UiText.MainWindow.NO_ARTWORK_HINT);
-            SetLoadedRom(rom, true);
+            SetLoadedGame(game, true);
         };
 
         if (SwingUtilities.isEventDispatchThread()) {
@@ -1032,10 +1058,10 @@ public class MainWindow extends DuckWindow {
      */
     public void RefreshWindowPanels() {
         ApplyWindowMode();
-        if (Settings.gameArtDisplayMode == GameArtDisplayMode.NONE || currentLoadedRom == null) {
+        if (Settings.gameArtDisplayMode == GameArtDisplayMode.NONE || currentLoadedGame == null) {
             ClearGameArt();
         } else {
-            LoadGameArt(currentLoadedRom);
+            LoadGameArt(currentLoadedGame);
         }
     }
 }

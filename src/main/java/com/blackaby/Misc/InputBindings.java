@@ -1,6 +1,7 @@
 package com.blackaby.Misc;
 
 import com.blackaby.Backend.Emulation.Peripherals.DuckJoypad;
+import com.blackaby.Backend.Platform.EmulatorButton;
 
 import java.awt.event.KeyEvent;
 import java.util.EnumMap;
@@ -44,6 +45,12 @@ public final class InputBindings {
         return bindings.getOrDefault(button, KeyEvent.VK_UNDEFINED);
     }
 
+    public synchronized int GetKeyCode(EmulatorButton button) {
+        return button instanceof DuckJoypad.Button joypadButton
+                ? GetKeyCode(joypadButton)
+                : KeyEvent.VK_UNDEFINED;
+    }
+
     /**
      * Returns the assigned key as readable text.
      *
@@ -56,6 +63,11 @@ public final class InputBindings {
             return "Unbound";
         }
         return KeyEvent.getKeyText(keyCode);
+    }
+
+    public synchronized String GetKeyText(EmulatorButton button) {
+        int keyCode = GetKeyCode(button);
+        return keyCode == KeyEvent.VK_UNDEFINED ? "Unbound" : KeyEvent.getKeyText(keyCode);
     }
 
     /**
@@ -78,6 +90,12 @@ public final class InputBindings {
         }
     }
 
+    public synchronized void SetKeyCode(EmulatorButton button, int keyCode) {
+        if (button instanceof DuckJoypad.Button joypadButton) {
+            SetKeyCode(joypadButton, keyCode);
+        }
+    }
+
     /**
      * Finds the emulated button already using a host key.
      *
@@ -87,6 +105,18 @@ public final class InputBindings {
     public synchronized DuckJoypad.Button GetButtonForKeyCode(int keyCode) {
         for (DuckJoypad.Button button : DuckJoypad.Button.values()) {
             if (bindings.getOrDefault(button, KeyEvent.VK_UNDEFINED) == keyCode) {
+                return button;
+            }
+        }
+        return null;
+    }
+
+    public synchronized EmulatorButton GetButtonForKeyCode(Iterable<? extends EmulatorButton> buttons, int keyCode) {
+        if (buttons == null) {
+            return null;
+        }
+        for (EmulatorButton button : buttons) {
+            if (GetKeyCode(button) == keyCode) {
                 return button;
             }
         }

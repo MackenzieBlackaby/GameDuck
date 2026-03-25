@@ -1,5 +1,8 @@
 package com.blackaby.Frontend;
 
+import com.blackaby.Backend.Emulation.DuckBackend;
+import com.blackaby.Backend.Platform.EmulatorDisplaySpec;
+
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferInt;
@@ -7,19 +10,15 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.*;
 
-import com.blackaby.Backend.Emulation.Misc.Specifics;
-
 /**
  * A custom JPanel for rendering Game Boy display output.
  * Handles pixel manipulation, image scaling, and drawing logic.
  */
 public class DuckDisplay extends JPanel {
-    private static final Dimension DEFAULT_DISPLAY_SIZE = new Dimension(640, 576);
-    private static final Dimension MINIMUM_DISPLAY_SIZE = new Dimension(160, 144);
-
     public record FrameState(int[] frontBuffer, int[] backBuffer) implements java.io.Serializable {
     }
 
+    private final EmulatorDisplaySpec displaySpec;
     private final Object frameLock = new Object();
     private final AtomicBoolean repaintQueued = new AtomicBoolean();
     private BufferedImage image;
@@ -31,8 +30,18 @@ public class DuckDisplay extends JPanel {
      * initialises the image buffer to the standard Game Boy resolution.
      */
     public DuckDisplay() {
+        this(DuckBackend.instance.Profile().displaySpec());
+    }
+
+    /**
+     * Constructs a display surface for the supplied backend display spec.
+     *
+     * @param displaySpec backend display geometry
+     */
+    public DuckDisplay(EmulatorDisplaySpec displaySpec) {
         super();
-        setBackground(Color.BLACK);
+        this.displaySpec = displaySpec;
+        setBackground(displaySpec == null ? Color.BLACK : displaySpec.backgroundColour());
         setDoubleBuffered(true);
         initializeBuffers();
     }
@@ -61,8 +70,10 @@ public class DuckDisplay extends JPanel {
      * @param repaint Whether to repaint the component afterwards
      */
     public void setPixel(int x, int y, int rgb, boolean repaint) {
-        if (backBuffer != null && x >= 0 && x < Specifics.gameBoyDisplayWidth && y >= 0 && y < Specifics.gameBoyDisplayHeight) {
-            backBuffer[(y * Specifics.gameBoyDisplayWidth) + x] = rgb;
+        int frameWidth = frameWidth();
+        int frameHeight = frameHeight();
+        if (backBuffer != null && x >= 0 && x < frameWidth && y >= 0 && y < frameHeight) {
+            backBuffer[(y * frameWidth) + x] = rgb;
             if (repaint) {
                 presentFrame();
             }
@@ -220,10 +231,10 @@ public class DuckDisplay extends JPanel {
 
             // Calculate scaled dimensions while maintaining aspect ratio
             double scale = Math.min(
-                    getWidth() / (double) Specifics.gameBoyDisplayWidth,
-                    getHeight() / (double) Specifics.gameBoyDisplayHeight);
-            int scaledWidth = (int) (Specifics.gameBoyDisplayWidth * scale);
-            int scaledHeight = (int) (Specifics.gameBoyDisplayHeight * scale);
+                    getWidth() / (double) frameWidth(),
+                    getHeight() / (double) frameHeight());
+            int scaledWidth = (int) (frameWidth() * scale);
+            int scaledHeight = (int) (frameHeight() * scale);
 
             // Calculate position to center the scaled image
             int x = (getWidth() - scaledWidth) / 2;
@@ -252,7 +263,7 @@ public class DuckDisplay extends JPanel {
      */
     @Override
     public Dimension getMinimumSize() {
-        return MINIMUM_DISPLAY_SIZE;
+        return displaySpec == null ? new Dimension(160, 144) : displaySpec.minimumSize();
     }
 
     /**
@@ -263,7 +274,7 @@ public class DuckDisplay extends JPanel {
      */
     @Override
     public Dimension getPreferredSize() {
-        return DEFAULT_DISPLAY_SIZE;
+        return displaySpec == null ? new Dimension(640, 576) : displaySpec.preferredSize();
     }
 
     @Override
@@ -272,11 +283,19 @@ public class DuckDisplay extends JPanel {
     }
 
     private void initializeBuffers() {
-        image = new BufferedImage(Specifics.gameBoyDisplayWidth, Specifics.gameBoyDisplayHeight, BufferedImage.TYPE_INT_RGB);
+        image = new BufferedImage(frameWidth(), frameHeight(), BufferedImage.TYPE_INT_RGB);
         frontBuffer = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
-        backBuffer = new int[Specifics.gameBoyDisplayWidth * Specifics.gameBoyDisplayHeight];
+        backBuffer = new int[frameWidth() * frameHeight()];
         Arrays.fill(frontBuffer, Color.BLACK.getRGB());
         Arrays.fill(backBuffer, Color.BLACK.getRGB());
+    }
+
+    private int frameWidth() {
+        return displaySpec == null ? 160 : displaySpec.frameWidth();
+    }
+
+    private int frameHeight() {
+        return displaySpec == null ? 144 : displaySpec.frameHeight();
     }
 
     private void RequestRepaint() {

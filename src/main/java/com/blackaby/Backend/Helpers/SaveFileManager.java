@@ -1,6 +1,7 @@
 package com.blackaby.Backend.Helpers;
 
 import com.blackaby.Backend.Emulation.Misc.ROM;
+import com.blackaby.Backend.Platform.EmulatorGame;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -18,17 +19,25 @@ import java.util.Optional;
 public final class SaveFileManager {
 
     public record SaveIdentity(String sourcePath, String sourceName, String displayName, List<String> patchNames,
-                               boolean batteryBackedSave) {
+                               boolean batteryBackedSave) implements EmulatorGame {
         public SaveIdentity {
             patchNames = List.copyOf(patchNames == null ? List.of() : patchNames);
         }
 
         public static SaveIdentity FromRom(ROM rom) {
-            if (rom == null) {
+            return FromGame(rom);
+        }
+
+        public static SaveIdentity FromGame(EmulatorGame game) {
+            if (game == null) {
                 return null;
             }
-            return new SaveIdentity(rom.GetSourcePath(), rom.GetSourceName(), rom.GetName(), rom.GetPatchNames(),
-                    rom.HasBatteryBackedSave());
+            return new SaveIdentity(
+                    game.sourcePath(),
+                    game.sourceName(),
+                    game.displayName(),
+                    game.patchNames(),
+                    game.batteryBackedSave());
         }
     }
 

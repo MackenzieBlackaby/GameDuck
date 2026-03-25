@@ -10,9 +10,14 @@ import com.blackaby.Backend.Emulation.Misc.Specifics;
 import com.blackaby.Backend.Emulation.Peripherals.DuckAPU;
 import com.blackaby.Backend.Emulation.Peripherals.DuckJoypad;
 import com.blackaby.Backend.Emulation.Peripherals.DuckTimer;
+import com.blackaby.Backend.Platform.EmulatorGame;
+import com.blackaby.Backend.Platform.EmulatorHost;
+import com.blackaby.Backend.Platform.EmulatorMedia;
+import com.blackaby.Backend.Platform.EmulatorProfile;
+import com.blackaby.Backend.Platform.EmulatorRuntime;
+import com.blackaby.Backend.Platform.EmulatorStateSlot;
 import com.blackaby.Frontend.DebugLogger;
 import com.blackaby.Frontend.DuckDisplay;
-import com.blackaby.Frontend.MainWindow;
 import com.blackaby.Backend.Helpers.SaveFileManager;
 import com.blackaby.Backend.Helpers.ManagedGameRegistry;
 import com.blackaby.Backend.Helpers.GameLibraryStore;
@@ -24,6 +29,7 @@ import com.blackaby.Misc.UiText;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.locks.LockSupport;
 
 /**
@@ -33,7 +39,7 @@ import java.util.concurrent.locks.LockSupport;
  * boot state when the boot ROM is skipped, and runs the timed execution loop
  * used by the desktop front end.
  */
-public class DuckEmulation implements Runnable {
+public class DuckEmulation implements Runnable, EmulatorRuntime {
 
     private static final double maxTimeAccumulator = 50_000_000.0;
     private static final long minParkNanos = 100_000L;
@@ -46,7 +52,8 @@ public class DuckEmulation implements Runnable {
     private DuckAPU apu;
     private final DuckDisplay display;
     private ROM rom;
-    private final MainWindow mainWindow;
+    private final EmulatorHost host;
+    private final EmulatorProfile profile;
     private Thread emulationThread;
     private volatile boolean running;
     private volatile boolean paused;
@@ -60,9 +67,15 @@ public class DuckEmulation implements Runnable {
      * @param window  owning main window
      * @param display display surface for rendered frames
      */
-    public DuckEmulation(MainWindow window, DuckDisplay display) {
+    public DuckEmulation(EmulatorHost window, DuckDisplay display, EmulatorProfile profile) {
         this.display = display;
-        mainWindow = window;
+        this.host = window;
+        this.profile = profile;
+    }
+
+    @Override
+    public EmulatorProfile Profile() {
+        return profile;
     }
 
     /**
@@ -70,8 +83,24 @@ public class DuckEmulation implements Runnable {
      *
      * @param romFile path to the ROM file
      */
+    @Override
     public void StartEmulation(String romFile) {
         StartEmulation(new ROM(romFile));
+    }
+
+    @Override
+    public void StartEmulation(EmulatorMedia media) {
+        if (media instanceof ROM loadedRom) {
+            StartEmulation(loadedRom);
+            return;
+        }
+
+        StartEmulation(ROM.FromBytes(
+                media.sourcePath(),
+                media.programBytes(),
+                media.displayName(),
+                media.patchNames(),
+                media.patchSourcePaths()));
     }
 
     /**
@@ -111,9 +140,9 @@ public class DuckEmulation implements Runnable {
         }
 
         InstructionLogic.Initialise(cpu, memory);
-        mainWindow.SetSubtitle(romName);
-        mainWindow.SetLoadedRom(this.rom, false);
-        mainWindow.LoadGameArt(this.rom);
+        host.SetSubtitle(romName);
+        host.SetLoadedGame(this.rom, false);
+        host.LoadGameArt(this.rom);
 
         emulationThread = new Thread(this);
         emulationThread.start();
@@ -125,9 +154,9 @@ public class DuckEmulation implements Runnable {
     public void PauseEmulation() {
         paused = !paused;
         if (paused) {
-            mainWindow.SetSubtitle(romName, ": Paused");
+            host.SetSubtitle(romName, ": Paused");
         } else {
-            mainWindow.SetSubtitle(romName);
+            host.SetSubtitle(romName);
         }
     }
 
@@ -157,9 +186,9 @@ public class DuckEmulation implements Runnable {
         }
 
         romName = defaultRomName;
-        mainWindow.SetSubtitle(romName);
-        mainWindow.SetLoadedRom(null);
-        mainWindow.ClearGameArt();
+        host.SetSubtitle(romName);
+        host.SetLoadedGame(null);
+        host.ClearGameArt();
         display.clear();
 
         if (rom != null && memory != null && memory.HasSaveData()) {
@@ -240,11 +269,19 @@ public class DuckEmulation implements Runnable {
      * @param pressed whether the button is pressed
      */
     public void SetButtonPressed(DuckJoypad.Button button, boolean pressed) {
+        if (button == null) {
+            return;
+        }
         synchronized (stateLock) {
             if (joypad != null) {
                 joypad.SetButtonPressed(button, pressed);
             }
         }
+    }
+
+    @Override
+    public void SetButtonPressed(String buttonId, boolean pressed) {
+        SetButtonPressed(DuckJoypad.Button.FromId(buttonId), pressed);
     }
 
     /**
@@ -256,12 +293,22 @@ public class DuckEmulation implements Runnable {
         return rom != null;
     }
 
+    @Override
+    public boolean HasLoadedGame() {
+        return HasLoadedRom();
+    }
+
     /**
      * Returns the active ROM image when one is loaded.
      *
      * @return loaded ROM or {@code null}
      */
     public ROM GetLoadedRom() {
+        return rom;
+    }
+
+    @Override
+    public EmulatorGame GetLoadedGame() {
         return rom;
     }
 
@@ -404,6 +451,18 @@ public class DuckEmulation implements Runnable {
             throw new IllegalStateException("No ROM is currently loaded.");
         }
         StartEmulation(ROM.LoadPatched(rom, patchFilename));
+    }
+
+    @Override
+    public void ApplyPatch(String patchFilename) throws IOException {
+        ApplyIpsPatch(patchFilename);
+    }
+
+    @Override
+    public List<EmulatorStateSlot> DescribeCurrentStateSlots() {
+        return QuickStateManager.DescribeSlots(rom).stream()
+                .map(slot -> new EmulatorStateSlot(slot.slot(), slot.path(), slot.exists(), slot.lastModified()))
+                .toList();
     }
 
     private void InitialiseBootState() {
@@ -550,6 +609,6 @@ public class DuckEmulation implements Runnable {
     }
 
     private void SetRuntimeStatus(String statusText) {
-        mainWindow.SetSubtitle(romName, statusText);
+        host.SetSubtitle(romName, statusText);
     }
 }

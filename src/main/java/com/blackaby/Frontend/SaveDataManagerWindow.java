@@ -1,11 +1,11 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.Emulation.DuckEmulation;
 import com.blackaby.Backend.Helpers.GameArtProvider;
 import com.blackaby.Backend.Helpers.GameMetadataStore;
 import com.blackaby.Backend.Helpers.ManagedGameRegistry;
 import com.blackaby.Backend.Helpers.ManagedGameRegistry.StoredGame;
 import com.blackaby.Backend.Helpers.SaveFileManager;
+import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Misc.RomConsoleFilter;
 import com.blackaby.Misc.UiText;
 
@@ -300,11 +300,11 @@ public final class SaveDataManagerWindow extends AbstractSaveManagerWindow<Store
     }
 
     private boolean isLiveSession(StoredGame game) {
-        DuckEmulation emulation = currentEmulation();
+        EmulatorRuntime emulation = currentEmulation();
         return isCurrentGame(game) && emulation != null && emulation.CanManageSaveData();
     }
 
-    private DuckEmulation currentEmulation() {
+    private EmulatorRuntime currentEmulation() {
         return mainWindow == null ? null : mainWindow.GetEmulation();
     }
 

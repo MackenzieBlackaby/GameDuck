@@ -1,8 +1,9 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.Emulation.DuckEmulation;
 import com.blackaby.Backend.Helpers.GUIActions;
-import com.blackaby.Backend.Emulation.Peripherals.DuckJoypad;
+import com.blackaby.Backend.Platform.EmulatorButton;
+import com.blackaby.Backend.Platform.EmulatorProfile;
+import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Misc.AppShortcut;
 import com.blackaby.Misc.AppShortcutBindings;
 import com.blackaby.Misc.Settings;
@@ -13,8 +14,8 @@ import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.Window;
 import java.awt.event.KeyEvent;
-import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.List;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -27,13 +28,14 @@ import java.util.Set;
 public final class InputRouter implements KeyEventDispatcher {
 
     private final MainWindow mainWindow;
-    private final DuckEmulation emulation;
+    private final EmulatorRuntime emulation;
+    private final EmulatorProfile profile;
     private final ControllerInputService controllerInputService = ControllerInputService.Shared();
     private final Object inputStateLock = new Object();
     private final Set<Integer> pressedKeyCodes = new HashSet<>();
     private final Set<Integer> consumedShortcutKeyCodes = new HashSet<>();
-    private final EnumSet<DuckJoypad.Button> keyboardPressedButtons = EnumSet.noneOf(DuckJoypad.Button.class);
-    private final EnumSet<DuckJoypad.Button> controllerPressedButtons = EnumSet.noneOf(DuckJoypad.Button.class);
+    private final Set<String> keyboardPressedButtons = new HashSet<>();
+    private final Set<String> controllerPressedButtons = new HashSet<>();
     private final ScheduledExecutorService controllerPollingExecutor = Executors.newSingleThreadScheduledExecutor(run -> {
         Thread thread = new Thread(run, "gameduck-controller-input");
         thread.setDaemon(true);
@@ -47,9 +49,10 @@ public final class InputRouter implements KeyEventDispatcher {
      * @param mainWindow owning main window
      * @param emulation running emulator
      */
-    public InputRouter(MainWindow mainWindow, DuckEmulation emulation) {
+    public InputRouter(MainWindow mainWindow, EmulatorRuntime emulation, EmulatorProfile profile) {
         this.mainWindow = mainWindow;
         this.emulation = emulation;
+        this.profile = profile;
         controllerPollingExecutor.scheduleAtFixedRate(this::PollControllerInput, 0L, 8L, TimeUnit.MILLISECONDS);
     }
 
@@ -71,7 +74,7 @@ public final class InputRouter implements KeyEventDispatcher {
             return true;
         }
 
-        DuckJoypad.Button button = Settings.inputBindings.GetButtonForKeyCode(event.getKeyCode());
+        EmulatorButton button = Settings.inputBindings.GetButtonForKeyCode(profile.controlButtons(), event.getKeyCode());
         if (button == null) {
             return false;
         }
@@ -143,37 +146,39 @@ public final class InputRouter implements KeyEventDispatcher {
         }
 
         routedInputActive = true;
-        ApplyControllerState(controllerInputService.PollBoundButtons());
+        ApplyControllerState(profile.controlButtons(), PollControllerButtonIds());
     }
 
-    private void SetKeyboardButtonState(DuckJoypad.Button button, boolean pressed) {
+    private void SetKeyboardButtonState(EmulatorButton button, boolean pressed) {
+        String buttonId = button.id();
         synchronized (inputStateLock) {
             if (pressed) {
-                keyboardPressedButtons.add(button);
+                keyboardPressedButtons.add(buttonId);
             } else {
-                keyboardPressedButtons.remove(button);
+                keyboardPressedButtons.remove(buttonId);
             }
-            ApplyCombinedState(button);
+            ApplyCombinedState(buttonId);
         }
     }
 
-    private void ApplyControllerState(EnumSet<DuckJoypad.Button> pressedButtons) {
+    private void ApplyControllerState(List<? extends EmulatorButton> buttons, Set<String> pressedButtons) {
         synchronized (inputStateLock) {
-            for (DuckJoypad.Button button : DuckJoypad.Button.values()) {
-                boolean nextPressed = pressedButtons.contains(button);
+            for (EmulatorButton button : buttons) {
+                String buttonId = button.id();
+                boolean nextPressed = pressedButtons.contains(buttonId);
                 if (nextPressed) {
-                    controllerPressedButtons.add(button);
+                    controllerPressedButtons.add(buttonId);
                 } else {
-                    controllerPressedButtons.remove(button);
+                    controllerPressedButtons.remove(buttonId);
                 }
-                ApplyCombinedState(button);
+                ApplyCombinedState(buttonId);
             }
         }
     }
 
-    private void ApplyCombinedState(DuckJoypad.Button button) {
-        emulation.SetButtonPressed(button,
-                keyboardPressedButtons.contains(button) || controllerPressedButtons.contains(button));
+    private void ApplyCombinedState(String buttonId) {
+        emulation.SetButtonPressed(buttonId,
+                keyboardPressedButtons.contains(buttonId) || controllerPressedButtons.contains(buttonId));
     }
 
     private void ClearAllInputStates() {
@@ -182,10 +187,18 @@ public final class InputRouter implements KeyEventDispatcher {
             consumedShortcutKeyCodes.clear();
             keyboardPressedButtons.clear();
             controllerPressedButtons.clear();
-            for (DuckJoypad.Button button : DuckJoypad.Button.values()) {
-                emulation.SetButtonPressed(button, false);
+            for (EmulatorButton button : profile.controlButtons()) {
+                emulation.SetButtonPressed(button.id(), false);
             }
         }
+    }
+
+    private Set<String> PollControllerButtonIds() {
+        Set<String> buttonIds = new HashSet<>();
+        for (EmulatorButton button : controllerInputService.PollBoundButtons()) {
+            buttonIds.add(button.id());
+        }
+        return buttonIds;
     }
 
     /**

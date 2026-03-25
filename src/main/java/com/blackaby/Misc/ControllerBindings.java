@@ -1,6 +1,7 @@
 package com.blackaby.Misc;
 
 import com.blackaby.Backend.Emulation.Peripherals.DuckJoypad;
+import com.blackaby.Backend.Platform.EmulatorButton;
 
 import java.util.EnumMap;
 
@@ -43,6 +44,10 @@ public final class ControllerBindings {
         return bindings.get(button);
     }
 
+    public synchronized ControllerBinding GetBinding(EmulatorButton button) {
+        return button instanceof DuckJoypad.Button joypadButton ? GetBinding(joypadButton) : null;
+    }
+
     /**
      * Returns the assigned controller binding as readable text.
      *
@@ -50,6 +55,11 @@ public final class ControllerBindings {
      * @return display text for the assigned input
      */
     public synchronized String GetBindingText(DuckJoypad.Button button) {
+        ControllerBinding binding = GetBinding(button);
+        return binding == null ? "Unbound" : binding.ToDisplayText();
+    }
+
+    public synchronized String GetBindingText(EmulatorButton button) {
         ControllerBinding binding = GetBinding(button);
         return binding == null ? "Unbound" : binding.ToDisplayText();
     }
@@ -71,6 +81,12 @@ public final class ControllerBindings {
 
         if (existingButton != null && existingButton != button) {
             bindings.put(existingButton, currentBinding);
+        }
+    }
+
+    public synchronized void SetBinding(EmulatorButton button, ControllerBinding binding) {
+        if (button instanceof DuckJoypad.Button joypadButton) {
+            SetBinding(joypadButton, binding);
         }
     }
 

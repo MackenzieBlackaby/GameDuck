@@ -1,6 +1,7 @@
 package com.blackaby.Backend.Emulation.Misc;
 
 import com.blackaby.Backend.Emulation.Memory.CartridgeMapperType;
+import com.blackaby.Backend.Platform.EmulatorMedia;
 
 import java.io.File;
 import java.io.IOException;
@@ -17,7 +18,7 @@ import java.util.List;
  * The class exposes the raw image bytes together with the cartridge header
  * fields needed for mapper selection and bank sizing.
  */
-public class ROM {
+public class ROM implements EmulatorMedia {
 
     private static final int headerCartridgeType = 0x0147;
     private static final int headerRomSize = 0x0148;
@@ -262,6 +263,11 @@ public class ROM {
         return filename;
     }
 
+    @Override
+    public String sourcePath() {
+        return GetSourcePath();
+    }
+
     /**
      * Returns the ROM display name without the file extension.
      *
@@ -269,6 +275,11 @@ public class ROM {
      */
     public String GetName() {
         return displayName;
+    }
+
+    @Override
+    public String displayName() {
+        return GetName();
     }
 
     /**
@@ -280,6 +291,11 @@ public class ROM {
         return patchNames;
     }
 
+    @Override
+    public List<String> patchNames() {
+        return GetPatchNames();
+    }
+
     /**
      * Returns the applied IPS patch source paths in application order.
      *
@@ -287,6 +303,11 @@ public class ROM {
      */
     public List<String> GetPatchSourcePaths() {
         return patchSourcePaths;
+    }
+
+    @Override
+    public List<String> patchSourcePaths() {
+        return GetPatchSourcePaths();
     }
 
     /**
@@ -298,6 +319,11 @@ public class ROM {
         return DisplayNameFromPath(filename);
     }
 
+    @Override
+    public String sourceName() {
+        return GetSourceName();
+    }
+
     /**
      * Returns the title stored in the cartridge header when present.
      *
@@ -305,6 +331,11 @@ public class ROM {
      */
     public String GetHeaderTitle() {
         return headerTitle;
+    }
+
+    @Override
+    public String headerTitle() {
+        return GetHeaderTitle();
     }
 
     /**
@@ -318,6 +349,26 @@ public class ROM {
             romBytes[index] = (byte) (data[index] & 0xFF);
         }
         return romBytes;
+    }
+
+    @Override
+    public byte[] programBytes() {
+        return ToByteArray();
+    }
+
+    @Override
+    public boolean batteryBackedSave() {
+        return HasBatteryBackedSave();
+    }
+
+    @Override
+    public boolean cgbCompatible() {
+        return IsCgbCompatible();
+    }
+
+    @Override
+    public boolean cgbOnly() {
+        return IsCgbOnly();
     }
 
     private void ParseHeader() {

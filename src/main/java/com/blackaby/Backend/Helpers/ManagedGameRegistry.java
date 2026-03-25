@@ -1,6 +1,7 @@
 package com.blackaby.Backend.Helpers;
 
 import com.blackaby.Backend.Emulation.Misc.ROM;
+import com.blackaby.Backend.Platform.EmulatorGame;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -106,6 +107,13 @@ public final class ManagedGameRegistry {
             return "";
         }
         return BuildGameKey(rom.GetSourcePath(), rom.GetSourceName(), rom.GetPatchSourcePaths(), rom.GetPatchNames());
+    }
+
+    public static String BuildGameKey(EmulatorGame game) {
+        if (game == null) {
+            return "";
+        }
+        return BuildGameKey(game.sourcePath(), game.sourceName(), game.patchSourcePaths(), game.patchNames());
     }
 
     private static String BuildGameKey(String sourcePath, String sourceName, List<String> patchSourcePaths, List<String> patchNames) {

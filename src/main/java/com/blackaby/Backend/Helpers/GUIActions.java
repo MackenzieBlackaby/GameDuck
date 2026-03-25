@@ -1,7 +1,7 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.Emulation.DuckEmulation;
 import com.blackaby.Backend.Emulation.Misc.ROM;
+import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Frontend.AboutWindow;
 import com.blackaby.Frontend.LibraryWindow;
 import com.blackaby.Frontend.MainWindow;
@@ -14,6 +14,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Dispatches host UI actions from menus and buttons.
@@ -43,7 +44,7 @@ public final class GUIActions implements ActionListener {
     }
 
     private final Action action;
-    private final DuckEmulation attachedEmulation;
+    private final EmulatorRuntime attachedEmulation;
     private final MainWindow mainWindow;
     private final Integer stateSlot;
 
@@ -54,7 +55,7 @@ public final class GUIActions implements ActionListener {
      * @param action action to dispatch
      * @param attachedEmulation emulator instance to control
      */
-    public GUIActions(MainWindow mainWindow, Action action, DuckEmulation attachedEmulation) {
+    public GUIActions(MainWindow mainWindow, Action action, EmulatorRuntime attachedEmulation) {
         this(mainWindow, action, attachedEmulation, null);
     }
 
@@ -66,7 +67,7 @@ public final class GUIActions implements ActionListener {
      * @param attachedEmulation emulator instance to control
      * @param stateSlot save-state slot from 0 to 9
      */
-    public GUIActions(MainWindow mainWindow, Action action, DuckEmulation attachedEmulation, Integer stateSlot) {
+    public GUIActions(MainWindow mainWindow, Action action, EmulatorRuntime attachedEmulation, Integer stateSlot) {
         this.mainWindow = mainWindow;
         this.action = action;
         this.attachedEmulation = attachedEmulation;
@@ -184,8 +185,8 @@ public final class GUIActions implements ActionListener {
     }
 
     private void OpenIpsPatch(File patchFile) throws IOException {
-        if (attachedEmulation.HasLoadedRom()) {
-            attachedEmulation.ApplyIpsPatch(patchFile.getAbsolutePath());
+        if (attachedEmulation.HasLoadedGame()) {
+            attachedEmulation.ApplyPatch(patchFile.getAbsolutePath());
             return;
         }
 
@@ -206,16 +207,26 @@ public final class GUIActions implements ActionListener {
 
     private boolean HasSupportedGameFileExtension(String name) {
         String lowerName = name.toLowerCase();
-        return lowerName.endsWith(".gb") || lowerName.endsWith(".gbc") || lowerName.endsWith(".ips");
+        return matchesExtension(lowerName, attachedEmulation.Profile().supportedGameFileExtensions())
+                || matchesExtension(lowerName, attachedEmulation.Profile().supportedPatchFileExtensions());
     }
 
     private boolean HasRomExtension(String name) {
         String lowerName = name.toLowerCase();
-        return lowerName.endsWith(".gb") || lowerName.endsWith(".gbc");
+        return matchesExtension(lowerName, attachedEmulation.Profile().supportedGameFileExtensions());
     }
 
     private boolean IsIpsPatch(File file) {
-        return file.getName().toLowerCase().endsWith(".ips");
+        return matchesExtension(file.getName().toLowerCase(), attachedEmulation.Profile().supportedPatchFileExtensions());
+    }
+
+    private boolean matchesExtension(String fileName, List<String> extensions) {
+        for (String extension : extensions) {
+            if (fileName.endsWith(extension.toLowerCase())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

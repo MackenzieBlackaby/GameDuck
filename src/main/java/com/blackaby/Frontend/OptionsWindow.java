@@ -1,7 +1,9 @@
 package com.blackaby.Frontend;
 
+import com.blackaby.Backend.Emulation.DuckBackend;
 import com.blackaby.Backend.Emulation.Graphics.GBColor;
-import com.blackaby.Backend.Emulation.Peripherals.DuckJoypad;
+import com.blackaby.Backend.Platform.EmulatorButton;
+import com.blackaby.Backend.Platform.EmulatorProfile;
 import com.blackaby.Backend.Helpers.ManagedGameRegistry;
 import com.blackaby.Backend.Helpers.SaveFileManager;
 import com.blackaby.Misc.AudioEnhancementPreset;
@@ -33,8 +35,10 @@ import java.awt.event.WindowEvent;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
@@ -108,8 +112,8 @@ public class OptionsWindow extends DuckWindow {
     private final JPanel[] themeStripPreviews = new JPanel[AppThemeColorRole.values().length];
     private final JPanel[] themeColorPreviews = new JPanel[AppThemeColorRole.values().length];
     private final JLabel[] themeColorHexLabels = new JLabel[AppThemeColorRole.values().length];
-    private final EnumMap<DuckJoypad.Button, JButton> bindingButtons = new EnumMap<>(DuckJoypad.Button.class);
-    private final EnumMap<DuckJoypad.Button, JButton> controllerBindingButtons = new EnumMap<>(DuckJoypad.Button.class);
+    private final Map<EmulatorButton, JButton> bindingButtons = new HashMap<>();
+    private final Map<EmulatorButton, JButton> controllerBindingButtons = new HashMap<>();
     private final EnumMap<AppShortcut, JButton> shortcutButtons = new EnumMap<>(AppShortcut.class);
     private final MainWindow mainWindow;
     private final int initialTabIndex;
@@ -190,10 +194,16 @@ public class OptionsWindow extends DuckWindow {
         tabs.setForeground(accentColour);
         tabs.setBorder(BorderFactory.createEmptyBorder(0, 20, 0, 20));
 
-        tabs.addTab(UiText.OptionsWindow.TAB_PALETTE, buildTabScrollPane(buildPaletteTab()));
+        if (backendProfile().capabilities().supportsPaletteConfiguration()) {
+            tabs.addTab(UiText.OptionsWindow.TAB_PALETTE, buildTabScrollPane(buildPaletteTab()));
+        }
         tabs.addTab(UiText.OptionsWindow.TAB_CONTROLS, buildTabScrollPane(buildControlsTab()));
         tabs.addTab(UiText.OptionsWindow.TAB_SOUND, buildTabScrollPane(buildSoundTab()));
-        tabs.addTab(UiText.OptionsWindow.TAB_EMULATION, buildTabScrollPane(buildEmulationTab()));
+        if (backendProfile().capabilities().supportsSaveDataManagement()
+                || backendProfile().capabilities().supportsBootRomConfiguration()
+                || backendProfile().capabilities().supportsSaveStates()) {
+            tabs.addTab(UiText.OptionsWindow.TAB_EMULATION, buildTabScrollPane(buildEmulationTab()));
+        }
         tabs.addTab(UiText.OptionsWindow.TAB_WINDOW, buildTabScrollPane(buildWindowTab()));
         tabs.addTab(UiText.OptionsWindow.TAB_LIBRARY, buildTabScrollPane(buildLibraryTab()));
         tabs.addTab(UiText.OptionsWindow.TAB_THEME, buildTabScrollPane(buildThemeTab()));
@@ -859,13 +869,13 @@ public class OptionsWindow extends DuckWindow {
         stack.add(createBindingIntroCard(
                 UiText.OptionsWindow.PLAYER_CONTROLS_TITLE,
                 UiText.OptionsWindow.PLAYER_CONTROLS_DESCRIPTION,
-                UiText.OptionsWindow.PLAYER_CONTROLS_BADGE));
+                controlBadgeText()));
         stack.add(Box.createVerticalStrut(10));
 
         JPanel grid = new JPanel(new GridLayout(4, 2, 10, 10));
         grid.setOpaque(false);
 
-        for (DuckJoypad.Button button : controlOrder()) {
+        for (EmulatorButton button : controlButtons()) {
             grid.add(createBindingCard(button));
         }
 
@@ -911,7 +921,7 @@ public class OptionsWindow extends DuckWindow {
         JPanel bindingsHeader = new JPanel(new BorderLayout());
         bindingsHeader.setOpaque(false);
         bindingsHeader.add(bindingsTitle, BorderLayout.WEST);
-        bindingsHeader.add(createBadgeLabel(UiText.OptionsWindow.DMG_BADGE), BorderLayout.EAST);
+        bindingsHeader.add(createBadgeLabel(controlBadgeText()), BorderLayout.EAST);
 
         JLabel bindingsHelper = new JLabel(UiText.OptionsWindow.CONTROLLER_BINDINGS_HELPER);
         bindingsHelper.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
@@ -926,7 +936,7 @@ public class OptionsWindow extends DuckWindow {
 
         JPanel bindingsGrid = new JPanel(new GridLayout(4, 2, 10, 10));
         bindingsGrid.setOpaque(false);
-        for (DuckJoypad.Button button : controlOrder()) {
+        for (EmulatorButton button : controlButtons()) {
             bindingsGrid.add(createControllerBindingCard(button));
         }
 
@@ -1053,10 +1063,10 @@ public class OptionsWindow extends DuckWindow {
         return card;
     }
 
-    private JComponent createControllerBindingCard(DuckJoypad.Button button) {
+    private JComponent createControllerBindingCard(EmulatorButton button) {
         return createActionBindingCard(
-                formatButtonName(button),
-                helperText(button),
+                formatControlButtonName(button),
+                controlButtonHelper(button),
                 null,
                 false,
                 Settings.controllerBindings.GetBindingText(button),
@@ -1110,11 +1120,11 @@ public class OptionsWindow extends DuckWindow {
         return container;
     }
 
-    private JComponent createBindingCard(DuckJoypad.Button button) {
+    private JComponent createBindingCard(EmulatorButton button) {
         return createActionBindingCard(
-                formatButtonName(button),
-                helperText(button),
-                UiText.OptionsWindow.DMG_BADGE,
+                formatControlButtonName(button),
+                controlButtonHelper(button),
+                controlBadgeText(),
                 false,
                 Settings.inputBindings.GetKeyText(button),
                 new Dimension(128, 40),
@@ -2565,7 +2575,7 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private void captureAllBindings() {
-        for (DuckJoypad.Button button : controlOrder()) {
+        for (EmulatorButton button : controlButtons()) {
             if (!captureBinding(button)) {
                 break;
             }
@@ -2585,15 +2595,15 @@ public class OptionsWindow extends DuckWindow {
             return;
         }
 
-        for (DuckJoypad.Button button : controlOrder()) {
+        for (EmulatorButton button : controlButtons()) {
             if (!captureControllerBinding(button)) {
                 break;
             }
         }
     }
 
-    private boolean captureBinding(DuckJoypad.Button button) {
-        JDialog dialog = new JDialog(this, UiText.OptionsWindow.RebindDialogTitle(formatButtonName(button)), true);
+    private boolean captureBinding(EmulatorButton button) {
+        JDialog dialog = new JDialog(this, UiText.OptionsWindow.RebindDialogTitle(formatControlButtonName(button)), true);
         dialog.setLayout(new BorderLayout());
         dialog.getContentPane().setBackground(panelBackground);
 
@@ -2601,7 +2611,7 @@ public class OptionsWindow extends DuckWindow {
         content.setBackground(cardBackground);
         content.setBorder(createCardBorder());
 
-        JLabel title = new JLabel(UiText.OptionsWindow.RebindDialogPrompt(formatButtonName(button)),
+        JLabel title = new JLabel(UiText.OptionsWindow.RebindDialogPrompt(formatControlButtonName(button)),
                 SwingConstants.CENTER);
         title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 18f));
         title.setForeground(accentColour);
@@ -2740,7 +2750,7 @@ public class OptionsWindow extends DuckWindow {
         removeDispatcher.run();
     }
 
-    private boolean captureControllerBinding(DuckJoypad.Button button) {
+    private boolean captureControllerBinding(EmulatorButton button) {
         if (controllerInputService.GetInitialisationError() != null) {
             JOptionPane.showMessageDialog(this, controllerInputService.GetInitialisationError(),
                     UiText.OptionsWindow.CONTROLLER_WINDOW_TITLE, JOptionPane.WARNING_MESSAGE);
@@ -2754,7 +2764,7 @@ public class OptionsWindow extends DuckWindow {
         }
 
         JDialog dialog = new JDialog(this,
-                UiText.OptionsWindow.ControllerRebindDialogTitle(formatButtonName(button)),
+                UiText.OptionsWindow.ControllerRebindDialogTitle(formatControlButtonName(button)),
                 true);
         dialog.setLayout(new BorderLayout());
         dialog.getContentPane().setBackground(panelBackground);
@@ -2763,7 +2773,7 @@ public class OptionsWindow extends DuckWindow {
         content.setBackground(cardBackground);
         content.setBorder(createCardBorder());
 
-        JLabel title = new JLabel(UiText.OptionsWindow.ControllerRebindDialogPrompt(formatButtonName(button)),
+        JLabel title = new JLabel(UiText.OptionsWindow.ControllerRebindDialogPrompt(formatControlButtonName(button)),
                 SwingConstants.CENTER);
         title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 18f));
         title.setForeground(accentColour);
@@ -2884,9 +2894,9 @@ public class OptionsWindow extends DuckWindow {
             return;
         }
 
-        EnumMap<DuckJoypad.Button, String> mappedPressedButtons = new EnumMap<>(DuckJoypad.Button.class);
-        for (DuckJoypad.Button button : controllerInputService.PollBoundButtons()) {
-            mappedPressedButtons.put(button, formatButtonName(button));
+        Map<String, String> mappedPressedButtons = new java.util.LinkedHashMap<>();
+        for (EmulatorButton button : controllerInputService.PollBoundButtons()) {
+            mappedPressedButtons.put(button.id(), formatControlButtonName(button));
         }
         setCompactReadout(controllerMappedButtonsArea, mappedPressedButtons.isEmpty()
                 ? UiText.OptionsWindow.CONTROLLER_MAPPED_NONE
@@ -3004,7 +3014,7 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private void refreshBindingButtons() {
-        for (DuckJoypad.Button button : controlOrder()) {
+        for (EmulatorButton button : controlButtons()) {
             JButton bindingButton = bindingButtons.get(button);
             if (bindingButton != null) {
                 bindingButton.setText(Settings.inputBindings.GetKeyText(button));
@@ -3013,7 +3023,7 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private void refreshControllerBindingButtons() {
-        for (DuckJoypad.Button button : controlOrder()) {
+        for (EmulatorButton button : controlButtons()) {
             JButton bindingButton = controllerBindingButtons.get(button);
             if (bindingButton != null) {
                 bindingButton.setText(Settings.controllerBindings.GetBindingText(button));
@@ -3061,25 +3071,24 @@ public class OptionsWindow extends DuckWindow {
         Config.Save();
     }
 
-    private DuckJoypad.Button[] controlOrder() {
-        return new DuckJoypad.Button[] {
-                DuckJoypad.Button.UP,
-                DuckJoypad.Button.DOWN,
-                DuckJoypad.Button.LEFT,
-                DuckJoypad.Button.RIGHT,
-                DuckJoypad.Button.A,
-                DuckJoypad.Button.B,
-                DuckJoypad.Button.START,
-                DuckJoypad.Button.SELECT
-        };
+    private List<? extends EmulatorButton> controlButtons() {
+        return backendProfile().controlButtons();
     }
 
-    private String formatButtonName(DuckJoypad.Button button) {
-        return UiText.OptionsWindow.DmgButtonName(button.name());
+    private String formatControlButtonName(EmulatorButton button) {
+        return backendProfile().controlButtonLabel(button);
     }
 
-    private String helperText(DuckJoypad.Button button) {
-        return UiText.OptionsWindow.DmgControlHelper(button.name());
+    private String controlButtonHelper(EmulatorButton button) {
+        return backendProfile().controlButtonHelper(button);
+    }
+
+    private String controlBadgeText() {
+        return backendProfile().displayName();
+    }
+
+    private EmulatorProfile backendProfile() {
+        return mainWindow == null ? DuckBackend.instance.Profile() : mainWindow.GetBackendProfile();
     }
 
     private JComponent wrapControllerDeadzoneControls() {

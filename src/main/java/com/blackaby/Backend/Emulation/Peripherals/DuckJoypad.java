@@ -1,6 +1,7 @@
 package com.blackaby.Backend.Emulation.Peripherals;
 
 import com.blackaby.Backend.Emulation.CPU.DuckCPU;
+import com.blackaby.Backend.Platform.EmulatorButton;
 
 import java.util.EnumMap;
 
@@ -23,7 +24,7 @@ public class DuckJoypad {
     /**
      * Buttons exposed through the DMG joypad register.
      */
-    public enum Button {
+    public enum Button implements EmulatorButton {
         RIGHT(0x01, ButtonGroup.DIRECTIONS),
         LEFT(0x02, ButtonGroup.DIRECTIONS),
         UP(0x04, ButtonGroup.DIRECTIONS),
@@ -57,6 +58,23 @@ public class DuckJoypad {
          */
         public ButtonGroup GetGroup() {
             return group;
+        }
+
+        @Override
+        public String id() {
+            return name();
+        }
+
+        public static Button FromId(String buttonId) {
+            if (buttonId == null || buttonId.isBlank()) {
+                return null;
+            }
+            for (Button button : values()) {
+                if (button.name().equalsIgnoreCase(buttonId)) {
+                    return button;
+                }
+            }
+            return null;
         }
 
     }

@@ -1,10 +1,10 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.Emulation.DuckEmulation;
 import com.blackaby.Backend.Helpers.GameArtProvider;
 import com.blackaby.Backend.Helpers.GameLibraryStore;
 import com.blackaby.Backend.Helpers.GameLibraryStore.LibraryEntry;
 import com.blackaby.Backend.Helpers.GameMetadataStore;
+import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Misc.Config;
 import com.blackaby.Misc.GameArtDisplayMode;
 import com.blackaby.Misc.RomConsoleFilter;
@@ -101,7 +101,7 @@ public final class LibraryWindow extends DuckWindow {
     private static final int detailPreviewHeight = 174;
 
     private final MainWindow mainWindow;
-    private final DuckEmulation emulation;
+    private final EmulatorRuntime emulation;
     private final Color panelBackground;
     private final Color cardBackground;
     private final Color cardBorder;
@@ -130,7 +130,7 @@ public final class LibraryWindow extends DuckWindow {
     private String searchQuery = "";
     private String selectedEntryKey = "";
 
-    public LibraryWindow(MainWindow mainWindow, DuckEmulation emulation) {
+    public LibraryWindow(MainWindow mainWindow, EmulatorRuntime emulation) {
         super(UiText.LibraryWindow.WINDOW_TITLE, 920, 620, true);
         this.mainWindow = mainWindow;
         this.emulation = emulation;

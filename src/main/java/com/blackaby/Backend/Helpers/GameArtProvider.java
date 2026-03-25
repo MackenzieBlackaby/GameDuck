@@ -1,6 +1,7 @@
 package com.blackaby.Backend.Helpers;
 
 import com.blackaby.Backend.Emulation.Misc.ROM;
+import com.blackaby.Backend.Platform.EmulatorGame;
 import com.blackaby.Misc.GameArtDisplayMode;
 import com.blackaby.Misc.UiText;
 
@@ -55,10 +56,14 @@ public final class GameArtProvider {
 
     public record GameArtDescriptor(String sourcePath, String sourceName, String displayName, String headerTitle) {
         public static GameArtDescriptor FromRom(ROM rom) {
-            if (rom == null) {
+            return FromGame(rom);
+        }
+
+        public static GameArtDescriptor FromGame(EmulatorGame game) {
+            if (game == null) {
                 return null;
             }
-            return new GameArtDescriptor(rom.GetSourcePath(), rom.GetSourceName(), rom.GetName(), rom.GetHeaderTitle());
+            return new GameArtDescriptor(game.sourcePath(), game.sourceName(), game.displayName(), game.headerTitle());
         }
     }
 
@@ -70,6 +75,10 @@ public final class GameArtProvider {
      */
     public static Optional<GameArtResult> FindGameArt(ROM rom) {
         return FindGameArt(GameArtDescriptor.FromRom(rom), null);
+    }
+
+    public static Optional<GameArtResult> FindGameArt(EmulatorGame game) {
+        return FindGameArt(GameArtDescriptor.FromGame(game), null);
     }
 
     /**
@@ -91,6 +100,10 @@ public final class GameArtProvider {
      */
     public static Optional<GameArtResult> FindGameArt(ROM rom, GameArtDisplayMode displayMode) {
         return FindGameArt(GameArtDescriptor.FromRom(rom), displayMode);
+    }
+
+    public static Optional<GameArtResult> FindGameArt(EmulatorGame game, GameArtDisplayMode displayMode) {
+        return FindGameArt(GameArtDescriptor.FromGame(game), displayMode);
     }
 
     /**
@@ -135,6 +148,10 @@ public final class GameArtProvider {
         return BuildUrlCandidates(GameArtDescriptor.FromRom(rom));
     }
 
+    static List<String> BuildUrlCandidates(EmulatorGame game) {
+        return BuildUrlCandidates(GameArtDescriptor.FromGame(game));
+    }
+
     static List<String> BuildUrlCandidates(GameArtDescriptor descriptor) {
         List<String> urls = new ArrayList<>();
         for (GameArtCandidate candidate : BuildArtCandidates(descriptor, null)) {
@@ -145,6 +162,10 @@ public final class GameArtProvider {
 
     static List<GameArtCandidate> BuildArtCandidates(ROM rom) {
         return BuildArtCandidates(GameArtDescriptor.FromRom(rom), null);
+    }
+
+    static List<GameArtCandidate> BuildArtCandidates(EmulatorGame game) {
+        return BuildArtCandidates(GameArtDescriptor.FromGame(game), null);
     }
 
     static List<GameArtCandidate> BuildArtCandidates(GameArtDescriptor descriptor) {
@@ -172,6 +193,10 @@ public final class GameArtProvider {
         return BuildPlaylistOrder(GameArtDescriptor.FromRom(rom));
     }
 
+    static List<String> BuildPlaylistOrder(EmulatorGame game) {
+        return BuildPlaylistOrder(GameArtDescriptor.FromGame(game));
+    }
+
     static List<String> BuildPlaylistOrder(GameArtDescriptor descriptor) {
         LinkedHashSet<String> playlistNames = new LinkedHashSet<>();
         String lowerSourcePath = descriptor == null || descriptor.sourcePath() == null ? "" : descriptor.sourcePath().toLowerCase();
@@ -187,6 +212,10 @@ public final class GameArtProvider {
 
     static List<String> BuildCandidateNames(ROM rom) {
         return BuildCandidateNames(GameArtDescriptor.FromRom(rom));
+    }
+
+    static List<String> BuildCandidateNames(EmulatorGame game) {
+        return BuildCandidateNames(GameArtDescriptor.FromGame(game));
     }
 
     static List<String> BuildCandidateNames(GameArtDescriptor descriptor) {

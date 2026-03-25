@@ -33,6 +33,11 @@ public class DuckMemory {
             int dmaCounter,
             int dmaSource,
             int dmaCycleCounter,
+            boolean hdmaActive,
+            int hdmaSource,
+            int hdmaDestination,
+            int hdmaBlocksRemaining,
+            boolean hdmaTransferredThisHblank,
             int[][] vramBanks,
             int[][] wramBanks,
             int[] bgPaletteRam,
@@ -70,6 +75,11 @@ public class DuckMemory {
     private int dmaCounter;
     private int dmaSource;
     private int dmaCycleCounter;
+    private boolean hdmaActive;
+    private int hdmaSource;
+    private int hdmaDestination;
+    private int hdmaBlocksRemaining;
+    private boolean hdmaTransferredThisHblank;
 
     /**
      * Creates an empty memory map with no cartridge attached.
@@ -149,6 +159,15 @@ public class DuckMemory {
         activeWramBank = 1;
         key1Armed = false;
         doubleSpeedMode = false;
+        dmaActive = false;
+        dmaCounter = 0;
+        dmaSource = 0;
+        dmaCycleCounter = 0;
+        hdmaActive = false;
+        hdmaSource = 0;
+        hdmaDestination = 0x8000;
+        hdmaBlocksRemaining = 0;
+        hdmaTransferredThisHblank = false;
 
         for (int bank = 0; bank < vramBanks.length; bank++) {
             vramBanks[bank] = new int[vramBankSize];
@@ -672,8 +691,7 @@ public class DuckMemory {
         }
 
         if (address == DuckAddresses.HDMA5) {
-            ram[address] = value;
-            PerformImmediateHdmaTransfer(value);
+            HandleHdmaControlWrite(value);
             return;
         }
 
@@ -705,6 +723,31 @@ public class DuckMemory {
             dmaCounter = 0;
             dmaCycleCounter = 0;
         }
+    }
+
+    /**
+     * Advances the CGB H-Blank DMA engine by one master clock.
+     *
+     * @param hblankTransferWindowOpen whether the current PPU state can service
+     * H-Blank DMA
+     */
+    public void TickHdma(boolean hblankTransferWindowOpen) {
+        if (!hdmaActive) {
+            hdmaTransferredThisHblank = false;
+            return;
+        }
+
+        if (!hblankTransferWindowOpen) {
+            hdmaTransferredThisHblank = false;
+            return;
+        }
+
+        if (hdmaTransferredThisHblank) {
+            return;
+        }
+
+        TransferHdmaBlock();
+        hdmaTransferredThisHblank = true;
     }
 
     /**
@@ -742,6 +785,15 @@ public class DuckMemory {
      */
     public boolean IsCgbMode() {
         return cgbMode;
+    }
+
+    /**
+     * Returns whether the CPU is currently running in CGB double-speed mode.
+     *
+     * @return {@code true} when double-speed mode is active
+     */
+    public boolean IsDoubleSpeedMode() {
+        return doubleSpeedMode;
     }
 
     /**
@@ -907,6 +959,11 @@ public class DuckMemory {
                 dmaCounter,
                 dmaSource,
                 dmaCycleCounter,
+                hdmaActive,
+                hdmaSource,
+                hdmaDestination,
+                hdmaBlocksRemaining,
+                hdmaTransferredThisHblank,
                 Copy2dArray(vramBanks),
                 Copy2dArray(wramBanks),
                 Arrays.copyOf(bgPaletteRam, bgPaletteRam.length),
@@ -942,6 +999,11 @@ public class DuckMemory {
         dmaCounter = Math.max(0, state.dmaCounter());
         dmaSource = state.dmaSource() & 0xFFFF;
         dmaCycleCounter = Math.max(0, state.dmaCycleCounter());
+        hdmaActive = state.hdmaActive();
+        hdmaSource = state.hdmaSource() & 0xFFF0;
+        hdmaDestination = 0x8000 | (state.hdmaDestination() & 0x1FF0);
+        hdmaBlocksRemaining = Math.max(0, state.hdmaBlocksRemaining());
+        hdmaTransferredThisHblank = state.hdmaTransferredThisHblank();
 
         CopyInto(state.vramBanks(), vramBanks);
         CopyInto(state.wramBanks(), wramBanks);
@@ -997,7 +1059,31 @@ public class DuckMemory {
         }
     }
 
-    private void PerformImmediateHdmaTransfer(int controlValue) {
+    private void HandleHdmaControlWrite(int value) {
+        if (hdmaActive) {
+            if ((value & 0x80) == 0) {
+                hdmaActive = false;
+                hdmaTransferredThisHblank = false;
+                ram[DuckAddresses.HDMA5] = 0x80 | Math.max(0, hdmaBlocksRemaining - 1);
+            }
+            return;
+        }
+
+        if ((value & 0x80) != 0) {
+            hdmaActive = true;
+            hdmaSource = ((ram[DuckAddresses.HDMA1] << 8) | (ram[DuckAddresses.HDMA2] & 0xF0)) & 0xFFF0;
+            hdmaDestination = 0x8000
+                    | (((ram[DuckAddresses.HDMA3] & 0x1F) << 8) | (ram[DuckAddresses.HDMA4] & 0xF0));
+            hdmaBlocksRemaining = (value & 0x7F) + 1;
+            hdmaTransferredThisHblank = false;
+            ram[DuckAddresses.HDMA5] = Math.max(0, hdmaBlocksRemaining - 1) & 0x7F;
+            return;
+        }
+
+        PerformGeneralHdmaTransfer(value);
+    }
+
+    private void PerformGeneralHdmaTransfer(int controlValue) {
         int length = ((controlValue & 0x7F) + 1) * 0x10;
         int source = ((ram[DuckAddresses.HDMA1] << 8) | (ram[DuckAddresses.HDMA2] & 0xF0)) & 0xFFF0;
         int destination = 0x8000 | (((ram[DuckAddresses.HDMA3] & 0x1F) << 8) | (ram[DuckAddresses.HDMA4] & 0xF0));
@@ -1006,7 +1092,28 @@ public class DuckMemory {
             Write(destination + index, Read(source + index));
         }
 
+        hdmaActive = false;
+        hdmaBlocksRemaining = 0;
+        hdmaTransferredThisHblank = false;
         ram[DuckAddresses.HDMA5] = 0xFF;
+    }
+
+    private void TransferHdmaBlock() {
+        for (int index = 0; index < 0x10; index++) {
+            Write((hdmaDestination + index) & 0xFFFF, Read((hdmaSource + index) & 0xFFFF));
+        }
+
+        hdmaSource = (hdmaSource + 0x10) & 0xFFF0;
+        hdmaDestination = 0x8000 | ((hdmaDestination + 0x10) & 0x1FF0);
+        hdmaBlocksRemaining = Math.max(0, hdmaBlocksRemaining - 1);
+
+        if (hdmaBlocksRemaining == 0) {
+            hdmaActive = false;
+            ram[DuckAddresses.HDMA5] = 0xFF;
+            return;
+        }
+
+        ram[DuckAddresses.HDMA5] = (hdmaBlocksRemaining - 1) & 0x7F;
     }
 
     private void InitialiseCgbPalettesToWhite(int[] paletteRam) {

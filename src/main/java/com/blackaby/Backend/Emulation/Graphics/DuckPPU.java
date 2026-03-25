@@ -203,6 +203,17 @@ public class DuckPPU {
         return scanline;
     }
 
+    /**
+     * Returns whether the current LCD mode can service one CGB H-Blank DMA block.
+     *
+     * @return {@code true} during visible-line H-Blank while the LCD is enabled
+     */
+    public boolean IsHblankTransferWindowOpen() {
+        return (memory.Read(regLcdc) & 0x80) != 0
+                && mode == PpuMode.HBLANK
+                && scanline < screenHeight;
+    }
+
     private void HandleLcdDisabled() {
         scanline = 0;
         cycle = 0;

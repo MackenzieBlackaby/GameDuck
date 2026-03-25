@@ -84,7 +84,6 @@ public class MainWindow extends DuckWindow {
     private final JMenuItem[] loadStateSlotItems = new JMenuItem[QuickStateManager.maxSlot + 1];
 
     private JMenuBar menuBar;
-    private JLabel fpsLabel;
     private JLabel romLabel;
     private JLabel stateLabel;
     private JLabel titleLabel;
@@ -106,7 +105,6 @@ public class MainWindow extends DuckWindow {
     private JComponent sidePanelSpacer;
     private JPanel labelRow;
     private JPanel displayFrame;
-    private JPanel displayOverlay;
     private JPanel statusBar;
     private JTextArea serialOutputArea;
     private JScrollPane serialOutputScrollPane;
@@ -119,7 +117,7 @@ public class MainWindow extends DuckWindow {
             { Action.OPTIONS, Action.EXIT },
             { Action.LIBRARY, Action.LOADROM, Action.LOADIPS, Action.PAUSEGAME, Action.RESETGAME, Action.CLOSEGAME,
                     Action.SAVESTATE, Action.LOADSTATE },
-            { Action.FULL_VIEW, Action.FULLSCREEN, Action.MAXIMISE, Action.FRAMECOUNTER },
+            { Action.FULL_VIEW, Action.FULLSCREEN, Action.MAXIMISE },
             { Action.ABOUT }
     };
 
@@ -243,24 +241,11 @@ public class MainWindow extends DuckWindow {
                 BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1),
                 BorderFactory.createEmptyBorder(18, 18, 18, 18)));
 
-        fpsLabel = new JLabel(UiText.MainWindow.FpsLabel(0));
-        fpsLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
-        fpsLabel.setForeground(Styling.fpsForegroundColour);
-        fpsLabel.setOpaque(true);
-        fpsLabel.setBackground(Styling.fpsBackgroundColour);
-        fpsLabel.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
-        fpsLabel.setVisible(false);
-
-        displayOverlay = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 0, 0));
-        displayOverlay.setOpaque(false);
-        displayOverlay.add(fpsLabel);
-
         JPanel displaySurface = new JPanel(new BorderLayout());
         displaySurface.setOpaque(false);
         displaySurface.add(display, BorderLayout.CENTER);
 
         displayFrame.add(displaySurface, BorderLayout.CENTER);
-        displayFrame.add(displayOverlay, BorderLayout.NORTH);
 
         displayCard.add(labelRow, BorderLayout.NORTH);
         displayCard.add(displayFrame, BorderLayout.CENTER);
@@ -558,36 +543,6 @@ public class MainWindow extends DuckWindow {
     }
 
     /**
-     * Updates the on-screen frame counter.
-     *
-     * @param frames frame count collected over the last second
-     */
-    public void UpdateFrameCounter(int frames) {
-        Runnable update = () -> {
-            fpsLabel.setText(UiText.MainWindow.FpsLabel(frames));
-            stateLabel.setText(frames > 0 ? UiText.MainWindow.StatusBarFps(frames) : UiText.Common.RUNNING);
-        };
-
-        if (SwingUtilities.isEventDispatchThread()) {
-            update.run();
-        } else {
-            SwingUtilities.invokeLater(update);
-        }
-    }
-
-    /**
-     * Toggles the FPS badge on the display card.
-     */
-    public void ToggleFrameCounter() {
-        Runnable toggle = () -> fpsLabel.setVisible(!fpsLabel.isVisible());
-        if (SwingUtilities.isEventDispatchThread()) {
-            toggle.run();
-        } else {
-            SwingUtilities.invokeLater(toggle);
-        }
-    }
-
-    /**
      * Toggles the chrome-light display mode and persists the choice.
      */
     public void ToggleFullView() {
@@ -683,12 +638,6 @@ public class MainWindow extends DuckWindow {
                                 BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1),
                                 BorderFactory.createEmptyBorder(18, 18, 18, 18)));
             }
-            if (displayOverlay != null) {
-                displayOverlay.setBorder(fillWindow
-                        ? BorderFactory.createEmptyBorder(12, 0, 0, 12)
-                        : BorderFactory.createEmptyBorder());
-            }
-
             revalidate();
             repaint();
         };

@@ -50,7 +50,6 @@ public class DuckEmulation implements Runnable {
     private Thread emulationThread;
     private volatile boolean running;
     private volatile boolean paused;
-    private int frames;
     private final String defaultRomName = "NO ROM LOADED";
     private String romName = defaultRomName;
     private final Object stateLock = new Object();
@@ -183,8 +182,6 @@ public class DuckEmulation implements Runnable {
     @Override
     public void run() {
         InitialiseBootState();
-        StartFrameCounter();
-
         long previousTime = System.nanoTime();
         double timeAccumulator = 0.0;
 
@@ -505,7 +502,7 @@ public class DuckEmulation implements Runnable {
             apu.Tick();
         }
 
-        frames += ppu.ConsumeCompletedFrames();
+        ppu.ConsumeCompletedFrames();
         return masterCycles;
     }
 
@@ -521,26 +518,6 @@ public class DuckEmulation implements Runnable {
         }
     }
 
-    private void StartFrameCounter() {
-        Thread frameCounterThread = new Thread(() -> {
-            while (running) {
-                try {
-                    Thread.sleep(1000);
-                    if (paused || !running) {
-                        continue;
-                    }
-                    mainWindow.UpdateFrameCounter(frames);
-                    mainWindow.SetSubtitle(romName);
-                    frames = 0;
-                } catch (InterruptedException exception) {
-                    Thread.currentThread().interrupt();
-                }
-            }
-        });
-        frameCounterThread.setDaemon(true);
-        frameCounterThread.start();
-    }
-
     private QuickStateManager.QuickStateData CaptureQuickState() {
         return new QuickStateManager.QuickStateData(
                 cpu.CaptureState(),
@@ -550,7 +527,6 @@ public class DuckEmulation implements Runnable {
                 joypad.CaptureState(),
                 apu.CaptureState(),
                 display.SnapshotFrameState(),
-                frames,
                 ppu.GetCurrentScanline());
     }
 
@@ -571,7 +547,6 @@ public class DuckEmulation implements Runnable {
         apu.RestoreState(quickState.apuState());
         ppu.RestoreState(quickState.ppuState());
         display.RestoreFrameState(quickState.displayState());
-        frames = Math.max(0, quickState.frames());
     }
 
     private void SetRuntimeStatus(String statusText) {

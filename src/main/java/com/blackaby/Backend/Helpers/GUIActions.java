@@ -40,7 +40,6 @@ public final class GUIActions implements ActionListener {
         MAXIMISE,
         TUTORIAL,
         ABOUT,
-        FRAMECOUNTER,
     }
 
     private final Action action;
@@ -117,9 +116,6 @@ public final class GUIActions implements ActionListener {
                 break;
             case MAXIMISE:
                 mainWindow.ToggleMaximise();
-                break;
-            case FRAMECOUNTER:
-                mainWindow.ToggleFrameCounter();
                 break;
             case TUTORIAL:
                 break;

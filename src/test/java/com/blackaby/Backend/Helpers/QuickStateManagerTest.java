@@ -39,13 +39,11 @@ class QuickStateManagerTest {
                     new DuckJoypad.JoypadState(0x10, 0x03),
                     null,
                     new DuckDisplay.FrameState(new int[] { 1, 2 }, new int[] { 3, 4 }),
-                    7,
                     42);
 
             QuickStateManager.Save(rom, 2, state);
             QuickStateManager.QuickStateData loaded = QuickStateManager.Load(rom, 2);
 
-            assertEquals(7, loaded.frames());
             assertEquals(42, loaded.previousLy());
             assertEquals(0x1234, loaded.timerState().internalCounter());
             assertTrue(QuickStateManager.DescribeSlots(rom).get(2).exists());
@@ -61,7 +59,7 @@ class QuickStateManagerTest {
         try {
             var rom = EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "quick.gb", "quick");
             QuickStateManager.QuickStateData state = new QuickStateManager.QuickStateData(
-                    null, null, null, null, null, null, new DuckDisplay.FrameState(new int[0], new int[0]), 1, 1);
+                    null, null, null, null, null, null, new DuckDisplay.FrameState(new int[0], new int[0]), 1);
 
             QuickStateManager.Save(rom, 1, state);
             QuickStateManager.MoveState(QuickStateManager.QuickStateIdentity.FromRom(rom), 1, 3);

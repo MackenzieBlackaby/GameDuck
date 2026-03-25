@@ -110,20 +110,11 @@ public final class UiText {
                         GAME_MENU_PAUSE_GAME, GAME_MENU_RESET_GAME, GAME_MENU_CLOSE_GAME, "",
                         GAME_MENU_QUICK_SAVE, GAME_MENU_QUICK_LOAD,
                         "" },
-                { "View", "Enter Full View", "Toggle Fullscreen", "Toggle Maximise", "", "Frame Counter" },
+                { "View", "Enter Full View", "Toggle Fullscreen", "Toggle Maximise" },
                 { "Help", "About", "", }
         };
 
         private MainWindow() {
-        }
-
-        // Dynamic labels shown while the window is live.
-        public static String FpsLabel(int frames) {
-            return "FPS: " + frames;
-        }
-
-        public static String StatusBarFps(int frames) {
-            return frames + " FPS";
         }
 
         public static String FullViewButtonLabel(boolean fillWindow) {
@@ -408,7 +399,6 @@ public final class UiText {
         public static final String TOGGLE_FULL_VIEW_LABEL = "Toggle Full View";
         public static final String TOGGLE_FULLSCREEN_LABEL = "Toggle Fullscreen";
         public static final String TOGGLE_MAXIMISE_LABEL = "Toggle Maximise";
-        public static final String TOGGLE_FRAME_COUNTER_LABEL = "Frame Counter";
 
         // Shortcut descriptions.
         public static final String OPTIONS_DESCRIPTION = "Open the options window";
@@ -421,7 +411,6 @@ public final class UiText {
         public static final String TOGGLE_FULL_VIEW_DESCRIPTION = "Toggle full view mode";
         public static final String TOGGLE_FULLSCREEN_DESCRIPTION = "Toggle fullscreen mode";
         public static final String TOGGLE_MAXIMISE_DESCRIPTION = "Toggle the maximised window state";
-        public static final String TOGGLE_FRAME_COUNTER_DESCRIPTION = "Show or hide the FPS counter";
 
         private AppShortcuts() {
         }

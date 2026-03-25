@@ -55,7 +55,6 @@ public final class QuickStateManager {
             DuckJoypad.JoypadState joypadState,
             DuckAPU.ApuState apuState,
             DuckDisplay.FrameState displayState,
-            int frames,
             int previousLy) implements java.io.Serializable {
     }
 
@@ -63,7 +62,7 @@ public final class QuickStateManager {
     }
 
     private static final int fileMagic = 0x47515331;
-    private static final int fileVersion = 1;
+    private static final int fileVersion = 2;
 
     private QuickStateManager() {
     }

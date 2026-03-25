@@ -28,9 +28,7 @@ public enum AppShortcut {
     TOGGLE_FULLSCREEN(UiText.AppShortcuts.TOGGLE_FULLSCREEN_LABEL, UiText.AppShortcuts.TOGGLE_FULLSCREEN_DESCRIPTION, Action.FULLSCREEN,
             KeyStroke.getKeyStroke(KeyEvent.VK_F11, 0)),
     TOGGLE_MAXIMISE(UiText.AppShortcuts.TOGGLE_MAXIMISE_LABEL, UiText.AppShortcuts.TOGGLE_MAXIMISE_DESCRIPTION, Action.MAXIMISE,
-            KeyStroke.getKeyStroke(KeyEvent.VK_F12, 0)),
-    TOGGLE_FRAME_COUNTER(UiText.AppShortcuts.TOGGLE_FRAME_COUNTER_LABEL, UiText.AppShortcuts.TOGGLE_FRAME_COUNTER_DESCRIPTION, Action.FRAMECOUNTER,
-            KeyStroke.getKeyStroke(KeyEvent.VK_F7, 0));
+            KeyStroke.getKeyStroke(KeyEvent.VK_F12, 0));
 
     private final String label;
     private final String description;

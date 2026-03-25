@@ -392,54 +392,22 @@ public final class LibraryGameInfoWindow extends DuckWindow {
         String resolvedValue = value == null || value.isBlank()
                 ? UiText.LibraryWindow.INFO_UNKNOWN_VALUE
                 : value;
-        return "<html><body style='width: 320px'>" + escapeHtml(resolvedValue) + "</body></html>";
-    }
-
-    private String escapeHtml(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
+        return "<html><body style='width: 320px'>" + WindowUiSupport.escapeHtml(resolvedValue) + "</body></html>";
     }
 
     private JButton createPrimaryButton(String text) {
-        JButton button = new JButton(text);
-        stylePrimaryButton(button);
-        return button;
+        return WindowUiSupport.createPrimaryButton(text, accentColour);
     }
 
     private void stylePrimaryButton(JButton button) {
-        button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(false);
-        button.setBackground(accentColour);
-        button.setForeground(Color.WHITE);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.primaryButtonBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
+        WindowUiSupport.stylePrimaryButton(button, accentColour);
     }
 
     private void styleSecondaryButton(JButton button) {
-        button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(false);
-        button.setBackground(Styling.buttonSecondaryBackground);
-        button.setForeground(accentColour);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1, true),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
+        WindowUiSupport.styleSecondaryButton(button, accentColour, cardBorder);
     }
 
     private javax.swing.border.Border createCardBorder() {
-        return BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1),
-                BorderFactory.createEmptyBorder(18, 18, 18, 18));
+        return WindowUiSupport.createCardBorder(cardBorder, false, 18);
     }
 }

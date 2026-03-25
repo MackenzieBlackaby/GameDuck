@@ -612,7 +612,7 @@ public final class LibraryWindow extends DuckWindow {
             return entry != null;
         }
 
-        return containsIgnoreCase(searchQuery,
+        return WindowUiSupport.containsIgnoreCase(searchQuery,
                 resolveDisplayName(entry),
                 entry.sourceName(),
                 entry.displayName(),
@@ -1040,44 +1040,23 @@ public final class LibraryWindow extends DuckWindow {
         };
     }
 
-    private boolean containsIgnoreCase(String query, String... candidates) {
-        String normalisedQuery = query == null ? "" : query.trim().toLowerCase();
-        if (normalisedQuery.isBlank()) {
-            return true;
-        }
-
-        for (String candidate : candidates) {
-            if (candidate != null && candidate.toLowerCase().contains(normalisedQuery)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     private String asHtml(String value) {
         if (value == null || value.isBlank()) {
             return "<html><body style='width: 220px'>" + UiText.LibraryWindow.EMPTY + "</body></html>";
         }
-        return "<html><body style='width: 220px'>" + escapeHtml(value) + "</body></html>";
+        return "<html><body style='width: 220px'>" + WindowUiSupport.escapeHtml(value) + "</body></html>";
     }
 
     private String asHeadingHtml(String value, int width) {
         if (value == null || value.isBlank()) {
             return "<html><body style='width: " + width + "px'>" + UiText.LibraryWindow.EMPTY + "</body></html>";
         }
-        return "<html><body style='width: " + width + "px'>" + escapeHtml(value) + "</body></html>";
-    }
-
-    private String escapeHtml(String value) {
-        return value == null ? "" : value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
+        return "<html><body style='width: " + width + "px'>" + WindowUiSupport.escapeHtml(value) + "</body></html>";
     }
 
     private String asRendererHtml(String value, int width) {
         return "<html><div style='width:" + Math.max(60, width) + "px; text-align:center;'>"
-                + escapeHtml(value == null ? "" : value)
+                + WindowUiSupport.escapeHtml(value == null ? "" : value)
                 + "</div></html>";
     }
 
@@ -1115,39 +1094,15 @@ public final class LibraryWindow extends DuckWindow {
     }
 
     private javax.swing.border.Border createCardBorder() {
-        return BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1),
-                BorderFactory.createEmptyBorder(18, 18, 18, 18));
+        return WindowUiSupport.createCardBorder(cardBorder, false, 18);
     }
 
     private JButton createPrimaryButton(String text) {
-        JButton button = new JButton(text);
-        button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(false);
-        button.setBackground(accentColour);
-        button.setForeground(Color.WHITE);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.primaryButtonBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
-        return button;
+        return WindowUiSupport.createPrimaryButton(text, accentColour);
     }
 
     private JButton createSecondaryButton(String text) {
-        JButton button = new JButton(text);
-        button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(false);
-        button.setBackground(Styling.buttonSecondaryBackground);
-        button.setForeground(accentColour);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1, true),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
-        return button;
+        return WindowUiSupport.createSecondaryButton(text, accentColour, cardBorder);
     }
 
     private final class LibraryEntryRenderer extends JPanel implements ListCellRenderer<LibraryEntry> {

@@ -30,12 +30,16 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.BooleanSupplier;
+import java.util.function.Consumer;
+import java.util.function.Supplier;
 
 /**
  * Hosts the application options window.
@@ -1050,38 +1054,18 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createControllerBindingCard(DuckJoypad.Button button) {
-        JPanel card = new JPanel(new BorderLayout(12, 0));
-        card.setBackground(Styling.cardTintColour);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(12, 14, 12, 14)));
-
-        JLabel buttonLabel = new JLabel(formatButtonName(button));
-        buttonLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
-        buttonLabel.setForeground(accentColour);
-
-        JLabel helperLabel = new JLabel(helperText(button));
-        helperLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
-        helperLabel.setForeground(mutedText);
-
-        JPanel labelPanel = new JPanel(new BorderLayout(0, 4));
-        labelPanel.setOpaque(false);
-        labelPanel.add(buttonLabel, BorderLayout.NORTH);
-        labelPanel.add(helperLabel, BorderLayout.CENTER);
-
-        JButton bindingButton = createPrimaryButton(Settings.controllerBindings.GetBindingText(button));
-        bindingButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        bindingButton.setPreferredSize(new Dimension(148, 38));
-        bindingButton.addActionListener(event -> captureControllerBinding(button));
-        controllerBindingButtons.put(button, bindingButton);
-
-        JPanel buttonWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        buttonWrap.setOpaque(false);
-        buttonWrap.add(bindingButton);
-
-        card.add(labelPanel, BorderLayout.CENTER);
-        card.add(buttonWrap, BorderLayout.EAST);
-        return card;
+        return createActionBindingCard(
+                formatButtonName(button),
+                helperText(button),
+                null,
+                false,
+                Settings.controllerBindings.GetBindingText(button),
+                new Dimension(148, 38),
+                13f,
+                12,
+                14,
+                () -> captureControllerBinding(button),
+                bindingButton -> controllerBindingButtons.put(button, bindingButton));
     }
 
     private JComponent createShortcutPanel() {
@@ -1127,82 +1111,77 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createBindingCard(DuckJoypad.Button button) {
-        JPanel card = new JPanel(new BorderLayout(12, 0));
-        card.setBackground(Styling.cardTintColour);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(12, 14, 12, 14)));
-
-        JLabel buttonLabel = new JLabel(formatButtonName(button));
-        buttonLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
-        buttonLabel.setForeground(accentColour);
-
-        JLabel helperLabel = new JLabel(helperText(button));
-        helperLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
-        helperLabel.setForeground(mutedText);
-
-        JPanel labelPanel = new JPanel(new BorderLayout(0, 4));
-        labelPanel.setOpaque(false);
-
-        JPanel titleRow = new JPanel(new BorderLayout());
-        titleRow.setOpaque(false);
-        titleRow.add(buttonLabel, BorderLayout.WEST);
-        titleRow.add(createBadgeLabel(UiText.OptionsWindow.DMG_BADGE), BorderLayout.EAST);
-
-        labelPanel.add(titleRow, BorderLayout.NORTH);
-        labelPanel.add(helperLabel, BorderLayout.CENTER);
-
-        JButton bindingButton = createPrimaryButton(Settings.inputBindings.GetKeyText(button));
-        bindingButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
-        bindingButton.setPreferredSize(new Dimension(128, 40));
-        bindingButton.addActionListener(event -> captureBinding(button));
-        bindingButtons.put(button, bindingButton);
-
-        JPanel buttonWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        buttonWrap.setOpaque(false);
-        buttonWrap.add(bindingButton);
-
-        card.add(labelPanel, BorderLayout.CENTER);
-        card.add(buttonWrap, BorderLayout.EAST);
-        return card;
+        return createActionBindingCard(
+                formatButtonName(button),
+                helperText(button),
+                UiText.OptionsWindow.DMG_BADGE,
+                false,
+                Settings.inputBindings.GetKeyText(button),
+                new Dimension(128, 40),
+                14f,
+                12,
+                14,
+                () -> captureBinding(button),
+                bindingButton -> bindingButtons.put(button, bindingButton));
     }
 
     private JComponent createShortcutCard(AppShortcut shortcut) {
+        return createActionBindingCard(
+                shortcut.Label(),
+                shortcut.Description(),
+                UiText.OptionsWindow.APP_BADGE,
+                true,
+                Settings.appShortcutBindings.GetKeyText(shortcut),
+                new Dimension(112, 38),
+                13f,
+                10,
+                12,
+                () -> captureShortcut(shortcut),
+                shortcutButton -> shortcutButtons.put(shortcut, shortcutButton));
+    }
+
+    private JComponent createActionBindingCard(String title, String helperText, String badgeText,
+                                               boolean wrapHelperText, String buttonText, Dimension buttonSize,
+                                               float buttonFontSize, int verticalPadding, int horizontalPadding,
+                                               Runnable action, Consumer<JButton> buttonRegistrar) {
         JPanel card = new JPanel(new BorderLayout(12, 0));
         card.setBackground(Styling.cardTintColour);
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+                BorderFactory.createEmptyBorder(verticalPadding, horizontalPadding, verticalPadding, horizontalPadding)));
 
-        JLabel shortcutLabel = new JLabel(shortcut.Label());
-        shortcutLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
-        shortcutLabel.setForeground(accentColour);
+        JLabel titleLabel = new JLabel(title);
+        titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+        titleLabel.setForeground(accentColour);
 
-        JLabel helperLabel = new JLabel(
-                "<html><body style='width: 132px'>" + shortcut.Description() + "</body></html>");
+        JLabel helperLabel = new JLabel(wrapHelperText
+                ? "<html><body style='width: 132px'>" + helperText + "</body></html>"
+                : helperText);
         helperLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
         helperLabel.setForeground(mutedText);
 
         JPanel labelPanel = new JPanel(new BorderLayout(0, 4));
         labelPanel.setOpaque(false);
-
-        JPanel titleRow = new JPanel(new BorderLayout());
-        titleRow.setOpaque(false);
-        titleRow.add(shortcutLabel, BorderLayout.WEST);
-        titleRow.add(createBadgeLabel(UiText.OptionsWindow.APP_BADGE), BorderLayout.EAST);
-
-        labelPanel.add(titleRow, BorderLayout.NORTH);
+        if (badgeText == null || badgeText.isBlank()) {
+            labelPanel.add(titleLabel, BorderLayout.NORTH);
+        } else {
+            JPanel titleRow = new JPanel(new BorderLayout());
+            titleRow.setOpaque(false);
+            titleRow.add(titleLabel, BorderLayout.WEST);
+            titleRow.add(createBadgeLabel(badgeText), BorderLayout.EAST);
+            labelPanel.add(titleRow, BorderLayout.NORTH);
+        }
         labelPanel.add(helperLabel, BorderLayout.CENTER);
 
-        JButton shortcutButton = createPrimaryButton(Settings.appShortcutBindings.GetKeyText(shortcut));
-        shortcutButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        shortcutButton.setPreferredSize(new Dimension(112, 38));
-        shortcutButton.addActionListener(event -> captureShortcut(shortcut));
-        shortcutButtons.put(shortcut, shortcutButton);
+        JButton actionButton = createPrimaryButton(buttonText);
+        actionButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, buttonFontSize));
+        actionButton.setPreferredSize(buttonSize);
+        actionButton.addActionListener(event -> action.run());
+        buttonRegistrar.accept(actionButton);
 
         JPanel buttonWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         buttonWrap.setOpaque(false);
-        buttonWrap.add(shortcutButton);
+        buttonWrap.add(actionButton);
 
         card.add(labelPanel, BorderLayout.CENTER);
         card.add(buttonWrap, BorderLayout.EAST);
@@ -2258,225 +2237,130 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createDmgBootRomSection() {
+        return createBootRomSection(new BootRomSectionSpec(
+                UiText.OptionsWindow.USE_DMG_BOOT_ROM_CHECKBOX,
+                Settings.useBootRom,
+                BootRomManager::HasDmgBootRom,
+                selected -> Settings.useBootRom = selected,
+                UiText.OptionsWindow::DmgBootRomRequiredMessage,
+                UiText.OptionsWindow.DMG_BOOT_SEQUENCE_TITLE,
+                UiText.OptionsWindow.DMG_BOOT_SEQUENCE_HELPER,
+                UiText.OptionsWindow.INSTALLED_BOOT_ROM_TITLE,
+                UiText.OptionsWindow.INSTALLED_BOOT_ROM_HELPER,
+                UiText.OptionsWindow.MANAGED_PATH_TITLE,
+                BootRomManager::DmgBootRomPath,
+                UiText.OptionsWindow.INSERT_BOOT_ROM_BUTTON,
+                UiText.OptionsWindow.REMOVE_BOOT_ROM_BUTTON,
+                BootRomManager::InstallDmgBootRom,
+                BootRomManager::RemoveDmgBootRom,
+                true));
+    }
+
+    private JComponent createCgbBootRomSection() {
+        return createBootRomSection(new BootRomSectionSpec(
+                UiText.OptionsWindow.USE_CGB_BOOT_ROM_CHECKBOX,
+                Settings.useCgbBootRom,
+                BootRomManager::HasCgbBootRom,
+                selected -> Settings.useCgbBootRom = selected,
+                UiText.OptionsWindow::CgbBootRomRequiredMessage,
+                UiText.OptionsWindow.CGB_BOOT_SEQUENCE_TITLE,
+                UiText.OptionsWindow.CGB_BOOT_SEQUENCE_HELPER,
+                UiText.OptionsWindow.INSTALLED_CGB_BOOT_ROM_TITLE,
+                UiText.OptionsWindow.INSTALLED_CGB_BOOT_ROM_HELPER,
+                UiText.OptionsWindow.MANAGED_CGB_PATH_TITLE,
+                BootRomManager::CgbBootRomPath,
+                UiText.OptionsWindow.INSERT_CGB_BOOT_ROM_BUTTON,
+                UiText.OptionsWindow.REMOVE_CGB_BOOT_ROM_BUTTON,
+                BootRomManager::InstallCgbBootRom,
+                BootRomManager::RemoveCgbBootRom,
+                false));
+    }
+
+    private JComponent createBootRomSection(BootRomSectionSpec spec) {
+        boolean bootRomInstalled = spec.installedSupplier().getAsBoolean();
         JPanel container = new JPanel(new BorderLayout(0, 10));
         container.setOpaque(false);
 
-        boolean bootRomInstalled = BootRomManager.HasDmgBootRom();
-        JCheckBox useBootRomCheckBox = new JCheckBox(UiText.OptionsWindow.USE_DMG_BOOT_ROM_CHECKBOX,
-                Settings.useBootRom);
-        useBootRomCheckBox.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
-        useBootRomCheckBox.setForeground(accentColour);
-        useBootRomCheckBox.setBackground(Styling.sectionHighlightColour);
-        useBootRomCheckBox.addActionListener(event -> {
-            if (useBootRomCheckBox.isSelected() && !BootRomManager.HasDmgBootRom()) {
-                useBootRomCheckBox.setSelected(false);
-                JOptionPane.showMessageDialog(this,
-                        UiText.OptionsWindow.DmgBootRomRequiredMessage(),
-                        UiText.OptionsWindow.BOOT_ROM_REQUIRED_TITLE, JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+        JCheckBox useBootRomCheckBox = createBootRomCheckBox(spec, bootRomInstalled);
+        JPanel bootCard = createBootRomIntroCard(spec, useBootRomCheckBox);
+        JPanel detailsCard = createBootRomDetailsCard(spec, bootRomInstalled);
+        JPanel buttonRow = createBootRomButtonRow(spec);
 
-            Settings.useBootRom = useBootRomCheckBox.isSelected();
-            Config.Save();
-        });
-
-        JPanel bootCard = new JPanel(new BorderLayout(14, 0));
-        bootCard.setBackground(Styling.sectionHighlightColour);
-        bootCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
-
-        JPanel bootText = new JPanel();
-        bootText.setLayout(new BoxLayout(bootText, BoxLayout.Y_AXIS));
-        bootText.setOpaque(false);
-
-        JLabel bootTitle = new JLabel(UiText.OptionsWindow.DMG_BOOT_SEQUENCE_TITLE);
-        bootTitle.setFont(Styling.menuFont.deriveFont(Font.BOLD, 16f));
-        bootTitle.setForeground(accentColour);
-
-        JLabel helperLabel = new JLabel(
-                "<html><body style='width: 360px'>" + UiText.OptionsWindow.DMG_BOOT_SEQUENCE_HELPER + "</body></html>");
-        helperLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
-        helperLabel.setForeground(mutedText);
-
-        bootText.add(bootTitle);
-        bootText.add(Box.createVerticalStrut(6));
-        bootText.add(helperLabel);
-
-        JPanel bootToggleWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        bootToggleWrap.setOpaque(false);
-        bootToggleWrap.add(useBootRomCheckBox);
-
-        bootCard.add(bootText, BorderLayout.CENTER);
-        bootCard.add(bootToggleWrap, BorderLayout.EAST);
-
-        JPanel detailsCard = new JPanel(new BorderLayout(0, 14));
-        detailsCard.setBackground(Styling.cardTintColour);
-        detailsCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
-
-        JPanel statusRow = new JPanel(new BorderLayout(12, 0));
-        statusRow.setOpaque(false);
-
-        JPanel statusText = new JPanel();
-        statusText.setLayout(new BoxLayout(statusText, BoxLayout.Y_AXIS));
-        statusText.setOpaque(false);
-
-        JLabel statusTitle = new JLabel(UiText.OptionsWindow.INSTALLED_BOOT_ROM_TITLE);
-        statusTitle.setFont(Styling.menuFont.deriveFont(Font.BOLD, 15f));
-        statusTitle.setForeground(accentColour);
-
-        JLabel statusHelper = new JLabel(UiText.OptionsWindow.INSTALLED_BOOT_ROM_HELPER);
-        statusHelper.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
-        statusHelper.setForeground(mutedText);
-
-        statusText.add(statusTitle);
-        if (shouldRenderUiText(UiText.OptionsWindow.INSTALLED_BOOT_ROM_HELPER)) {
-            statusText.add(Box.createVerticalStrut(4));
-            statusText.add(statusHelper);
+        if (spec.embedButtonsInDetailsCard()) {
+            detailsCard.add(buttonRow, BorderLayout.SOUTH);
+        } else {
+            container.add(buttonRow, BorderLayout.SOUTH);
         }
-
-        JLabel statusLabel = createBadgeLabel(bootRomInstalled ? UiText.Common.INSTALLED : UiText.Common.MISSING);
-        statusLabel.setBackground(bootRomInstalled ? new Color(220, 239, 222) : new Color(244, 233, 217));
-        statusLabel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(bootRomInstalled ? new Color(126, 170, 132) : new Color(185, 160, 108),
-                        1, true),
-                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
-
-        statusRow.add(statusText, BorderLayout.CENTER);
-        statusRow.add(statusLabel, BorderLayout.EAST);
-
-        JPanel pathCard = new JPanel(new BorderLayout(0, 6));
-        pathCard.setOpaque(true);
-        pathCard.setBackground(new Color(255, 255, 255, 135));
-        pathCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
-
-        JLabel pathTitle = new JLabel(UiText.OptionsWindow.MANAGED_PATH_TITLE);
-        pathTitle.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
-        pathTitle.setForeground(accentColour);
-
-        JTextArea pathLabel = new JTextArea(BootRomManager.DmgBootRomPath().toString());
-        pathLabel.setEditable(false);
-        pathLabel.setFocusable(false);
-        pathLabel.setLineWrap(true);
-        pathLabel.setWrapStyleWord(true);
-        pathLabel.setOpaque(false);
-        pathLabel.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-        pathLabel.setForeground(mutedText);
-        pathLabel.setBorder(BorderFactory.createEmptyBorder());
-
-        pathCard.add(pathTitle, BorderLayout.NORTH);
-        pathCard.add(pathLabel, BorderLayout.CENTER);
-
-        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        buttonRow.setOpaque(false);
-
-        JButton insertBootRomButton = createPrimaryButton(UiText.OptionsWindow.INSERT_BOOT_ROM_BUTTON);
-        insertBootRomButton.addActionListener(event -> {
-            File bootRomFile = PromptForBootRomFile();
-            if (bootRomFile == null) {
-                return;
-            }
-
-            try {
-                BootRomManager.InstallDmgBootRom(bootRomFile.toPath());
-                Settings.useBootRom = true;
-                Config.Save();
-                reopenWithCurrentTab();
-            } catch (IOException | IllegalArgumentException exception) {
-                JOptionPane.showMessageDialog(this, exception.getMessage(),
-                        UiText.OptionsWindow.BOOT_ROM_INSTALL_FAILED_TITLE,
-                        JOptionPane.ERROR_MESSAGE);
-            }
-        });
-        buttonRow.add(insertBootRomButton);
-
-        JButton removeBootRomButton = createSecondaryButton(UiText.OptionsWindow.REMOVE_BOOT_ROM_BUTTON);
-        removeBootRomButton.addActionListener(event -> {
-            try {
-                BootRomManager.RemoveDmgBootRom();
-                Settings.useBootRom = false;
-                Config.Save();
-                reopenWithCurrentTab();
-            } catch (IOException exception) {
-                JOptionPane.showMessageDialog(this, exception.getMessage(),
-                        UiText.OptionsWindow.BOOT_ROM_REMOVE_FAILED_TITLE,
-                        JOptionPane.ERROR_MESSAGE);
-            }
-        });
-        buttonRow.add(removeBootRomButton);
-
-        detailsCard.add(statusRow, BorderLayout.NORTH);
-        detailsCard.add(pathCard, BorderLayout.CENTER);
-        detailsCard.add(buttonRow, BorderLayout.SOUTH);
 
         container.add(bootCard, BorderLayout.NORTH);
         container.add(detailsCard, BorderLayout.CENTER);
         return container;
     }
 
-    private JComponent createCgbBootRomSection() {
-        JPanel container = new JPanel(new BorderLayout(0, 10));
-        container.setOpaque(false);
-
-        boolean bootRomInstalled = BootRomManager.HasCgbBootRom();
-        JCheckBox useBootRomCheckBox = new JCheckBox(UiText.OptionsWindow.USE_CGB_BOOT_ROM_CHECKBOX,
-                Settings.useCgbBootRom);
-        useBootRomCheckBox.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
-        useBootRomCheckBox.setForeground(accentColour);
-        useBootRomCheckBox.setBackground(Styling.sectionHighlightColour);
-        useBootRomCheckBox.addActionListener(event -> {
-            if (useBootRomCheckBox.isSelected() && !BootRomManager.HasCgbBootRom()) {
-                useBootRomCheckBox.setSelected(false);
-                JOptionPane.showMessageDialog(this,
-                        UiText.OptionsWindow.CgbBootRomRequiredMessage(),
+    private JCheckBox createBootRomCheckBox(BootRomSectionSpec spec, boolean bootRomInstalled) {
+        JCheckBox checkBox = new JCheckBox(spec.checkboxText(), spec.settingEnabled());
+        checkBox.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+        checkBox.setForeground(accentColour);
+        checkBox.setBackground(Styling.sectionHighlightColour);
+        checkBox.addActionListener(event -> {
+            if (checkBox.isSelected() && !spec.installedSupplier().getAsBoolean()) {
+                checkBox.setSelected(false);
+                JOptionPane.showMessageDialog(this, spec.requiredMessageSupplier().get(),
                         UiText.OptionsWindow.BOOT_ROM_REQUIRED_TITLE, JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
-            Settings.useCgbBootRom = useBootRomCheckBox.isSelected();
+            spec.settingUpdater().accept(checkBox.isSelected());
             Config.Save();
         });
+        checkBox.setEnabled(bootRomInstalled || !checkBox.isSelected());
+        return checkBox;
+    }
 
-        JPanel bootCard = new JPanel(new BorderLayout(14, 0));
-        bootCard.setBackground(Styling.sectionHighlightColour);
-        bootCard.setBorder(BorderFactory.createCompoundBorder(
+    private JPanel createBootRomIntroCard(BootRomSectionSpec spec, JCheckBox useBootRomCheckBox) {
+        JPanel card = new JPanel(new BorderLayout(14, 0));
+        card.setBackground(Styling.sectionHighlightColour);
+        card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
                 BorderFactory.createEmptyBorder(16, 16, 16, 16)));
 
-        JPanel bootText = new JPanel();
-        bootText.setLayout(new BoxLayout(bootText, BoxLayout.Y_AXIS));
-        bootText.setOpaque(false);
+        JPanel textPanel = new JPanel();
+        textPanel.setLayout(new BoxLayout(textPanel, BoxLayout.Y_AXIS));
+        textPanel.setOpaque(false);
 
-        JLabel bootTitle = new JLabel(UiText.OptionsWindow.CGB_BOOT_SEQUENCE_TITLE);
-        bootTitle.setFont(Styling.menuFont.deriveFont(Font.BOLD, 16f));
-        bootTitle.setForeground(accentColour);
+        JLabel titleLabel = new JLabel(spec.bootTitle());
+        titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 16f));
+        titleLabel.setForeground(accentColour);
 
-        JLabel helperLabel = new JLabel(
-                "<html><body style='width: 360px'>" + UiText.OptionsWindow.CGB_BOOT_SEQUENCE_HELPER + "</body></html>");
+        JLabel helperLabel = new JLabel("<html><body style='width: 360px'>" + spec.bootHelper() + "</body></html>");
         helperLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
         helperLabel.setForeground(mutedText);
 
-        bootText.add(bootTitle);
-        bootText.add(Box.createVerticalStrut(6));
-        bootText.add(helperLabel);
+        textPanel.add(titleLabel);
+        textPanel.add(Box.createVerticalStrut(6));
+        textPanel.add(helperLabel);
 
-        JPanel bootToggleWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        bootToggleWrap.setOpaque(false);
-        bootToggleWrap.add(useBootRomCheckBox);
+        JPanel toggleWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        toggleWrap.setOpaque(false);
+        toggleWrap.add(useBootRomCheckBox);
 
-        bootCard.add(bootText, BorderLayout.CENTER);
-        bootCard.add(bootToggleWrap, BorderLayout.EAST);
+        card.add(textPanel, BorderLayout.CENTER);
+        card.add(toggleWrap, BorderLayout.EAST);
+        return card;
+    }
 
+    private JPanel createBootRomDetailsCard(BootRomSectionSpec spec, boolean bootRomInstalled) {
         JPanel detailsCard = new JPanel(new BorderLayout(0, 14));
         detailsCard.setBackground(Styling.cardTintColour);
         detailsCard.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
                 BorderFactory.createEmptyBorder(16, 16, 16, 16)));
+        detailsCard.add(createBootRomStatusRow(spec.statusTitle(), spec.statusHelper(), bootRomInstalled), BorderLayout.NORTH);
+        detailsCard.add(createManagedPathCard(spec.pathTitle(), spec.pathSupplier().get()), BorderLayout.CENTER);
+        return detailsCard;
+    }
 
+    private JPanel createBootRomStatusRow(String title, String helper, boolean installed) {
         JPanel statusRow = new JPanel(new BorderLayout(12, 0));
         statusRow.setOpaque(false);
 
@@ -2484,28 +2368,33 @@ public class OptionsWindow extends DuckWindow {
         statusText.setLayout(new BoxLayout(statusText, BoxLayout.Y_AXIS));
         statusText.setOpaque(false);
 
-        JLabel statusTitle = new JLabel(UiText.OptionsWindow.INSTALLED_CGB_BOOT_ROM_TITLE);
+        JLabel statusTitle = new JLabel(title);
         statusTitle.setFont(Styling.menuFont.deriveFont(Font.BOLD, 15f));
         statusTitle.setForeground(accentColour);
-
-        JLabel statusHelper = new JLabel(UiText.OptionsWindow.INSTALLED_CGB_BOOT_ROM_HELPER);
-        statusHelper.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
-        statusHelper.setForeground(mutedText);
-
         statusText.add(statusTitle);
-        statusText.add(Box.createVerticalStrut(4));
-        statusText.add(statusHelper);
-
-        JLabel statusLabel = createBadgeLabel(bootRomInstalled ? UiText.Common.INSTALLED : UiText.Common.MISSING);
-        statusLabel.setBackground(bootRomInstalled ? new Color(220, 239, 222) : new Color(244, 233, 217));
-        statusLabel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(bootRomInstalled ? new Color(126, 170, 132) : new Color(185, 160, 108),
-                        1, true),
-                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+        if (shouldRenderUiText(helper)) {
+            JLabel statusHelper = new JLabel(helper);
+            statusHelper.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+            statusHelper.setForeground(mutedText);
+            statusText.add(Box.createVerticalStrut(4));
+            statusText.add(statusHelper);
+        }
 
         statusRow.add(statusText, BorderLayout.CENTER);
-        statusRow.add(statusLabel, BorderLayout.EAST);
+        statusRow.add(createInstallStatusBadge(installed), BorderLayout.EAST);
+        return statusRow;
+    }
 
+    private JLabel createInstallStatusBadge(boolean installed) {
+        JLabel badge = createBadgeLabel(installed ? UiText.Common.INSTALLED : UiText.Common.MISSING);
+        badge.setBackground(installed ? new Color(220, 239, 222) : new Color(244, 233, 217));
+        badge.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(installed ? new Color(126, 170, 132) : new Color(185, 160, 108), 1, true),
+                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+        return badge;
+    }
+
+    private JPanel createManagedPathCard(String title, Path path) {
         JPanel pathCard = new JPanel(new BorderLayout(0, 6));
         pathCard.setOpaque(true);
         pathCard.setBackground(new Color(255, 255, 255, 135));
@@ -2513,11 +2402,11 @@ public class OptionsWindow extends DuckWindow {
                 BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
                 BorderFactory.createEmptyBorder(12, 12, 12, 12)));
 
-        JLabel pathTitle = new JLabel(UiText.OptionsWindow.MANAGED_CGB_PATH_TITLE);
+        JLabel pathTitle = new JLabel(title);
         pathTitle.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
         pathTitle.setForeground(accentColour);
 
-        JTextArea pathLabel = new JTextArea(BootRomManager.CgbBootRomPath().toString());
+        JTextArea pathLabel = new JTextArea(path.toString());
         pathLabel.setEditable(false);
         pathLabel.setFocusable(false);
         pathLabel.setLineWrap(true);
@@ -2529,52 +2418,52 @@ public class OptionsWindow extends DuckWindow {
 
         pathCard.add(pathTitle, BorderLayout.NORTH);
         pathCard.add(pathLabel, BorderLayout.CENTER);
+        return pathCard;
+    }
 
-        detailsCard.add(statusRow, BorderLayout.NORTH);
-        detailsCard.add(pathCard, BorderLayout.CENTER);
-
+    private JPanel createBootRomButtonRow(BootRomSectionSpec spec) {
         JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         buttonRow.setOpaque(false);
 
-        JButton insertBootRomButton = createPrimaryButton(UiText.OptionsWindow.INSERT_CGB_BOOT_ROM_BUTTON);
-        insertBootRomButton.addActionListener(event -> {
-            File bootRomFile = PromptForBootRomFile();
-            if (bootRomFile == null) {
-                return;
-            }
+        JButton insertButton = createPrimaryButton(spec.insertButtonText());
+        insertButton.addActionListener(event -> installBootRom(spec));
+        buttonRow.add(insertButton);
 
-            try {
-                BootRomManager.InstallCgbBootRom(bootRomFile.toPath());
-                Settings.useCgbBootRom = true;
-                Config.Save();
-                reopenWithCurrentTab();
-            } catch (IOException | IllegalArgumentException exception) {
-                JOptionPane.showMessageDialog(this, exception.getMessage(),
-                        UiText.OptionsWindow.BOOT_ROM_INSTALL_FAILED_TITLE,
-                        JOptionPane.ERROR_MESSAGE);
-            }
-        });
-        buttonRow.add(insertBootRomButton);
+        JButton removeButton = createSecondaryButton(spec.removeButtonText());
+        removeButton.addActionListener(event -> removeBootRom(spec));
+        buttonRow.add(removeButton);
+        return buttonRow;
+    }
 
-        JButton removeBootRomButton = createSecondaryButton(UiText.OptionsWindow.REMOVE_CGB_BOOT_ROM_BUTTON);
-        removeBootRomButton.addActionListener(event -> {
-            try {
-                BootRomManager.RemoveCgbBootRom();
-                Settings.useCgbBootRom = false;
-                Config.Save();
-                reopenWithCurrentTab();
-            } catch (IOException exception) {
-                JOptionPane.showMessageDialog(this, exception.getMessage(),
-                        UiText.OptionsWindow.BOOT_ROM_REMOVE_FAILED_TITLE,
-                        JOptionPane.ERROR_MESSAGE);
-            }
-        });
-        buttonRow.add(removeBootRomButton);
+    private void installBootRom(BootRomSectionSpec spec) {
+        File bootRomFile = PromptForBootRomFile();
+        if (bootRomFile == null) {
+            return;
+        }
 
-        container.add(bootCard, BorderLayout.NORTH);
-        container.add(detailsCard, BorderLayout.CENTER);
-        container.add(buttonRow, BorderLayout.SOUTH);
-        return container;
+        try {
+            spec.installer().accept(bootRomFile.toPath());
+            spec.settingUpdater().accept(true);
+            Config.Save();
+            reopenWithCurrentTab();
+        } catch (IOException | IllegalArgumentException exception) {
+            JOptionPane.showMessageDialog(this, exception.getMessage(),
+                    UiText.OptionsWindow.BOOT_ROM_INSTALL_FAILED_TITLE,
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void removeBootRom(BootRomSectionSpec spec) {
+        try {
+            spec.remover().run();
+            spec.settingUpdater().accept(false);
+            Config.Save();
+            reopenWithCurrentTab();
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this, exception.getMessage(),
+                    UiText.OptionsWindow.BOOT_ROM_REMOVE_FAILED_TITLE,
+                    JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private JComponent buildFooter() {
@@ -2598,9 +2487,7 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private Border createCardBorder() {
-        return BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1, true),
-                BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        return WindowUiSupport.createCardBorder(cardBorder, true, 20);
     }
 
     private JLabel createFieldLabel(String text) {
@@ -2615,45 +2502,15 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JButton createPrimaryButton(String text) {
-        JButton button = new JButton(text);
-        button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(false);
-        button.setBackground(accentColour);
-        button.setForeground(Color.WHITE);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.primaryButtonBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
-        return button;
+        return WindowUiSupport.createPrimaryButton(text, accentColour);
     }
 
     private JButton createSecondaryButton(String text) {
-        JButton button = new JButton(text);
-        button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(false);
-        button.setBackground(Styling.buttonSecondaryBackground);
-        button.setForeground(accentColour);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1, true),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
-        return button;
+        return WindowUiSupport.createSecondaryButton(text, accentColour, cardBorder);
     }
 
     private JLabel createBadgeLabel(String text) {
-        JLabel badge = new JLabel(text);
-        badge.setOpaque(true);
-        badge.setBackground(new Color(217, 231, 247));
-        badge.setForeground(accentColour);
-        badge.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
-        badge.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(160, 186, 216), 1, true),
-                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
-        return badge;
+        return WindowUiSupport.createBadgeLabel(text, accentColour);
     }
 
     private void chooseColor(int index, String label) {
@@ -3327,13 +3184,7 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private String escapeHtml(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
+        return WindowUiSupport.escapeHtml(value);
     }
 
     private File PromptForBootRomFile() {
@@ -3345,6 +3196,24 @@ public class OptionsWindow extends DuckWindow {
         });
         fileDialog.setVisible(true);
         return fileDialog.getFiles().length == 0 ? null : fileDialog.getFiles()[0];
+    }
+
+    @FunctionalInterface
+    private interface BootRomInstaller {
+        void accept(Path path) throws IOException;
+    }
+
+    @FunctionalInterface
+    private interface BootRomRemover {
+        void run() throws IOException;
+    }
+
+    private record BootRomSectionSpec(String checkboxText, boolean settingEnabled, BooleanSupplier installedSupplier,
+                                      Consumer<Boolean> settingUpdater, Supplier<String> requiredMessageSupplier,
+                                      String bootTitle, String bootHelper, String statusTitle, String statusHelper,
+                                      String pathTitle, Supplier<Path> pathSupplier, String insertButtonText,
+                                      String removeButtonText, BootRomInstaller installer, BootRomRemover remover,
+                                      boolean embedButtonsInDetailsCard) {
     }
 
     private static final class VerticalScrollPanel extends JPanel implements Scrollable {

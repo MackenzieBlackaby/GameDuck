@@ -31,6 +31,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.JTextArea;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
+import javax.swing.border.Border;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -147,9 +148,7 @@ public class MainWindow extends DuckWindow {
         menuBar.setBackground(Styling.surfaceColour);
         menuBar.setForeground(Styling.accentColour);
         menuBar.setFont(Styling.menuFont);
-        menuBar.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(0, 0, 1, 0, Styling.surfaceBorderColour),
-                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+        menuBar.setBorder(createMenuBarBorder());
 
         for (int index = 0; index < menuItems.length; index++) {
             if (UiText.MainWindow.GAME_MENU_TITLE.equals(menuItems[index][0])) {
@@ -217,9 +216,7 @@ public class MainWindow extends DuckWindow {
 
         displayCard = new JPanel(new BorderLayout(0, 16));
         displayCard.setBackground(Styling.surfaceColour);
-        displayCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.surfaceBorderColour, 1),
-                BorderFactory.createEmptyBorder(18, 18, 18, 18)));
+        displayCard.setBorder(createSurfaceCardBorder());
 
         labelRow = new JPanel(new BorderLayout());
         labelRow.setOpaque(false);
@@ -237,9 +234,7 @@ public class MainWindow extends DuckWindow {
 
         displayFrame = new JPanel(new BorderLayout());
         displayFrame.setBackground(Styling.displayFrameColour);
-        displayFrame.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1),
-                BorderFactory.createEmptyBorder(18, 18, 18, 18)));
+        displayFrame.setBorder(createDisplayFrameBorder());
 
         JPanel displaySurface = new JPanel(new BorderLayout());
         displaySurface.setOpaque(false);
@@ -261,9 +256,7 @@ public class MainWindow extends DuckWindow {
         JPanel panel = new JPanel(new BorderLayout(0, 14));
         panel.setPreferredSize(new Dimension(320, 0));
         panel.setBackground(Styling.surfaceColour);
-        panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.surfaceBorderColour, 1),
-                BorderFactory.createEmptyBorder(18, 18, 18, 18)));
+        panel.setBorder(createSurfaceCardBorder());
 
         serialSectionPanel = new JPanel(new BorderLayout(0, 14));
         serialSectionPanel.setOpaque(false);
@@ -293,7 +286,7 @@ public class MainWindow extends DuckWindow {
         serialOutputArea.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
 
         serialOutputScrollPane = new JScrollPane(serialOutputArea);
-        serialOutputScrollPane.setBorder(BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1));
+        serialOutputScrollPane.setBorder(WindowUiSupport.createLineBorder(Styling.displayFrameBorderColour));
         serialOutputScrollPane.getViewport().setBackground(Styling.displayFrameColour);
         serialOutputScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
 
@@ -350,7 +343,7 @@ public class MainWindow extends DuckWindow {
 
         gameArtPreviewPanel = new JPanel(new BorderLayout());
         gameArtPreviewPanel.setBackground(Styling.displayFrameColour);
-        gameArtPreviewPanel.setBorder(BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1));
+        gameArtPreviewPanel.setBorder(WindowUiSupport.createLineBorder(Styling.displayFrameBorderColour));
         gameArtPreviewPanel.setPreferredSize(new Dimension(gameArtPreviewWidth, gameArtPreviewHeight));
         gameArtPreviewPanel.add(gameArtLabel, BorderLayout.CENTER);
 
@@ -362,9 +355,7 @@ public class MainWindow extends DuckWindow {
     private JComponent BuildStatusBar() {
         JPanel nextStatusBar = new JPanel(new BorderLayout(12, 0));
         nextStatusBar.setBackground(Styling.statusBackgroundColour);
-        nextStatusBar.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createMatteBorder(1, 0, 0, 0, Styling.surfaceBorderColour),
-                BorderFactory.createEmptyBorder(12, 24, 12, 24)));
+        nextStatusBar.setBorder(createStatusBarBorder());
 
         romLabel = new JLabel(UiText.MainWindow.NO_ROM_LOADED);
         romLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
@@ -382,6 +373,13 @@ public class MainWindow extends DuckWindow {
 
     private JButton CreateHeaderButton(String text, Action action) {
         JButton button = new JButton(text);
+        styleHeaderButton(button);
+        button.addActionListener(new GUIActions(this, action, emulation));
+        headerButtons.add(button);
+        return button;
+    }
+
+    private void styleHeaderButton(JButton button) {
         button.setFocusPainted(false);
         button.setOpaque(true);
         button.setContentAreaFilled(true);
@@ -391,9 +389,34 @@ public class MainWindow extends DuckWindow {
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Styling.surfaceBorderColour, 1),
                 BorderFactory.createEmptyBorder(8, 14, 8, 14)));
-        button.addActionListener(new GUIActions(this, action, emulation));
-        headerButtons.add(button);
-        return button;
+    }
+
+    private Border createMenuBarBorder() {
+        return BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, Styling.surfaceBorderColour),
+                BorderFactory.createEmptyBorder(4, 8, 4, 8));
+    }
+
+    private Border createStatusBarBorder() {
+        return BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(1, 0, 0, 0, Styling.surfaceBorderColour),
+                BorderFactory.createEmptyBorder(12, 24, 12, 24));
+    }
+
+    private Border createSurfaceCardBorder() {
+        return WindowUiSupport.createCardBorder(Styling.surfaceBorderColour, false, 18);
+    }
+
+    private Border createDisplayFrameBorder() {
+        return WindowUiSupport.createCardBorder(Styling.displayFrameBorderColour, false, 18);
+    }
+
+    private void applyForeground(java.awt.Color colour, JLabel... labels) {
+        for (JLabel label : labels) {
+            if (label != null) {
+                label.setForeground(colour);
+            }
+        }
     }
 
     private void AddMenuItem(JMenu menu, String item, Action action) {
@@ -624,19 +647,11 @@ public class MainWindow extends DuckWindow {
             }
             if (displayCard != null) {
                 displayCard.setBackground(fillWindow ? Styling.displayBackgroundColour : Styling.surfaceColour);
-                displayCard.setBorder(fillWindow
-                        ? BorderFactory.createEmptyBorder()
-                        : BorderFactory.createCompoundBorder(
-                                BorderFactory.createLineBorder(Styling.surfaceBorderColour, 1),
-                                BorderFactory.createEmptyBorder(18, 18, 18, 18)));
+                displayCard.setBorder(fillWindow ? BorderFactory.createEmptyBorder() : createSurfaceCardBorder());
             }
             if (displayFrame != null) {
                 displayFrame.setBackground(Styling.displayFrameColour);
-                displayFrame.setBorder(fillWindow
-                        ? BorderFactory.createEmptyBorder()
-                        : BorderFactory.createCompoundBorder(
-                                BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1),
-                                BorderFactory.createEmptyBorder(18, 18, 18, 18)));
+                displayFrame.setBorder(fillWindow ? BorderFactory.createEmptyBorder() : createDisplayFrameBorder());
             }
             revalidate();
             repaint();
@@ -670,9 +685,7 @@ public class MainWindow extends DuckWindow {
             if (menuBar != null) {
                 menuBar.setBackground(Styling.surfaceColour);
                 menuBar.setForeground(Styling.accentColour);
-                menuBar.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createMatteBorder(0, 0, 1, 0, Styling.surfaceBorderColour),
-                        BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+                menuBar.setBorder(createMenuBarBorder());
                 for (int index = 0; index < menuBar.getMenuCount(); index++) {
                     JMenu menu = menuBar.getMenu(index);
                     if (menu != null) {
@@ -691,71 +704,37 @@ public class MainWindow extends DuckWindow {
             if (headerPanel != null) {
                 headerPanel.setBackground(Styling.appBackgroundColour);
             }
-            if (titleLabel != null) {
-                titleLabel.setForeground(Styling.accentColour);
-            }
-            if (subtitleLabel != null) {
-                subtitleLabel.setForeground(Styling.mutedTextColour);
-            }
-            if (displayTitleLabel != null) {
-                displayTitleLabel.setForeground(Styling.accentColour);
-            }
-            if (displayHintLabel != null) {
-                displayHintLabel.setForeground(Styling.mutedTextColour);
-            }
-            if (serialTitleLabel != null) {
-                serialTitleLabel.setForeground(Styling.accentColour);
-            }
-            if (serialHintLabel != null) {
-                serialHintLabel.setForeground(Styling.mutedTextColour);
-            }
-            if (gameArtTitleLabel != null) {
-                gameArtTitleLabel.setForeground(Styling.accentColour);
-            }
-            if (gameArtHintLabel != null) {
-                gameArtHintLabel.setForeground(Styling.mutedTextColour);
-            }
+            applyForeground(Styling.accentColour, titleLabel, displayTitleLabel, serialTitleLabel, gameArtTitleLabel,
+                    romLabel);
+            applyForeground(Styling.mutedTextColour, subtitleLabel, displayHintLabel, serialHintLabel, gameArtHintLabel,
+                    stateLabel);
             if (gameArtLabel != null) {
                 gameArtLabel.setForeground(
                         gameArtLabel.getIcon() == null ? Styling.mutedTextColour : Styling.fpsForegroundColour);
             }
-            if (romLabel != null) {
-                romLabel.setForeground(Styling.accentColour);
-            }
-            if (stateLabel != null) {
-                stateLabel.setForeground(Styling.mutedTextColour);
-            }
             if (statusBar != null) {
                 statusBar.setBackground(Styling.statusBackgroundColour);
-                statusBar.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createMatteBorder(1, 0, 0, 0, Styling.surfaceBorderColour),
-                        BorderFactory.createEmptyBorder(12, 24, 12, 24)));
+                statusBar.setBorder(createStatusBarBorder());
             }
             if (serialCard != null) {
                 serialCard.setBackground(Styling.surfaceColour);
-                serialCard.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(Styling.surfaceBorderColour, 1),
-                        BorderFactory.createEmptyBorder(18, 18, 18, 18)));
+                serialCard.setBorder(createSurfaceCardBorder());
             }
             if (serialOutputArea != null) {
                 serialOutputArea.setBackground(Styling.displayFrameColour);
                 serialOutputArea.setForeground(Styling.fpsForegroundColour);
             }
             if (serialOutputScrollPane != null) {
-                serialOutputScrollPane.setBorder(BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1));
+                serialOutputScrollPane.setBorder(WindowUiSupport.createLineBorder(Styling.displayFrameBorderColour));
                 serialOutputScrollPane.getViewport().setBackground(Styling.displayFrameColour);
             }
             if (gameArtPreviewPanel != null) {
                 gameArtPreviewPanel.setBackground(Styling.displayFrameColour);
-                gameArtPreviewPanel.setBorder(BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1));
+                gameArtPreviewPanel.setBorder(WindowUiSupport.createLineBorder(Styling.displayFrameBorderColour));
             }
 
             for (JButton button : headerButtons) {
-                button.setBackground(Styling.buttonSecondaryBackground);
-                button.setForeground(Styling.accentColour);
-                button.setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createLineBorder(Styling.surfaceBorderColour, 1),
-                        BorderFactory.createEmptyBorder(8, 14, 8, 14)));
+                styleHeaderButton(button);
             }
 
             ApplyWindowMode();

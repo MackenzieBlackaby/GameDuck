@@ -14,9 +14,7 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
-import javax.swing.border.Border;
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.FileDialog;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -34,11 +32,6 @@ public final class PaletteManager extends DuckWindow {
         GBC
     }
 
-    private final Color panelBackground;
-    private final Color cardBackground;
-    private final Color cardBorder;
-    private final Color accentColour;
-    private final Color mutedTextColour;
     private final DefaultListModel<String> paletteListModel = new DefaultListModel<>();
     private final PaletteKind paletteKind;
     private final Runnable onPaletteChanged;
@@ -62,15 +55,10 @@ public final class PaletteManager extends DuckWindow {
         super(UiText.PaletteManager.WindowTitle(paletteKind == PaletteKind.GBC), 460, 360, false);
         this.paletteKind = paletteKind;
         this.onPaletteChanged = onPaletteChanged;
-        panelBackground = Styling.appBackgroundColour;
-        cardBackground = Styling.surfaceColour;
-        cardBorder = Styling.surfaceBorderColour;
-        accentColour = Styling.accentColour;
-        mutedTextColour = Styling.mutedTextColour;
 
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout());
-        getContentPane().setBackground(panelBackground);
+        getContentPane().setBackground(Styling.appBackgroundColour);
 
         add(BuildHeader(), BorderLayout.NORTH);
         add(BuildBody(), BorderLayout.CENTER);
@@ -80,18 +68,18 @@ public final class PaletteManager extends DuckWindow {
 
     private JComponent BuildHeader() {
         JPanel header = new JPanel(new BorderLayout(0, 6));
-        header.setBackground(panelBackground);
+        header.setBackground(Styling.appBackgroundColour);
         header.setBorder(BorderFactory.createEmptyBorder(20, 24, 12, 24));
 
-        boolean gbcPalette = paletteKind == PaletteKind.GBC;
+        boolean gbcPalette = isGbcPalette();
 
         JLabel titleLabel = new JLabel(UiText.PaletteManager.Title(gbcPalette));
         titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 24f));
-        titleLabel.setForeground(accentColour);
+        titleLabel.setForeground(Styling.accentColour);
 
         JLabel subtitleLabel = new JLabel(UiText.PaletteManager.Subtitle(gbcPalette));
         subtitleLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-        subtitleLabel.setForeground(mutedTextColour);
+        subtitleLabel.setForeground(Styling.mutedTextColour);
 
         header.add(titleLabel, BorderLayout.NORTH);
         header.add(subtitleLabel, BorderLayout.CENTER);
@@ -100,12 +88,12 @@ public final class PaletteManager extends DuckWindow {
 
     private JComponent BuildBody() {
         JPanel wrapper = new JPanel(new BorderLayout(0, 16));
-        wrapper.setBackground(panelBackground);
+        wrapper.setBackground(Styling.appBackgroundColour);
         wrapper.setBorder(BorderFactory.createEmptyBorder(0, 20, 20, 20));
 
         JPanel card = new JPanel(new BorderLayout(0, 16));
-        card.setBackground(cardBackground);
-        card.setBorder(CreateCardBorder());
+        card.setBackground(Styling.surfaceColour);
+        card.setBorder(WindowUiSupport.createCardBorder(Styling.surfaceBorderColour, false, 18));
 
         JList<String> paletteList = new JList<>(paletteListModel);
         paletteList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -113,7 +101,7 @@ public final class PaletteManager extends DuckWindow {
         paletteList.setFixedCellHeight(30);
         paletteList.setBackground(Styling.cardTintColour);
         paletteList.setSelectionBackground(Styling.listSelectionColour);
-        paletteList.setSelectionForeground(accentColour);
+        paletteList.setSelectionForeground(Styling.accentColour);
 
         RefreshPaletteList();
 
@@ -122,26 +110,31 @@ public final class PaletteManager extends DuckWindow {
         }
 
         JScrollPane scrollPane = new JScrollPane(paletteList);
-        scrollPane.setBorder(BorderFactory.createLineBorder(cardBorder, 1));
+        scrollPane.setBorder(WindowUiSupport.createLineBorder(Styling.surfaceBorderColour));
         card.add(scrollPane, BorderLayout.CENTER);
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         buttonPanel.setOpaque(false);
 
-        JButton importButton = CreateSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
+        JButton importButton = WindowUiSupport.createSecondaryButton(
+                UiText.PaletteManager.IMPORT_BUTTON,
+                Styling.accentColour,
+                Styling.surfaceBorderColour);
         importButton.addActionListener(event -> importPalettes(paletteList));
 
-        JButton deleteButton = CreateSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
+        JButton deleteButton = WindowUiSupport.createSecondaryButton(
+                UiText.PaletteManager.DELETE_BUTTON,
+                Styling.accentColour,
+                Styling.surfaceBorderColour);
         deleteButton.addActionListener(event -> {
             String selectedPalette = paletteList.getSelectedValue();
             if (selectedPalette == null) {
                 return;
             }
 
-            boolean gbcPalette = paletteKind == PaletteKind.GBC;
             int result = JOptionPane.showConfirmDialog(this,
-                    UiText.PaletteManager.DeleteConfirmMessage(gbcPalette, selectedPalette),
-                    UiText.PaletteManager.DeleteConfirmTitle(gbcPalette),
+                    UiText.PaletteManager.DeleteConfirmMessage(isGbcPalette(), selectedPalette),
+                    UiText.PaletteManager.DeleteConfirmTitle(isGbcPalette()),
                     JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
             if (result == JOptionPane.YES_OPTION) {
                 DeletePalette(selectedPalette);
@@ -152,7 +145,7 @@ public final class PaletteManager extends DuckWindow {
             }
         });
 
-        JButton loadButton = CreatePrimaryButton(UiText.PaletteManager.LOAD_BUTTON);
+        JButton loadButton = WindowUiSupport.createPrimaryButton(UiText.PaletteManager.LOAD_BUTTON, Styling.accentColour);
         loadButton.addActionListener(event -> {
             String selectedPalette = paletteList.getSelectedValue();
             if (selectedPalette == null) {
@@ -176,7 +169,7 @@ public final class PaletteManager extends DuckWindow {
 
     private void RefreshPaletteList() {
         paletteListModel.clear();
-        List<String> paletteNames = paletteKind == PaletteKind.GBC
+        List<String> paletteNames = isGbcPalette()
                 ? Config.GetSavedGbcPaletteNames()
                 : Config.GetSavedPaletteNames();
         for (String paletteName : paletteNames) {
@@ -185,17 +178,21 @@ public final class PaletteManager extends DuckWindow {
     }
 
     private boolean LoadPalette(String paletteName) {
-        return paletteKind == PaletteKind.GBC
+        return isGbcPalette()
                 ? Config.LoadGbcPalette(paletteName)
                 : Config.LoadPalette(paletteName);
     }
 
     private void DeletePalette(String paletteName) {
-        if (paletteKind == PaletteKind.GBC) {
+        if (isGbcPalette()) {
             Config.DeleteGbcPalette(paletteName);
             return;
         }
         Config.DeletePalette(paletteName);
+    }
+
+    private boolean isGbcPalette() {
+        return paletteKind == PaletteKind.GBC;
     }
 
     private void importPalettes(JList<String> paletteList) {
@@ -205,7 +202,7 @@ public final class PaletteManager extends DuckWindow {
         }
 
         try {
-            var mergeResult = paletteKind == PaletteKind.GBC
+            var mergeResult = isGbcPalette()
                     ? Config.ImportGbcPalettes(importFile.toPath())
                     : Config.ImportPalettes(importFile.toPath());
             RefreshPaletteList();
@@ -214,7 +211,7 @@ public final class PaletteManager extends DuckWindow {
             }
             JOptionPane.showMessageDialog(this,
                     UiText.PaletteManager.ImportSuccessMessage(
-                            paletteKind == PaletteKind.GBC,
+                            isGbcPalette(),
                             mergeResult.importedCount(),
                             mergeResult.duplicateCount()));
         } catch (IOException | IllegalArgumentException exception) {
@@ -227,47 +224,11 @@ public final class PaletteManager extends DuckWindow {
 
     private File promptForPaletteImportFile() {
         FileDialog fileDialog = new FileDialog(this,
-                UiText.PaletteManager.ImportDialogTitle(paletteKind == PaletteKind.GBC),
+                UiText.PaletteManager.ImportDialogTitle(isGbcPalette()),
                 FileDialog.LOAD);
         fileDialog.setAlwaysOnTop(true);
         fileDialog.setFilenameFilter((directory, name) -> name.toLowerCase().endsWith(".json"));
         fileDialog.setVisible(true);
         return fileDialog.getFiles().length == 0 ? null : fileDialog.getFiles()[0];
-    }
-
-    private Border CreateCardBorder() {
-        return BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1),
-                BorderFactory.createEmptyBorder(18, 18, 18, 18));
-    }
-
-    private JButton CreatePrimaryButton(String text) {
-        JButton button = new JButton(text);
-        button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(false);
-        button.setBackground(accentColour);
-        button.setForeground(Color.WHITE);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.primaryButtonBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
-        return button;
-    }
-
-    private JButton CreateSecondaryButton(String text) {
-        JButton button = new JButton(text);
-        button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(false);
-        button.setBackground(Styling.buttonSecondaryBackground);
-        button.setForeground(accentColour);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1, true),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
-        return button;
     }
 }

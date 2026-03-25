@@ -3,18 +3,10 @@ package com.blackaby.Backend.Helpers;
 import com.blackaby.Backend.Emulation.Misc.ROM;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Properties;
 
 /**
  * Stores playable ROM images inside GameDuck's managed library.
@@ -44,7 +36,6 @@ public final class GameLibraryStore {
         }
     }
 
-    private static final String entryPrefix = "entry.";
     private static final String romPathSuffix = ".rom_path";
     private static final String sourcePathSuffix = ".source_path";
     private static final String sourceNameSuffix = ".source_name";
@@ -60,8 +51,12 @@ public final class GameLibraryStore {
     private static final String lastPlayedSuffix = ".last_played";
     private static final String favouriteSuffix = ".favourite";
 
-    private static final Properties properties = new Properties();
-    private static boolean loaded;
+    private static final Comparator<LibraryEntry> entrySortOrder = Comparator
+            .comparingLong(LibraryEntry::lastPlayedMillis)
+            .reversed()
+            .thenComparing(entry -> SaveFileManager.BuildFallbackBaseName(entry.SaveIdentity()));
+
+    private static final Store store = new Store();
 
     private GameLibraryStore() {
     }
@@ -77,9 +72,9 @@ public final class GameLibraryStore {
             throw new IllegalArgumentException("A ROM is required.");
         }
 
-        EnsureLoaded();
+        store.EnsureLoaded();
         String key = BuildEntryKey(rom);
-        String prefix = entryPrefix + key;
+        EntryProperties entry = new EntryProperties(key);
         Path storedPath = RomStorageDirectory().resolve(BuildStoredFilename(rom, key));
 
         try {
@@ -90,20 +85,9 @@ public final class GameLibraryStore {
         }
 
         long now = System.currentTimeMillis();
-        long addedAt = ParseLong(properties.getProperty(prefix + addedAtSuffix), now);
-        properties.setProperty(prefix + romPathSuffix, storedPath.toString());
-        properties.setProperty(prefix + sourcePathSuffix, NullToEmpty(rom.GetSourcePath()));
-        properties.setProperty(prefix + sourceNameSuffix, NullToEmpty(rom.GetSourceName()));
-        properties.setProperty(prefix + displayNameSuffix, NullToEmpty(rom.GetName()));
-        properties.setProperty(prefix + headerTitleSuffix, NullToEmpty(rom.GetHeaderTitle()));
-        properties.setProperty(prefix + cgbCompatibleSuffix, String.valueOf(RomConsoleSupport.IsGbc(rom)));
-        properties.setProperty(prefix + cgbOnlySuffix, String.valueOf(RomConsoleSupport.IsCgbOnly(rom)));
-        properties.setProperty(prefix + addedAtSuffix, String.valueOf(addedAt));
-        properties.setProperty(prefix + lastPlayedSuffix, String.valueOf(now));
-        WriteIndexedList(prefix + patchNamePrefix, prefix + patchNameCountSuffix, rom.GetPatchNames());
-        WriteIndexedList(prefix + patchSourcePrefix, prefix + patchSourceCountSuffix, rom.GetPatchSourcePaths());
-        Persist();
-        return ReadEntry(key);
+        entry.WriteMetadata(rom, storedPath, now);
+        store.Persist();
+        return entry.Read();
     }
 
     /**
@@ -112,17 +96,12 @@ public final class GameLibraryStore {
      * @return library entries
      */
     public static synchronized List<LibraryEntry> GetEntries() {
-        EnsureLoaded();
-        List<LibraryEntry> entries = new ArrayList<>();
-        for (String key : GetStoredKeys()) {
-            LibraryEntry entry = ReadEntry(key);
-            if (entry != null && Files.isRegularFile(entry.romPath())) {
-                entries.add(entry);
-            }
-        }
-        entries.sort(Comparator.comparingLong(LibraryEntry::lastPlayedMillis).reversed()
-                .thenComparing(entry -> SaveFileManager.BuildFallbackBaseName(entry.SaveIdentity())));
-        return List.copyOf(entries);
+        store.EnsureLoaded();
+        return store.StoredKeys().stream()
+                .map(GameLibraryStore::ReadEntry)
+                .filter(entry -> entry != null && Files.isRegularFile(entry.romPath()))
+                .sorted(entrySortOrder)
+                .toList();
     }
 
     /**
@@ -136,14 +115,14 @@ public final class GameLibraryStore {
             return;
         }
 
-        EnsureLoaded();
-        String prefix = entryPrefix + key;
-        if (properties.getProperty(prefix + sourceNameSuffix) == null) {
+        store.EnsureLoaded();
+        EntryProperties entry = new EntryProperties(key);
+        if (!entry.Exists()) {
             return;
         }
 
-        properties.setProperty(prefix + favouriteSuffix, String.valueOf(favourite));
-        Persist();
+        entry.Set(favouriteSuffix, favourite);
+        store.Persist();
     }
 
     /**
@@ -157,22 +136,15 @@ public final class GameLibraryStore {
             return;
         }
 
-        EnsureLoaded();
+        store.EnsureLoaded();
         LibraryEntry entry = ReadEntry(key);
         if (entry == null) {
             return;
         }
 
         Files.deleteIfExists(entry.romPath());
-
-        String prefix = entryPrefix + key;
-        List<String> propertyNames = new ArrayList<>(properties.stringPropertyNames());
-        for (String propertyName : propertyNames) {
-            if (propertyName.startsWith(prefix)) {
-                properties.remove(propertyName);
-            }
-        }
-        Persist();
+        new EntryProperties(key).RemoveAll();
+        store.Persist();
     }
 
     /**
@@ -186,55 +158,19 @@ public final class GameLibraryStore {
             return false;
         }
 
-        EnsureLoaded();
-        return Boolean.parseBoolean(properties.getProperty(entryPrefix + key + favouriteSuffix, "false"));
+        store.EnsureLoaded();
+        return new EntryProperties(key).GetBoolean(favouriteSuffix, false);
     }
 
     private static LibraryEntry ReadEntry(String key) {
-        String prefix = entryPrefix + key;
-        String romPathValue = properties.getProperty(prefix + romPathSuffix, "");
-        String sourceName = properties.getProperty(prefix + sourceNameSuffix, "");
-        String displayName = properties.getProperty(prefix + displayNameSuffix, "");
-        if (romPathValue.isBlank() || (sourceName.isBlank() && displayName.isBlank())) {
-            return null;
-        }
-
-        return new LibraryEntry(
-                key,
-                Path.of(romPathValue),
-                properties.getProperty(prefix + sourcePathSuffix, ""),
-                sourceName,
-                displayName,
-                ReadIndexedList(prefix + patchNamePrefix, prefix + patchNameCountSuffix),
-                ReadIndexedList(prefix + patchSourcePrefix, prefix + patchSourceCountSuffix),
-                properties.getProperty(prefix + headerTitleSuffix, ""),
-                ResolveCgbCompatible(prefix, Path.of(romPathValue), properties.getProperty(prefix + sourcePathSuffix, "")),
-                ResolveCgbOnly(prefix, Path.of(romPathValue), properties.getProperty(prefix + sourcePathSuffix, "")),
-                ParseLong(properties.getProperty(prefix + addedAtSuffix), 0L),
-                ParseLong(properties.getProperty(prefix + lastPlayedSuffix), 0L),
-                Boolean.parseBoolean(properties.getProperty(prefix + favouriteSuffix, "false")));
-    }
-
-    private static List<String> GetStoredKeys() {
-        LinkedHashSet<String> keys = new LinkedHashSet<>();
-        for (String propertyName : properties.stringPropertyNames()) {
-            if (!propertyName.startsWith(entryPrefix) || !propertyName.endsWith(sourceNameSuffix)) {
-                continue;
-            }
-            String key = propertyName.substring(entryPrefix.length(), propertyName.length() - sourceNameSuffix.length());
-            if (!key.isBlank()) {
-                keys.add(key);
-            }
-        }
-        return List.copyOf(keys);
+        return new EntryProperties(key).Read();
     }
 
     private static String BuildEntryKey(ROM rom) {
-        StringBuilder builder = new StringBuilder();
-        builder.append(Hash(rom.ToByteArray())).append('|');
-        builder.append(NullToEmpty(rom.GetSourceName())).append('|');
-        builder.append(String.join("|", rom.GetPatchNames()));
-        return Hash(builder.toString());
+        return KeyedPropertiesStore.Hash(String.join("|",
+                KeyedPropertiesStore.Hash(rom.ToByteArray()),
+                KeyedPropertiesStore.NullToEmpty(rom.GetSourceName()),
+                String.join("|", rom.GetPatchNames())));
     }
 
     private static String BuildStoredFilename(ROM rom, String key) {
@@ -252,10 +188,7 @@ public final class GameLibraryStore {
         if (lowerPath.endsWith(".gbc") || lowerPath.endsWith(".cgb")) {
             return ".gbc";
         }
-        if (lowerPath.endsWith(".gb")) {
-            return ".gb";
-        }
-        return ".gb";
+        return lowerPath.endsWith(".gb") ? ".gb" : ".gb";
     }
 
     private static String SanitiseFileComponent(String value) {
@@ -279,90 +212,8 @@ public final class GameLibraryStore {
         return Path.of("library", "roms");
     }
 
-    private static void WriteIndexedList(String itemPrefix, String countKey, List<String> values) {
-        int previousCount = ParseInt(properties.getProperty(countKey), 0);
-        for (int index = 0; index < previousCount; index++) {
-            properties.remove(itemPrefix + index);
-        }
-
-        List<String> safeValues = values == null ? List.of() : values;
-        properties.setProperty(countKey, String.valueOf(safeValues.size()));
-        for (int index = 0; index < safeValues.size(); index++) {
-            properties.setProperty(itemPrefix + index, NullToEmpty(safeValues.get(index)));
-        }
-    }
-
-    private static List<String> ReadIndexedList(String itemPrefix, String countKey) {
-        int count = ParseInt(properties.getProperty(countKey), 0);
-        List<String> values = new ArrayList<>(count);
-        for (int index = 0; index < count; index++) {
-            values.add(properties.getProperty(itemPrefix + index, ""));
-        }
-        return List.copyOf(values);
-    }
-
-    private static void EnsureLoaded() {
-        if (loaded) {
-            return;
-        }
-
-        properties.clear();
-        Path metadataPath = MetadataPath();
-        if (Files.exists(metadataPath)) {
-            try (InputStream inputStream = Files.newInputStream(metadataPath)) {
-                properties.load(inputStream);
-            } catch (IOException exception) {
-                exception.printStackTrace();
-            }
-        }
-        loaded = true;
-    }
-
-    private static void Persist() {
-        Path metadataPath = MetadataPath();
-        try {
-            Path parent = metadataPath.getParent();
-            if (parent != null) {
-                Files.createDirectories(parent);
-            }
-            try (OutputStream outputStream = Files.newOutputStream(metadataPath)) {
-                properties.store(outputStream, "GameDuck library");
-            }
-        } catch (IOException exception) {
-            exception.printStackTrace();
-        }
-    }
-
-    private static Path MetadataPath() {
-        String configuredPath = System.getProperty("gameduck.library_metadata_path");
-        if (configuredPath != null && !configuredPath.isBlank()) {
-            return Path.of(configuredPath);
-        }
-        return Path.of("cache", "game-library.properties");
-    }
-
-    private static int ParseInt(String value, int fallback) {
-        try {
-            return Integer.parseInt(value);
-        } catch (NumberFormatException exception) {
-            return fallback;
-        }
-    }
-
-    private static long ParseLong(String value, long fallback) {
-        try {
-            return Long.parseLong(value);
-        } catch (NumberFormatException exception) {
-            return fallback;
-        }
-    }
-
-    private static String NullToEmpty(String value) {
-        return value == null ? "" : value;
-    }
-
     private static boolean ResolveCgbCompatible(String prefix, Path romPath, String sourcePath) {
-        String storedValue = properties.getProperty(prefix + cgbCompatibleSuffix);
+        String storedValue = store.EntryValue(prefix + cgbCompatibleSuffix);
         if (storedValue != null) {
             return Boolean.parseBoolean(storedValue);
         }
@@ -372,37 +223,99 @@ public final class GameLibraryStore {
             cgbCompatible = RomConsoleSupport.IsProbablyGbc(sourcePath);
         }
 
-        properties.setProperty(prefix + cgbCompatibleSuffix, String.valueOf(cgbCompatible));
-        Persist();
+        store.SetValue(prefix + cgbCompatibleSuffix, String.valueOf(cgbCompatible));
+        store.Persist();
         return cgbCompatible;
     }
 
-    private static boolean ResolveCgbOnly(String prefix, Path romPath, String sourcePath) {
-        String storedValue = properties.getProperty(prefix + cgbOnlySuffix);
+    private static boolean ResolveCgbOnly(String prefix, Path romPath) {
+        String storedValue = store.EntryValue(prefix + cgbOnlySuffix);
         if (storedValue != null) {
             return Boolean.parseBoolean(storedValue);
         }
 
         boolean cgbOnly = RomConsoleSupport.IsCgbOnly(romPath);
-        properties.setProperty(prefix + cgbOnlySuffix, String.valueOf(cgbOnly));
-        Persist();
+        store.SetValue(prefix + cgbOnlySuffix, String.valueOf(cgbOnly));
+        store.Persist();
         return cgbOnly;
     }
 
-    private static String Hash(byte[] value) {
-        try {
-            byte[] digest = MessageDigest.getInstance("SHA-1").digest(value);
-            StringBuilder builder = new StringBuilder(digest.length * 2);
-            for (byte item : digest) {
-                builder.append(String.format("%02x", item));
-            }
-            return builder.toString();
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-1 is unavailable.", exception);
+    private static final class Store extends KeyedPropertiesStore {
+        private Store() {
+            super("entry.", sourceNameSuffix, "gameduck.library_metadata_path",
+                    Path.of("cache", "game-library.properties"), "GameDuck library");
+        }
+
+        private String EntryValue(String key) {
+            return RawProperty(key);
+        }
+
+        private void SetValue(String key, String value) {
+            SetRawProperty(key, value);
         }
     }
 
-    private static String Hash(String value) {
-        return Hash(value.getBytes(StandardCharsets.UTF_8));
+    private static final class EntryProperties {
+        private final KeyedPropertiesStore.Entry entry;
+
+        private EntryProperties(String key) {
+            this.entry = store.Entry(key);
+        }
+
+        private boolean Exists() {
+            return entry.Has(sourceNameSuffix);
+        }
+
+        private void WriteMetadata(ROM rom, Path storedPath, long now) {
+            entry.Set(romPathSuffix, storedPath.toString());
+            entry.Set(sourcePathSuffix, rom.GetSourcePath());
+            entry.Set(sourceNameSuffix, rom.GetSourceName());
+            entry.Set(displayNameSuffix, rom.GetName());
+            entry.Set(headerTitleSuffix, rom.GetHeaderTitle());
+            entry.Set(cgbCompatibleSuffix, RomConsoleSupport.IsGbc(rom));
+            entry.Set(cgbOnlySuffix, RomConsoleSupport.IsCgbOnly(rom));
+            entry.Set(addedAtSuffix, entry.GetLong(addedAtSuffix, now));
+            entry.Set(lastPlayedSuffix, now);
+            entry.WriteIndexedList(patchNamePrefix, patchNameCountSuffix, rom.GetPatchNames());
+            entry.WriteIndexedList(patchSourcePrefix, patchSourceCountSuffix, rom.GetPatchSourcePaths());
+        }
+
+        private LibraryEntry Read() {
+            String romPathValue = entry.Get(romPathSuffix);
+            String sourceName = entry.Get(sourceNameSuffix);
+            String displayName = entry.Get(displayNameSuffix);
+            if (romPathValue.isBlank() || (sourceName.isBlank() && displayName.isBlank())) {
+                return null;
+            }
+
+            Path romPath = Path.of(romPathValue);
+            String sourcePath = entry.Get(sourcePathSuffix);
+            return new LibraryEntry(
+                    entry.Key(),
+                    romPath,
+                    sourcePath,
+                    sourceName,
+                    displayName,
+                    entry.ReadIndexedList(patchNamePrefix, patchNameCountSuffix),
+                    entry.ReadIndexedList(patchSourcePrefix, patchSourceCountSuffix),
+                    entry.Get(headerTitleSuffix),
+                    ResolveCgbCompatible(entry.Prefix(), romPath, sourcePath),
+                    ResolveCgbOnly(entry.Prefix(), romPath),
+                    entry.GetLong(addedAtSuffix, 0L),
+                    entry.GetLong(lastPlayedSuffix, 0L),
+                    entry.GetBoolean(favouriteSuffix, false));
+        }
+
+        private void RemoveAll() {
+            entry.RemoveAll();
+        }
+
+        private void Set(String suffix, boolean value) {
+            entry.Set(suffix, value);
+        }
+
+        private boolean GetBoolean(String suffix, boolean fallback) {
+            return entry.GetBoolean(suffix, fallback);
+        }
     }
 }

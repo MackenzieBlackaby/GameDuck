@@ -348,9 +348,10 @@ public final class LibraryGameInfoWindow extends DuckWindow {
         if (entry == null) {
             return UiText.LibraryWindow.INFO_NO_SELECTION;
         }
-        String baseName = entry.sourceName() != null && !entry.sourceName().isBlank()
-                ? entry.sourceName()
-                : entry.displayName();
+        String baseName = GameMetadataStore.GetLibretroTitle(entry.SaveIdentity())
+                .orElseGet(() -> entry.sourceName() != null && !entry.sourceName().isBlank()
+                        ? entry.sourceName()
+                        : entry.displayName());
         return MainWindow.ApplyGameNameDisplayMode(baseName == null || baseName.isBlank()
                 ? UiText.LibraryWindow.INFO_NO_SELECTION
                 : baseName);

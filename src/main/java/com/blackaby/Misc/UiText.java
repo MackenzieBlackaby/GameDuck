@@ -263,8 +263,13 @@ public final class UiText {
 
         // ROM info actions and error titles.
         public static final String INFO_OPEN_EXPLORER_BUTTON = "Open in Explorer";
+        public static final String INFO_GET_ARTWORK_BUTTON = "Get Artwork";
+        public static final String INFO_DELETE_ROM_BUTTON = "Delete ROM";
         public static final String INFO_LOAD_ERROR_TITLE = "Failed to open ROM info";
         public static final String INFO_EXPLORER_ERROR_TITLE = "Failed to open Explorer";
+        public static final String INFO_ARTWORK_FETCH_FAILED_TITLE = "Failed to get artwork";
+        public static final String INFO_DELETE_CONFIRM_TITLE = "Delete ROM";
+        public static final String INFO_DELETE_FAILED_TITLE = "Failed to delete ROM";
 
         // ROM info units and formatting fragments.
         public static final String INFO_ROM_BANKS_SUFFIX = "banks";
@@ -529,7 +534,7 @@ public final class UiText {
         public static final String SECTION_EMULATION_TITLE = "Save Data and Boot ROM";
         public static final String SECTION_EMULATION_DESCRIPTION = "";
         public static final String SECTION_WINDOW_TITLE = "Main Window Layout";
-        public static final String SECTION_WINDOW_DESCRIPTION = "Adjust various window settings";
+        public static final String SECTION_WINDOW_DESCRIPTION = "";
         public static final String SECTION_LIBRARY_TITLE = "Game Name Display";
         public static final String SECTION_LIBRARY_DESCRIPTION = "Control whether displayed game names keep or hide bracketed suffixes such as regions, revisions, or hack tags";
         public static final String SECTION_THEME_LIBRARY_TITLE = "Theme Library";
@@ -595,6 +600,7 @@ public final class UiText {
         public static final String DMG_BADGE = "Game Boy";
         public static final String APP_BADGE = "APP";
         public static final String RESET_CONTROLS_BUTTON = "Reset Controls";
+        public static final String REBIND_ALL_CONTROLS_BUTTON = "Rebind All";
         public static final String RESET_SHORTCUTS_BUTTON = "Reset App Shortcuts";
         public static final String CONTROLLER_WINDOW_TITLE = "Controller Options";
         public static final String CONTROLLER_WINDOW_HEADER = "Controller Input";
@@ -608,6 +614,7 @@ public final class UiText {
         public static final String CONTROLLER_DEADZONE_LABEL = "Stick Deadzone";
         public static final String CONTROLLER_REFRESH_BUTTON = "Refresh Controllers";
         public static final String CONTROLLER_RESET_BUTTON = "Reset Controller Bindings";
+        public static final String CONTROLLER_REBIND_ALL_BUTTON = "Rebind All";
         public static final String CONTROLLER_BINDINGS_TITLE = "Controller Bindings";
         public static final String CONTROLLER_AUTO_SELECT = "Auto-select first connected controller";
         public static final String CONTROLLER_NONE_CONNECTED = "No controller connected";
@@ -645,6 +652,7 @@ public final class UiText {
         // -----------------------------------------------------------------
         public static final String AUDIO_ENHANCEMENTS_TITLE = "Audio Enhancements";
         public static final String AUDIO_ENHANCEMENTS_HELPER = "Apply stackable audio enhancements. The FX chain is read from top to bottom";
+        public static final String AUDIO_ENHANCEMENTS_ENABLED_CHECKBOX = "Enable Effects Chain";
         public static final String ADD_PRESET_TITLE = "Add Effect";
         public static final String ACTIVE_CHAIN_TITLE = "Active Chain";
         public static final String ACTIVE_CHAIN_HELPER = "";
@@ -659,11 +667,8 @@ public final class UiText {
         // Window tab: main window layout and library naming controls.
         // -----------------------------------------------------------------
         public static final String WINDOW_FILL_CHECKBOX = "Fill window with output";
-        public static final String WINDOW_FILL_HELPER = "When enabled, the display fills the main window area. Other panels are disabled";
         public static final String SERIAL_OUTPUT_CHECKBOX = "Show serial output";
-        public static final String SERIAL_OUTPUT_HELPER = "Toggle the serial log panel on the right side of the main window";
         public static final String GAME_ART_MODE_LABEL = "Game Art";
-        public static final String GAME_ART_MODE_HELPER = "Choose which libretro artwork type the main window should show, or hide the art panel completely";
         public static final String RESET_WINDOW_BUTTON = "Reset Window Layout";
         public static final String LIBRARY_MODE_LABEL = "Bracketed Content";
         public static final String RESET_LIBRARY_BUTTON = "Reset Library Naming";
@@ -830,6 +835,10 @@ public final class UiText {
             return "Press a key for " + buttonName;
         }
 
+        public static String RebindAllDialogPrompt(String buttonName) {
+            return "Press a key for " + buttonName + " (" + PRESS_ESCAPE_TO_CANCEL + ")";
+        }
+
         public static String ShortcutDialogTitle(String shortcutLabel) {
             return "Shortcut for " + shortcutLabel;
         }
@@ -844,6 +853,10 @@ public final class UiText {
 
         public static String ControllerRebindDialogPrompt(String buttonName) {
             return "Press a controller input for " + buttonName;
+        }
+
+        public static String ControllerRebindAllDialogPrompt(String buttonName) {
+            return "Press a controller input for " + buttonName + " (" + PRESS_ESCAPE_TO_CANCEL + ")";
         }
 
         // -----------------------------------------------------------------
@@ -918,6 +931,25 @@ public final class UiText {
 
         public static String SaveManagerTrackedGamesBadge(int count) {
             return count == 1 ? "1 Tracked Game" : count + " Tracked Games";
+        }
+
+        // -----------------------------------------------------------------
+        // Library info actions.
+        // -----------------------------------------------------------------
+        public static String InfoArtworkFetchedMessage(String gameName) {
+            return "Fetched artwork for " + gameName;
+        }
+
+        public static String InfoArtworkMissingMessage(String gameName) {
+            return "No artwork was found for " + gameName;
+        }
+
+        public static String InfoDeleteRomConfirmMessage(String gameName) {
+            return "Delete " + gameName + " from the managed library?";
+        }
+
+        public static String InfoDeleteRomSuccessMessage(String gameName) {
+            return "Deleted " + gameName + " from the managed library";
         }
 
         public static String SaveManagerLiveSizeSummary(String liveSize, String expectedSize) {

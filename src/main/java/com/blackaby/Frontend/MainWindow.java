@@ -53,6 +53,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Hosts the main emulator window and its desktop controls.
@@ -73,6 +74,8 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private final List<JButton> headerButtons = new ArrayList<>();
     private final EnumMap<Action, JMenuItem> menuItemsByAction = new EnumMap<>(Action.class);
     private final AtomicInteger gameArtRequestVersion = new AtomicInteger();
+    private final AtomicBoolean serialAppendQueued = new AtomicBoolean();
+    private final StringBuilder pendingSerialAppend = new StringBuilder();
     private final DebugLogger.SerialListener serialOutputListener = new DebugLogger.SerialListener() {
         @Override
         public void SerialOutputAppended(String text) {
@@ -891,19 +894,19 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     }
 
     private void AppendSerialOutput(String text) {
-        Runnable append = () -> {
-            if (serialOutputArea == null || text == null || text.isEmpty()) {
-                return;
-            }
-            serialOutputArea.append(text);
-            serialOutputArea.setCaretPosition(serialOutputArea.getDocument().getLength());
-        };
-
-        if (SwingUtilities.isEventDispatchThread()) {
-            append.run();
-        } else {
-            SwingUtilities.invokeLater(append);
+        if (serialOutputArea == null || text == null || text.isEmpty()) {
+            return;
         }
+
+        synchronized (pendingSerialAppend) {
+            pendingSerialAppend.append(text);
+        }
+
+        if (!serialAppendQueued.compareAndSet(false, true)) {
+            return;
+        }
+
+        SwingUtilities.invokeLater(this::FlushPendingSerialOutput);
     }
 
     private void SetSerialOutput(String text) {
@@ -923,7 +926,33 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     }
 
     private void ClearSerialOutput() {
+        synchronized (pendingSerialAppend) {
+            pendingSerialAppend.setLength(0);
+        }
+        serialAppendQueued.set(false);
         SetSerialOutput("");
+    }
+
+    private void FlushPendingSerialOutput() {
+        String text;
+        synchronized (pendingSerialAppend) {
+            text = pendingSerialAppend.toString();
+            pendingSerialAppend.setLength(0);
+        }
+
+        serialAppendQueued.set(false);
+        if (serialOutputArea == null || text.isEmpty()) {
+            return;
+        }
+
+        serialOutputArea.append(text);
+        serialOutputArea.setCaretPosition(serialOutputArea.getDocument().getLength());
+
+        synchronized (pendingSerialAppend) {
+            if (pendingSerialAppend.length() > 0 && serialAppendQueued.compareAndSet(false, true)) {
+                SwingUtilities.invokeLater(this::FlushPendingSerialOutput);
+            }
+        }
     }
 
     /**
@@ -1062,6 +1091,15 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             ClearGameArt();
         } else {
             LoadGameArt(currentLoadedGame);
+        }
+    }
+
+    /**
+     * Reapplies the currently selected display shader to the visible frame.
+     */
+    public void RefreshDisplayShader() {
+        if (display != null) {
+            display.RefreshShader();
         }
     }
 }

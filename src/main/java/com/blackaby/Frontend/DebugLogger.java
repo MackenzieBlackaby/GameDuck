@@ -6,11 +6,18 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Small debug logger used for serial output and ad hoc tracing.
  */
 public final class DebugLogger {
+
+    private static final int serialDispatchChunkSize = 32;
+    private static final long serialDispatchDelayMillis = 8L;
 
     /**
      * Listener for live serial output updates.
@@ -24,7 +31,14 @@ public final class DebugLogger {
     public static final String serialFileName = "serialoutput.txt";
 
     private static final StringBuilder serialBuffer = new StringBuilder();
+    private static final StringBuilder pendingSerialDispatch = new StringBuilder();
     private static final List<SerialListener> serialListeners = new ArrayList<>();
+    private static final ScheduledExecutorService serialDispatchExecutor = Executors.newSingleThreadScheduledExecutor(run -> {
+        Thread thread = new Thread(run, "gameduck-serial-dispatch");
+        thread.setDaemon(true);
+        return thread;
+    });
+    private static final AtomicBoolean serialDispatchScheduled = new AtomicBoolean();
     private static PrintWriter serialWriter;
 
     private DebugLogger() {
@@ -70,22 +84,14 @@ public final class DebugLogger {
      */
     public static void SerialOutput(int byteToPrint) {
         String text = Character.toString((char) (byteToPrint & 0xFF));
-        List<SerialListener> listeners;
-
         synchronized (DebugLogger.class) {
             serialBuffer.append(text);
-            EnsureSerialWriter(true);
-            if (serialWriter != null) {
-                serialWriter.write(text);
-                if ((serialBuffer.length() & 0x3F) == 0 || text.charAt(0) == '\n') {
-                    serialWriter.flush();
-                }
+            pendingSerialDispatch.append(text);
+            if (pendingSerialDispatch.length() >= serialDispatchChunkSize || text.charAt(0) == '\n') {
+                ScheduleSerialDispatch(0L);
+            } else {
+                ScheduleSerialDispatch(serialDispatchDelayMillis);
             }
-            listeners = new ArrayList<>(serialListeners);
-        }
-
-        for (SerialListener listener : listeners) {
-            listener.SerialOutputAppended(text);
         }
     }
 
@@ -105,6 +111,7 @@ public final class DebugLogger {
         List<SerialListener> listeners;
         synchronized (DebugLogger.class) {
             serialBuffer.setLength(0);
+            pendingSerialDispatch.setLength(0);
             CloseSerialWriter();
             listeners = new ArrayList<>(serialListeners);
         }
@@ -160,6 +167,45 @@ public final class DebugLogger {
         serialWriter.flush();
         serialWriter.close();
         serialWriter = null;
+    }
+
+    private static void ScheduleSerialDispatch(long delayMillis) {
+        if (!serialDispatchScheduled.compareAndSet(false, true)) {
+            return;
+        }
+
+        serialDispatchExecutor.schedule(DebugLogger::FlushPendingSerialDispatch, delayMillis, TimeUnit.MILLISECONDS);
+    }
+
+    private static void FlushPendingSerialDispatch() {
+        String text;
+        List<SerialListener> listeners;
+
+        synchronized (DebugLogger.class) {
+            serialDispatchScheduled.set(false);
+            if (pendingSerialDispatch.length() == 0) {
+                return;
+            }
+
+            text = pendingSerialDispatch.toString();
+            pendingSerialDispatch.setLength(0);
+            EnsureSerialWriter(true);
+            if (serialWriter != null) {
+                serialWriter.write(text);
+                serialWriter.flush();
+            }
+            listeners = new ArrayList<>(serialListeners);
+        }
+
+        for (SerialListener listener : listeners) {
+            listener.SerialOutputAppended(text);
+        }
+
+        synchronized (DebugLogger.class) {
+            if (pendingSerialDispatch.length() > 0) {
+                ScheduleSerialDispatch(0L);
+            }
+        }
     }
 
 }

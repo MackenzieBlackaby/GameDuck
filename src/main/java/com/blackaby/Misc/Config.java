@@ -52,6 +52,7 @@ public final class Config {
     private static final String useBootRomKey = "emulation.use_boot_rom";
     private static final String useCgbBootRomKey = "emulation.use_cgb_boot_rom";
     private static final String fillWindowOutputKey = "ui.fill_window_output";
+    private static final String displayShaderKey = "ui.display_shader";
     private static final String showSerialOutputKey = "ui.show_serial_output";
     private static final String gameArtDisplayModeKey = "ui.game_art_display_mode";
     private static final String gameNameBracketDisplayModeKey = "library.game_name_bracket_display_mode";
@@ -542,6 +543,7 @@ public final class Config {
     private static void ApplyWindowSettings() {
         Settings.ResetWindow();
         Settings.fillWindowOutput = Boolean.parseBoolean(properties.getProperty(fillWindowOutputKey, "false"));
+        Settings.displayShaderId = properties.getProperty(displayShaderKey, "none");
         Settings.showSerialOutput = Boolean.parseBoolean(properties.getProperty(showSerialOutputKey, "true"));
         String configuredGameArtMode = properties.getProperty(gameArtDisplayModeKey, GameArtDisplayMode.BOX_ART.name());
         try {
@@ -635,6 +637,8 @@ public final class Config {
 
     private static void SyncWindowSettings() {
         properties.setProperty(fillWindowOutputKey, String.valueOf(Settings.fillWindowOutput));
+        properties.setProperty(displayShaderKey,
+                Settings.displayShaderId == null || Settings.displayShaderId.isBlank() ? "none" : Settings.displayShaderId);
         properties.setProperty(showSerialOutputKey, String.valueOf(Settings.showSerialOutput));
         properties.setProperty(gameArtDisplayModeKey, Settings.gameArtDisplayMode.name());
     }

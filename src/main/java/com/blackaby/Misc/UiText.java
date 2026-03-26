@@ -565,7 +565,7 @@ public final class UiText {
         public static final String SECTION_GBC_TITLE = "Game Boy Color Colourisation";
         public static final String SECTION_GBC_DESCRIPTION = "";
         public static final String SECTION_CONTROLS_TITLE = "Input Mapping";
-        public static final String SECTION_CONTROLS_DESCRIPTION = "Rebind the Game Boy button mapping";
+        public static final String SECTION_CONTROLS_DESCRIPTION = "Open the dedicated visual mapper for keyboard and controller rebinding";
         public static final String SECTION_SHORTCUTS_TITLE = "App Shortcuts";
         public static final String SECTION_SHORTCUTS_DESCRIPTION = "Customise the keyboard shortcuts";
         public static final String SECTION_SOUND_TITLE = "Audio Output";
@@ -574,6 +574,8 @@ public final class UiText {
         public static final String SECTION_EMULATION_DESCRIPTION = "";
         public static final String SECTION_WINDOW_TITLE = "Main Window Layout";
         public static final String SECTION_WINDOW_DESCRIPTION = "";
+        public static final String SECTION_DISPLAY_SHADER_TITLE = "Display Shaders";
+        public static final String SECTION_DISPLAY_SHADER_DESCRIPTION = "Apply built-in looks or load your own JSON presets and plugin shaders";
         public static final String SECTION_LIBRARY_TITLE = "Game Name Display";
         public static final String SECTION_LIBRARY_DESCRIPTION = "Control whether displayed game names keep or hide bracketed suffixes such as regions, revisions, or hack tags";
         public static final String SECTION_THEME_LIBRARY_TITLE = "Theme Library";
@@ -633,13 +635,26 @@ public final class UiText {
         // Controls tab: player inputs and app shortcut rebinding.
         // -----------------------------------------------------------------
         public static final String PLAYER_CONTROLS_TITLE = "Player Controls";
-        public static final String PLAYER_CONTROLS_DESCRIPTION = "Rebind Game Boy controls. Duplicate assignments are swapped automatically.";
+        public static final String PLAYER_CONTROLS_DESCRIPTION = "Keyboard and controller rebinding now live in the visual mapper window.";
         public static final String WINDOW_SHORTCUTS_TITLE = "Window Shortcuts";
         public static final String WINDOW_SHORTCUTS_DESCRIPTION = "Rebind shortcuts to app functions. Modifiers like Ctrl and Shift are supported.";
         public static final String PLAYER_CONTROLS_BADGE = "Game Boy Input";
         public static final String WINDOW_SHORTCUTS_BADGE = "App Action";
         public static final String DMG_BADGE = "Game Boy";
         public static final String APP_BADGE = "APP";
+        public static final String INPUT_MAPPER_WINDOW_TITLE = "Input Mapper";
+        public static final String INPUT_MAPPER_WINDOW_HEADER = "Input Mapper";
+        public static final String INPUT_MAPPER_WINDOW_SUBTITLE = "Switch between keyboard and controller tabs, then click the callouts around the Game Boy layout to rebind each button.";
+        public static final String INPUT_MAPPER_KEYBOARD_TAB = "Keyboard";
+        public static final String INPUT_MAPPER_CONTROLLER_TAB = "Controller";
+        public static final String INPUT_MAPPER_LAUNCH_TITLE = "Visual Input Mapper";
+        public static final String INPUT_MAPPER_LAUNCH_DESCRIPTION = "Open a dedicated rebinding window with keyboard and controller tabs, a central Game Boy layout, and click targets at the end of each callout arrow.";
+        public static final String INPUT_MAPPER_OPEN_BUTTON = "Open Input Mapper";
+        public static final String INPUT_MAPPER_CANVAS_HINT = "Hover a callout to preview the matching control. Capture dialogs still support Escape to cancel.";
+        public static final String KEYBOARD_MAPPER_TITLE = "Keyboard Mapping";
+        public static final String KEYBOARD_MAPPER_DESCRIPTION = "Click any label around the Game Boy to assign a new keyboard key. Duplicate assignments are swapped automatically.";
+        public static final String CONTROLLER_MAPPER_TITLE = "Controller Mapping";
+        public static final String CONTROLLER_MAPPER_DESCRIPTION = "Click any label around the Game Boy to bind a raw controller input, or use Rebind All to walk every button in order.";
         public static final String RESET_CONTROLS_BUTTON = "Reset Controls";
         public static final String REBIND_ALL_CONTROLS_BUTTON = "Rebind All";
         public static final String RESET_SHORTCUTS_BUTTON = "Reset App Shortcuts";
@@ -647,7 +662,7 @@ public final class UiText {
         public static final String CONTROLLER_WINDOW_HEADER = "Controller Input";
         public static final String CONTROLLER_WINDOW_SUBTITLE = "Choose the active gamepad, adjust deadzone behaviour, and rebind controller inputs for every emulated Game Boy button.";
         public static final String SECTION_CONTROLLER_TITLE = "Controller Input";
-        public static final String SECTION_CONTROLLER_DESCRIPTION = "Choose a detected controller, verify live input, and rebind Game Boy buttons without leaving the Controls tab.";
+        public static final String SECTION_CONTROLLER_DESCRIPTION = "Choose a detected controller, verify live input, and then use the visual mapper window for controller rebinding.";
         public static final String CONTROLLER_ENABLE_CHECKBOX = "Enable Controller Input";
         public static final String CONTROLLER_SELECTION_LABEL = "Preferred Controller";
         public static final String CONTROLLER_ACTIVE_LABEL = "Active Controller";
@@ -711,6 +726,17 @@ public final class UiText {
         public static final String SERIAL_OUTPUT_CHECKBOX = "Show serial output";
         public static final String GAME_ART_MODE_LABEL = "Game Art";
         public static final String RESET_WINDOW_BUTTON = "Reset Window Layout";
+        public static final String DISPLAY_SHADER_LABEL = "Display Shader";
+        public static final String SHADER_DESCRIPTION_LABEL = "Description";
+        public static final String SHADER_SOURCE_LABEL = "Source";
+        public static final String SHADER_PATH_LABEL = "Location";
+        public static final String SHADER_STATUS_LABEL = "Library Status";
+        public static final String SHADER_DESCRIPTION_FALLBACK = "No shader description was provided.";
+        public static final String SHADER_PATH_BUILT_IN = "Bundled with GameDuck";
+        public static final String SHADER_STATUS_OK_HELPER = "No shader load errors were reported the last time the folder was scanned.";
+        public static final String RELOAD_SHADERS_BUTTON = "Reload Shader Folder";
+        public static final String OPEN_SHADER_FOLDER_BUTTON = "Open Shader Folder";
+        public static final String RESET_SHADER_BUTTON = "Reset Shader";
         public static final String LIBRARY_MODE_LABEL = "Bracketed Content";
         public static final String RESET_LIBRARY_BUTTON = "Reset Library Naming";
 
@@ -915,6 +941,12 @@ public final class UiText {
             return value + "%";
         }
 
+        public static String ShaderStatusSummary(int shaderCount, int errorCount) {
+            String shaderLabel = shaderCount == 1 ? "1 shader loaded" : shaderCount + " shaders loaded";
+            String errorLabel = errorCount == 1 ? "1 load error" : errorCount + " load errors";
+            return shaderLabel + " | " + errorLabel;
+        }
+
         public static String ChannelName(int channelIndex) {
             return switch (channelIndex) {
                 case 0 -> "Pulse 1";
@@ -1042,6 +1074,14 @@ public final class UiText {
         public static String SaveStateMoveSuccessMessage(String gameName, String sourceSlotLabel,
                 String targetSlotLabel) {
             return "Moved " + sourceSlotLabel + " to " + targetSlotLabel + " for " + gameName;
+        }
+
+        public static String ShaderFolderPathMessage(String pathText) {
+            return "Shader folder:\n" + pathText;
+        }
+
+        public static String ShaderFolderOpenFailedMessage(String pathText) {
+            return "Unable to open the shader folder automatically.\n\nPath:\n" + pathText;
         }
 
         // -----------------------------------------------------------------

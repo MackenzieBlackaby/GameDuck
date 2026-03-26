@@ -42,6 +42,7 @@ import java.util.concurrent.locks.LockSupport;
 public class DuckEmulation implements Runnable, EmulatorRuntime {
 
     private static final double maxTimeAccumulator = 50_000_000.0;
+    private static final int maxCyclesPerRunSlice = 70_224;
     private static final long minParkNanos = 100_000L;
 
     private DuckCPU cpu;
@@ -242,9 +243,10 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
                 continue;
             }
 
+            int cyclesToRun = Math.min(availableCycles, maxCyclesPerRunSlice);
             int executedCycles = 0;
             synchronized (stateLock) {
-                while (running && !paused && availableCycles > 0) {
+                while (running && !paused && cyclesToRun > 0) {
                     if (!cpu.IsHalted()) {
                         cpu.Fetch();
                         cpu.Decode();
@@ -254,7 +256,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
                     int masterCycles = StepHardware(tCycles);
 
                     executedCycles += masterCycles;
-                    availableCycles -= masterCycles;
+                    cyclesToRun -= masterCycles;
                 }
             }
 

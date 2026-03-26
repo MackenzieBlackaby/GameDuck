@@ -132,6 +132,9 @@ public final class Settings {
     /** Whether the main display should stretch to fill the host window. */
     public static boolean fillWindowOutput = false;
 
+    /** Active display shader identifier. */
+    public static String displayShaderId = "none";
+
     /** Whether the serial output panel should be shown in the main window. */
     public static boolean showSerialOutput = true;
 
@@ -371,6 +374,7 @@ public final class Settings {
      */
     public static void ResetWindow() {
         fillWindowOutput = false;
+        displayShaderId = "none";
         showSerialOutput = true;
         gameArtDisplayMode = GameArtDisplayMode.BOX_ART;
 

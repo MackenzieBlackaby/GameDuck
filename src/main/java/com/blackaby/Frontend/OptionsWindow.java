@@ -6,6 +6,8 @@ import com.blackaby.Backend.Platform.EmulatorButton;
 import com.blackaby.Backend.Platform.EmulatorProfile;
 import com.blackaby.Backend.Helpers.ManagedGameRegistry;
 import com.blackaby.Backend.Helpers.SaveFileManager;
+import com.blackaby.Frontend.Shaders.DisplayShaderManager;
+import com.blackaby.Frontend.Shaders.LoadedDisplayShader;
 import com.blackaby.Misc.AudioEnhancementPreset;
 import com.blackaby.Misc.AppShortcut;
 import com.blackaby.Misc.AppShortcutBindings;
@@ -32,6 +34,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -285,6 +288,11 @@ public class OptionsWindow extends DuckWindow {
                 UiText.OptionsWindow.SECTION_WINDOW_TITLE,
                 UiText.OptionsWindow.SECTION_WINDOW_DESCRIPTION,
                 createWindowPanel()));
+        content.add(Box.createVerticalStrut(16));
+        content.add(createSectionCard(
+                UiText.OptionsWindow.SECTION_DISPLAY_SHADER_TITLE,
+                UiText.OptionsWindow.SECTION_DISPLAY_SHADER_DESCRIPTION,
+                createDisplayShaderPanel()));
         return content;
     }
 
@@ -861,43 +869,7 @@ public class OptionsWindow extends DuckWindow {
     private JComponent createControlsPanel() {
         JPanel container = new JPanel(new BorderLayout(0, 18));
         container.setOpaque(false);
-
-        JPanel stack = new JPanel();
-        stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
-        stack.setOpaque(false);
-
-        stack.add(createBindingIntroCard(
-                UiText.OptionsWindow.PLAYER_CONTROLS_TITLE,
-                UiText.OptionsWindow.PLAYER_CONTROLS_DESCRIPTION,
-                controlBadgeText()));
-        stack.add(Box.createVerticalStrut(10));
-
-        JPanel grid = new JPanel(new GridLayout(4, 2, 10, 10));
-        grid.setOpaque(false);
-
-        for (EmulatorButton button : controlButtons()) {
-            grid.add(createBindingCard(button));
-        }
-
-        stack.add(grid);
-        container.add(stack, BorderLayout.CENTER);
-
-        JButton resetControlsButton = createSecondaryButton(UiText.OptionsWindow.RESET_CONTROLS_BUTTON);
-        resetControlsButton.addActionListener(event -> {
-            Settings.ResetControls();
-            refreshBindingButtons();
-            Config.Save();
-        });
-
-        JButton rebindAllControlsButton = createPrimaryButton(UiText.OptionsWindow.REBIND_ALL_CONTROLS_BUTTON);
-        rebindAllControlsButton.addActionListener(event -> captureAllBindings());
-
-        JPanel actions = new JPanel(new GridLayout(1, 2, 8, 0));
-        actions.setOpaque(false);
-        actions.add(rebindAllControlsButton);
-        actions.add(resetControlsButton);
-        container.add(actions, BorderLayout.SOUTH);
-
+        container.add(createInputMapperLauncherCard(), BorderLayout.CENTER);
         return container;
     }
 
@@ -912,58 +884,54 @@ public class OptionsWindow extends DuckWindow {
         stack.add(createControllerSettingsCard());
         stack.add(Box.createVerticalStrut(12));
         stack.add(createControllerLiveTesterCard());
-        stack.add(Box.createVerticalStrut(12));
-
-        JPanel bindingsSection = new JPanel(new BorderLayout(0, 10));
-        bindingsSection.setOpaque(false);
-
-        JLabel bindingsTitle = createFieldLabel(UiText.OptionsWindow.CONTROLLER_BINDINGS_TITLE);
-        JPanel bindingsHeader = new JPanel(new BorderLayout());
-        bindingsHeader.setOpaque(false);
-        bindingsHeader.add(bindingsTitle, BorderLayout.WEST);
-        bindingsHeader.add(createBadgeLabel(controlBadgeText()), BorderLayout.EAST);
-
-        JLabel bindingsHelper = new JLabel(UiText.OptionsWindow.CONTROLLER_BINDINGS_HELPER);
-        bindingsHelper.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
-        bindingsHelper.setForeground(mutedText);
-
-        JPanel bindingsHeaderStack = new JPanel();
-        bindingsHeaderStack.setOpaque(false);
-        bindingsHeaderStack.setLayout(new BoxLayout(bindingsHeaderStack, BoxLayout.Y_AXIS));
-        bindingsHeaderStack.add(bindingsHeader);
-        bindingsHeaderStack.add(Box.createVerticalStrut(4));
-        bindingsHeaderStack.add(bindingsHelper);
-
-        JPanel bindingsGrid = new JPanel(new GridLayout(4, 2, 10, 10));
-        bindingsGrid.setOpaque(false);
-        for (EmulatorButton button : controlButtons()) {
-            bindingsGrid.add(createControllerBindingCard(button));
-        }
-
-        bindingsSection.add(bindingsHeaderStack, BorderLayout.NORTH);
-        bindingsSection.add(bindingsGrid, BorderLayout.CENTER);
-        stack.add(bindingsSection);
 
         container.add(stack, BorderLayout.CENTER);
-
-        JButton resetControllerButton = createSecondaryButton(UiText.OptionsWindow.CONTROLLER_RESET_BUTTON);
-        resetControllerButton.addActionListener(event -> {
-            Settings.ResetControllerControls();
-            controllerInputService.RefreshControllers();
-            refreshControllerBindingButtons();
-            refreshControllerStatus();
-            Config.Save();
-        });
-
-        JButton rebindAllControllerButton = createPrimaryButton(UiText.OptionsWindow.CONTROLLER_REBIND_ALL_BUTTON);
-        rebindAllControllerButton.addActionListener(event -> captureAllControllerBindings());
-
-        JPanel actions = new JPanel(new GridLayout(1, 2, 8, 0));
-        actions.setOpaque(false);
-        actions.add(rebindAllControllerButton);
-        actions.add(resetControllerButton);
-        container.add(actions, BorderLayout.SOUTH);
         return container;
+    }
+
+    private JComponent createInputMapperLauncherCard() {
+        JPanel card = new JPanel(new BorderLayout(16, 0));
+        card.setBackground(Styling.sectionHighlightColour);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
+                BorderFactory.createEmptyBorder(18, 18, 18, 18)));
+
+        JPanel textBlock = new JPanel();
+        textBlock.setOpaque(false);
+        textBlock.setLayout(new BoxLayout(textBlock, BoxLayout.Y_AXIS));
+
+        JLabel titleLabel = new JLabel(UiText.OptionsWindow.INPUT_MAPPER_LAUNCH_TITLE);
+        titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 18f));
+        titleLabel.setForeground(accentColour);
+
+        JLabel descriptionLabel = new JLabel("<html><body style='width: 460px'>"
+                + WindowUiSupport.escapeHtml(UiText.OptionsWindow.INPUT_MAPPER_LAUNCH_DESCRIPTION)
+                + "</body></html>");
+        descriptionLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+        descriptionLabel.setForeground(mutedText);
+
+        textBlock.add(titleLabel);
+        textBlock.add(Box.createVerticalStrut(6));
+        textBlock.add(descriptionLabel);
+
+        JPanel actionColumn = new JPanel();
+        actionColumn.setOpaque(false);
+        actionColumn.setLayout(new BoxLayout(actionColumn, BoxLayout.Y_AXIS));
+
+        JButton openMapperButton = createPrimaryButton(UiText.OptionsWindow.INPUT_MAPPER_OPEN_BUTTON);
+        openMapperButton.setAlignmentX(Component.RIGHT_ALIGNMENT);
+        openMapperButton.addActionListener(event -> new InputMappingWindow(this, mainWindow));
+
+        JLabel badgeLabel = createBadgeLabel(controlBadgeText());
+        badgeLabel.setAlignmentX(Component.RIGHT_ALIGNMENT);
+
+        actionColumn.add(badgeLabel);
+        actionColumn.add(Box.createVerticalStrut(10));
+        actionColumn.add(openMapperButton);
+
+        card.add(textBlock, BorderLayout.CENTER);
+        card.add(actionColumn, BorderLayout.EAST);
+        return card;
     }
 
     private JComponent createControllerSettingsCard() {
@@ -2043,7 +2011,9 @@ public class OptionsWindow extends DuckWindow {
 
         JButton resetWindowButton = createSecondaryButton(UiText.OptionsWindow.RESET_WINDOW_BUTTON);
         resetWindowButton.addActionListener(event -> {
-            Settings.ResetWindow();
+            Settings.fillWindowOutput = false;
+            Settings.showSerialOutput = true;
+            Settings.gameArtDisplayMode = GameArtDisplayMode.BOX_ART;
             fillWindowCheckBox.setSelected(Settings.fillWindowOutput);
             serialOutputCheckBox.setSelected(Settings.showSerialOutput);
             gameArtModeSelector.setSelectedItem(Settings.gameArtDisplayMode);
@@ -2057,6 +2027,143 @@ public class OptionsWindow extends DuckWindow {
         actions.setOpaque(false);
         actions.add(resetWindowButton);
         container.add(actions, BorderLayout.SOUTH);
+        return container;
+    }
+
+    private JComponent createDisplayShaderPanel() {
+        JPanel container = new JPanel(new BorderLayout(0, 14));
+        container.setOpaque(false);
+
+        JPanel stack = new JPanel();
+        stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
+        stack.setOpaque(false);
+
+        JComboBox<DisplayShaderChoice> shaderSelector = new JComboBox<>();
+        shaderSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+
+        JTextArea descriptionArea = createWrappingTextArea("");
+        descriptionArea.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+        descriptionArea.setForeground(mutedText);
+
+        JLabel sourceValueLabel = createValueLabel("");
+        JLabel pathValueLabel = createCompactReadoutLabel("");
+        JLabel statusValueLabel = createCompactReadoutLabel("");
+
+        final boolean[] updatingShaderSelector = { false };
+
+        Runnable refreshShaderDetails = () -> {
+            DisplayShaderChoice selectedChoice = (DisplayShaderChoice) shaderSelector.getSelectedItem();
+            LoadedDisplayShader shader = DisplayShaderManager.Resolve(
+                    selectedChoice == null ? Settings.displayShaderId : selectedChoice.id());
+
+            String description = shader.description();
+            descriptionArea.setText(description == null || description.isBlank()
+                    ? UiText.OptionsWindow.SHADER_DESCRIPTION_FALLBACK
+                    : description);
+            descriptionArea.setCaretPosition(0);
+            sourceValueLabel.setText(shader.sourceLabel());
+            setCompactReadout(pathValueLabel, shader.sourcePathText().isBlank()
+                    ? UiText.OptionsWindow.SHADER_PATH_BUILT_IN
+                    : shader.sourcePathText());
+            updateShaderStatusLabel(statusValueLabel);
+        };
+
+        Runnable refreshShaderSelector = () -> {
+            List<LoadedDisplayShader> availableShaders = DisplayShaderManager.GetAvailableShaders();
+            DefaultComboBoxModel<DisplayShaderChoice> model = new DefaultComboBoxModel<>();
+            for (LoadedDisplayShader shader : availableShaders) {
+                model.addElement(new DisplayShaderChoice(shader.id(), shader.displayName()));
+            }
+
+            String preferredShaderId = Settings.displayShaderId == null || Settings.displayShaderId.isBlank()
+                    ? "none"
+                    : Settings.displayShaderId;
+            int selectedIndex = 0;
+            for (int index = 0; index < model.getSize(); index++) {
+                DisplayShaderChoice choice = model.getElementAt(index);
+                if (preferredShaderId.equalsIgnoreCase(choice.id())) {
+                    selectedIndex = index;
+                    break;
+                }
+            }
+
+            updatingShaderSelector[0] = true;
+            try {
+                shaderSelector.setModel(model);
+                if (model.getSize() > 0) {
+                    shaderSelector.setSelectedIndex(selectedIndex);
+                }
+            } finally {
+                updatingShaderSelector[0] = false;
+            }
+            refreshShaderDetails.run();
+        };
+
+        shaderSelector.addActionListener(event -> {
+            if (updatingShaderSelector[0]) {
+                return;
+            }
+
+            Object selectedItem = shaderSelector.getSelectedItem();
+            if (!(selectedItem instanceof DisplayShaderChoice selectedChoice)) {
+                return;
+            }
+
+            Settings.displayShaderId = selectedChoice.id();
+            Config.Save();
+            refreshShaderDetails.run();
+            if (mainWindow != null) {
+                mainWindow.RefreshDisplayShader();
+            }
+        });
+
+        stack.add(createSelectorWindowOptionCard(UiText.OptionsWindow.DISPLAY_SHADER_LABEL, shaderSelector));
+        stack.add(Box.createVerticalStrut(10));
+
+        JPanel detailStack = new JPanel();
+        detailStack.setLayout(new BoxLayout(detailStack, BoxLayout.Y_AXIS));
+        detailStack.setOpaque(false);
+        detailStack.add(createFieldCard(UiText.OptionsWindow.SHADER_DESCRIPTION_LABEL, descriptionArea));
+        detailStack.add(Box.createVerticalStrut(8));
+        detailStack.add(createFieldCard(UiText.OptionsWindow.SHADER_SOURCE_LABEL, sourceValueLabel));
+        detailStack.add(Box.createVerticalStrut(8));
+        detailStack.add(createFieldCard(UiText.OptionsWindow.SHADER_PATH_LABEL, pathValueLabel));
+        detailStack.add(Box.createVerticalStrut(8));
+        detailStack.add(createFieldCard(UiText.OptionsWindow.SHADER_STATUS_LABEL, statusValueLabel));
+        stack.add(createSimpleWindowOptionCard(detailStack));
+
+        container.add(stack, BorderLayout.CENTER);
+
+        JButton reloadShadersButton = createSecondaryButton(UiText.OptionsWindow.RELOAD_SHADERS_BUTTON);
+        reloadShadersButton.addActionListener(event -> {
+            DisplayShaderManager.Reload();
+            refreshShaderSelector.run();
+            if (mainWindow != null) {
+                mainWindow.RefreshDisplayShader();
+            }
+        });
+
+        JButton openFolderButton = createSecondaryButton(UiText.OptionsWindow.OPEN_SHADER_FOLDER_BUTTON);
+        openFolderButton.addActionListener(event -> openDirectory(DisplayShaderManager.ShaderDirectory()));
+
+        JButton resetShaderButton = createSecondaryButton(UiText.OptionsWindow.RESET_SHADER_BUTTON);
+        resetShaderButton.addActionListener(event -> {
+            Settings.displayShaderId = "none";
+            Config.Save();
+            refreshShaderSelector.run();
+            if (mainWindow != null) {
+                mainWindow.RefreshDisplayShader();
+            }
+        });
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
+        actions.setOpaque(false);
+        actions.add(reloadShadersButton);
+        actions.add(openFolderButton);
+        actions.add(resetShaderButton);
+        container.add(actions, BorderLayout.SOUTH);
+
+        refreshShaderSelector.run();
         return container;
     }
 
@@ -3161,6 +3268,25 @@ public class OptionsWindow extends DuckWindow {
         return card;
     }
 
+    private void updateShaderStatusLabel(JLabel label) {
+        List<LoadedDisplayShader> loadedShaders = DisplayShaderManager.GetAvailableShaders();
+        List<String> shaderErrors = DisplayShaderManager.GetLoadErrors();
+        String statusText = shaderErrors.isEmpty()
+                ? UiText.OptionsWindow.ShaderStatusSummary(loadedShaders.size(), 0)
+                : UiText.OptionsWindow.ShaderStatusSummary(loadedShaders.size(), shaderErrors.size());
+        setCompactReadout(label, statusText);
+        if (shaderErrors.isEmpty()) {
+            label.setToolTipText(UiText.OptionsWindow.SHADER_STATUS_OK_HELPER);
+            return;
+        }
+
+        List<String> escapedErrors = new ArrayList<>();
+        for (String shaderError : shaderErrors) {
+            escapedErrors.add(escapeHtml(shaderError));
+        }
+        label.setToolTipText("<html>" + String.join("<br>", escapedErrors) + "</html>");
+    }
+
     private void setCompactReadout(JLabel label, String text) {
         if (label == null) {
             return;
@@ -3205,6 +3331,25 @@ public class OptionsWindow extends DuckWindow {
         });
         fileDialog.setVisible(true);
         return fileDialog.getFiles().length == 0 ? null : fileDialog.getFiles()[0];
+    }
+
+    private void openDirectory(Path path) {
+        try {
+            Files.createDirectories(path);
+            if (Desktop.isDesktopSupported()) {
+                Desktop.getDesktop().open(path.toFile());
+                return;
+            }
+            JOptionPane.showMessageDialog(this,
+                    UiText.OptionsWindow.ShaderFolderPathMessage(path.toString()),
+                    UiText.OptionsWindow.OPEN_SHADER_FOLDER_BUTTON,
+                    JOptionPane.INFORMATION_MESSAGE);
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this,
+                    UiText.OptionsWindow.ShaderFolderOpenFailedMessage(path.toString()),
+                    UiText.Common.WARNING_TITLE,
+                    JOptionPane.WARNING_MESSAGE);
+        }
     }
 
     @FunctionalInterface
@@ -3253,6 +3398,13 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private record ControllerChoice(String id, String label) {
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    private record DisplayShaderChoice(String id, String label) {
         @Override
         public String toString() {
             return label;

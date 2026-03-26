@@ -166,6 +166,10 @@ public final class InputRouter implements KeyEventDispatcher {
             for (EmulatorButton button : buttons) {
                 String buttonId = button.id();
                 boolean nextPressed = pressedButtons.contains(buttonId);
+                boolean currentlyPressed = controllerPressedButtons.contains(buttonId);
+                if (nextPressed == currentlyPressed) {
+                    continue;
+                }
                 if (nextPressed) {
                     controllerPressedButtons.add(buttonId);
                 } else {

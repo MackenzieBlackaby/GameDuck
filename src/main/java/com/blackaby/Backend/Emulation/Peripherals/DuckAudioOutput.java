@@ -85,8 +85,32 @@ public class DuckAudioOutput {
             return;
         }
 
-        line.write(buffer, 0, writeIndex);
-        writeIndex = 0;
+        if (line == null) {
+            writeIndex = 0;
+            return;
+        }
+
+        int writableBytes = line.available();
+        writableBytes -= writableBytes % frameBytes;
+
+        if (writableBytes <= 0) {
+            // Drop queued audio rather than stalling the emulation thread.
+            writeIndex = 0;
+            return;
+        }
+
+        int bytesToWrite = Math.min(writeIndex, writableBytes);
+        bytesToWrite -= bytesToWrite % frameBytes;
+        if (bytesToWrite <= 0) {
+            writeIndex = 0;
+            return;
+        }
+
+        line.write(buffer, 0, bytesToWrite);
+        if (bytesToWrite < writeIndex) {
+            System.arraycopy(buffer, bytesToWrite, buffer, 0, writeIndex - bytesToWrite);
+        }
+        writeIndex -= bytesToWrite;
     }
 
     /**

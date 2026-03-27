@@ -80,9 +80,9 @@ import java.awt.KeyboardFocusManager;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
-import java.awt.event.FocusAdapter;
-import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
@@ -192,14 +192,13 @@ public class OptionsWindow extends DuckWindow {
     private Timer controllerRefreshTimer;
     private boolean updatingControllerUi;
     private List<String> lastControllerDeviceEntries = List.of();
-    private JTextField volumeValueField;
 
     public OptionsWindow(MainWindow mainWindow) {
         this(mainWindow, 0);
     }
 
     public OptionsWindow(MainWindow mainWindow, int initialTabIndex) {
-        super(UiText.OptionsWindow.WINDOW_TITLE, 820, 720, false);
+        super(UiText.OptionsWindow.WINDOW_TITLE, 920, 760, true);
         this.mainWindow = mainWindow;
         this.initialTabIndex = initialTabIndex;
         this.panelBackground = Styling.appBackgroundColour;
@@ -207,6 +206,7 @@ public class OptionsWindow extends DuckWindow {
         this.cardBorder = Styling.surfaceBorderColour;
         this.accentColour = Styling.accentColour;
         this.mutedText = Styling.mutedTextColour;
+        setMinimumSize(new Dimension(760, 620));
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout());
         getContentPane().setBackground(panelBackground);
@@ -1380,8 +1380,8 @@ public class OptionsWindow extends DuckWindow {
         stack.setOpaque(false);
 
         JCheckBox[] channelMuteCheckBoxes = new JCheckBox[4];
-        JSlider[] channelVolumeSliders = new JSlider[4];
-        JLabel[] channelVolumeLabels = new JLabel[4];
+        AudioKnob[] channelVolumeKnobs = new AudioKnob[4];
+        AudioKnob[] masterVolumeKnobHolder = new AudioKnob[1];
         DefaultListModel<AudioEnhancementSetting> enhancementChainModel = new DefaultListModel<>();
         for (AudioEnhancementSetting setting : Settings.CurrentAudioEnhancementChain()) {
             enhancementChainModel.addElement(setting);
@@ -1454,65 +1454,27 @@ public class OptionsWindow extends DuckWindow {
         volumeText.add(Box.createVerticalStrut(4));
         volumeText.add(volumeHelper);
 
-        volumeValueField = new JTextField(UiText.OptionsWindow.PercentValue(Settings.masterVolume));
-        volumeValueField.setFont(Styling.menuFont.deriveFont(Font.BOLD, 18f));
-        volumeValueField.setForeground(accentColour);
-        volumeValueField.setOpaque(true);
-        volumeValueField.setBackground(Styling.surfaceColour);
-        volumeValueField.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-        volumeValueField.setHorizontalAlignment(SwingConstants.CENTER);
-        FontMetrics volumeMetrics = volumeValueField.getFontMetrics(volumeValueField.getFont());
-        Dimension volumeBadgeSize = new Dimension(volumeMetrics.stringWidth("100%") + 28,
-                volumeMetrics.getHeight() + 20);
-        volumeValueField.setPreferredSize(volumeBadgeSize);
-        volumeValueField.setMinimumSize(volumeBadgeSize);
-
         volumeHeader.add(volumeText, BorderLayout.CENTER);
-        volumeHeader.add(volumeValueField, BorderLayout.EAST);
+        JLabel masterValueBadge = createBadgeLabel(UiText.OptionsWindow.PercentValue(Settings.masterVolume));
+        volumeHeader.add(masterValueBadge, BorderLayout.EAST);
 
-        JSlider volumeSlider = new JSlider(0, 100, Settings.masterVolume);
-        volumeSlider.setOpaque(false);
-        volumeSlider.setForeground(accentColour);
-        volumeSlider.setMajorTickSpacing(25);
-        volumeSlider.setMinorTickSpacing(5);
-        volumeSlider.setPaintTicks(true);
-        volumeSlider.setPaintLabels(true);
-
-        JPanel rangeRow = new JPanel(new BorderLayout());
-        rangeRow.setOpaque(false);
-
-        JLabel lowLabel = new JLabel(UiText.OptionsWindow.QUIET_LABEL);
-        lowLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 11f));
-        lowLabel.setForeground(mutedText);
-
-        JLabel highLabel = new JLabel(UiText.OptionsWindow.LOUD_LABEL);
-        highLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 11f));
-        highLabel.setForeground(mutedText);
-
-        rangeRow.add(lowLabel, BorderLayout.WEST);
-        rangeRow.add(highLabel, BorderLayout.EAST);
-
-        volumeSlider.addChangeListener(event -> {
-            Settings.masterVolume = volumeSlider.getValue();
-            refreshVolumeLabel();
-            if (!volumeSlider.getValueIsAdjusting()) {
-                Config.Save();
-            }
-        });
-
-        volumeValueField.addActionListener(event -> commitVolumeInput(volumeSlider));
-        volumeValueField.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent event) {
-                commitVolumeInput(volumeSlider);
-            }
-        });
+        JComponent masterKnobTile = createMixerKnobTile(
+                UiText.OptionsWindow.MASTER_VOLUME_TITLE,
+                UiText.OptionsWindow.MASTER_VOLUME_HELPER,
+                Settings.masterVolume,
+                (newValue, adjusting) -> {
+                    Settings.masterVolume = newValue;
+                    masterValueBadge.setText(UiText.OptionsWindow.PercentValue(newValue));
+                    if (!adjusting) {
+                        Config.Save();
+                    }
+                },
+                masterVolumeKnobHolder,
+                0,
+                null);
 
         volumeCard.add(volumeHeader, BorderLayout.NORTH);
-        volumeCard.add(volumeSlider, BorderLayout.CENTER);
-        volumeCard.add(rangeRow, BorderLayout.SOUTH);
+        volumeCard.add(masterKnobTile, BorderLayout.CENTER);
         stack.add(volumeCard);
         stack.add(Box.createVerticalStrut(10));
 
@@ -1542,20 +1504,14 @@ public class OptionsWindow extends DuckWindow {
 
         channelHeader.add(channelText, BorderLayout.CENTER);
 
-        JPanel channelGrid = new JPanel(new GridBagLayout());
+        JPanel channelGrid = new ResponsiveTileGridPanel(116);
         channelGrid.setOpaque(false);
-        GridBagConstraints channelGbc = new GridBagConstraints();
-        channelGbc.gridy = 0;
-        channelGbc.insets = new Insets(0, 0, 8, 0);
-        channelGbc.fill = GridBagConstraints.HORIZONTAL;
-        channelGbc.weightx = 1.0;
 
         for (int channelIndex = 0; channelIndex < 4; channelIndex++) {
-            channelGrid.add(
-                    createChannelMixerRow(channelIndex, channelMuteCheckBoxes, channelVolumeSliders,
-                            channelVolumeLabels),
-                    channelGbc);
-            channelGbc.gridy++;
+            channelGrid.add(createChannelMixerKnobTile(
+                    channelIndex,
+                    channelMuteCheckBoxes,
+                    channelVolumeKnobs));
         }
 
         channelCard.add(channelHeader, BorderLayout.NORTH);
@@ -1581,16 +1537,17 @@ public class OptionsWindow extends DuckWindow {
         resetSoundButton.addActionListener(event -> {
             Settings.ResetSound();
             soundEnabledCheckBox.setSelected(Settings.soundEnabled);
-            volumeSlider.setValue(Settings.masterVolume);
-            refreshVolumeLabel();
+            if (masterVolumeKnobHolder[0] != null) {
+                masterVolumeKnobHolder[0].SetValue(Settings.masterVolume);
+            }
+            masterValueBadge.setText(UiText.OptionsWindow.PercentValue(Settings.masterVolume));
             for (int channelIndex = 0; channelIndex < 4; channelIndex++) {
                 if (channelMuteCheckBoxes[channelIndex] != null) {
                     channelMuteCheckBoxes[channelIndex].setSelected(Settings.IsChannelMuted(channelIndex));
                 }
-                if (channelVolumeSliders[channelIndex] != null) {
-                    channelVolumeSliders[channelIndex].setValue(Settings.GetChannelVolume(channelIndex));
+                if (channelVolumeKnobs[channelIndex] != null) {
+                    channelVolumeKnobs[channelIndex].SetValue(Settings.GetChannelVolume(channelIndex));
                 }
-                refreshChannelVolumeLabel(channelIndex, channelVolumeLabels);
             }
             enhancementChainModel.clear();
             enhancementEnabledCheckBox.setSelected(Settings.IsAudioEnhancementChainEnabled());
@@ -1624,9 +1581,7 @@ public class OptionsWindow extends DuckWindow {
         title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 15f));
         title.setForeground(accentColour);
 
-        JLabel helper = new JLabel("<html><body style='width: 520px'>"
-                + UiText.OptionsWindow.AUDIO_ENHANCEMENTS_HELPER
-                + "</body></html>");
+        JTextArea helper = createWrappingTextArea(UiText.OptionsWindow.AUDIO_ENHANCEMENTS_HELPER);
         helper.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
         helper.setForeground(mutedText);
 
@@ -1640,8 +1595,9 @@ public class OptionsWindow extends DuckWindow {
 
         header.add(headerText, BorderLayout.CENTER);
         header.add(toggleWrap, BorderLayout.EAST);
+        installResponsiveTrailingLayout(header, toggleWrap, 520);
 
-        JPanel composer = new JPanel(new BorderLayout(10, 0));
+        JPanel composer = new JPanel(new BorderLayout(10, 10));
         composer.setOpaque(true);
         composer.setBackground(Styling.sectionHighlightColour);
         composer.setBorder(BorderFactory.createCompoundBorder(
@@ -1681,10 +1637,11 @@ public class OptionsWindow extends DuckWindow {
         composerText.add(Box.createVerticalStrut(6));
         composerText.add(presetDescription);
 
-        JPanel composerControls = new JPanel(new BorderLayout(10, 0));
+        JPanel composerControls = new JPanel(new BorderLayout(10, 10));
         composerControls.setOpaque(false);
         composerControls.add(presetSelector, BorderLayout.CENTER);
         composerControls.add(addButton, BorderLayout.EAST);
+        installResponsiveTrailingLayout(composerControls, addButton, 500);
 
         composer.add(composerText, BorderLayout.CENTER);
         composer.add(composerControls, BorderLayout.SOUTH);
@@ -1727,6 +1684,7 @@ public class OptionsWindow extends DuckWindow {
 
         chainHeader.add(chainHeaderText, BorderLayout.CENTER);
         chainHeader.add(clearButton, BorderLayout.EAST);
+        installResponsiveTrailingLayout(chainHeader, clearButton, 520);
 
         JPanel chainStack = new JPanel();
         chainStack.setLayout(new BoxLayout(chainStack, BoxLayout.Y_AXIS));
@@ -1805,8 +1763,15 @@ public class OptionsWindow extends DuckWindow {
             int index, JPanel chainStack) {
         AudioEnhancementSetting setting = enhancementChainModel.getElementAt(index);
 
-        JPanel wrapper = new JPanel(new BorderLayout());
+        JPanel wrapper = new JPanel(new BorderLayout()) {
+            @Override
+            public Dimension getMaximumSize() {
+                Dimension preferredSize = getPreferredSize();
+                return new Dimension(Integer.MAX_VALUE, preferredSize.height);
+            }
+        };
         wrapper.setOpaque(false);
+        wrapper.setAlignmentX(Component.LEFT_ALIGNMENT);
         wrapper.setBorder(BorderFactory.createEmptyBorder(0, 0,
                 index == enhancementChainModel.size() - 1 ? 0 : 10, 0));
 
@@ -1836,9 +1801,7 @@ public class OptionsWindow extends DuckWindow {
         effectTitle.setForeground(accentColour);
         textPanel.add(effectTitle);
 
-        JLabel effectDescription = new JLabel("<html><body style='width: 360px'>"
-                + escapeHtml(setting.preset().Description())
-                + "</body></html>");
+        JTextArea effectDescription = createWrappingTextArea(setting.preset().Description());
         effectDescription.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
         effectDescription.setForeground(mutedText);
         effectDescription.setBorder(BorderFactory.createEmptyBorder(4, 0, 0, 0));
@@ -1862,12 +1825,13 @@ public class OptionsWindow extends DuckWindow {
         header.add(dragHandle, BorderLayout.WEST);
         header.add(textPanel, BorderLayout.CENTER);
         header.add(actions, BorderLayout.EAST);
+        installResponsiveAudioEffectCardLayout(card, header, actions, effectTitle, effectDescription, removeButton);
 
         AudioEnhancementPreset.ParameterSpec primaryParameter = setting.preset().PrimaryParameter();
         AudioEnhancementPreset.ParameterSpec secondaryParameter = setting.preset().SecondaryParameter();
         int knobCount = 1 + (primaryParameter == null ? 0 : 1) + (secondaryParameter == null ? 0 : 1);
 
-        JPanel knobRow = new JPanel(new GridLayout(1, knobCount, 10, 0));
+        JPanel knobRow = new ResponsiveAudioKnobPanel(knobCount);
         knobRow.setOpaque(false);
 
         knobRow.add(new AudioKnob(
@@ -1942,79 +1906,54 @@ public class OptionsWindow extends DuckWindow {
         return wrapper;
     }
 
-    private JComponent createChannelMixerRow(int channelIndex, JCheckBox[] channelMuteCheckBoxes,
-            JSlider[] channelVolumeSliders, JLabel[] channelVolumeLabels) {
-        JPanel row = new JPanel(new GridBagLayout());
-        row.setOpaque(false);
+    private JComponent createMixerKnobTile(String title, String helperText, int initialValue,
+            AudioKnobListener listener, AudioKnob[] knobHolders, int holderIndex, JComponent footer) {
+        JPanel tile = new JPanel(new BorderLayout(0, 8));
+        tile.setOpaque(true);
+        tile.setBackground(Styling.sectionHighlightColour);
+        tile.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
+                BorderFactory.createEmptyBorder(10, 10, 10, 10)));
 
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.gridy = 0;
-        gbc.insets = new Insets(0, 0, 0, 8);
-        gbc.anchor = GridBagConstraints.CENTER;
+        AudioKnob knob = new AudioKnob(title, helperText, initialValue, listener);
+        knobHolders[holderIndex] = knob;
+        tile.add(knob, BorderLayout.CENTER);
 
-        JLabel channelLabel = new JLabel(channelName(channelIndex));
-        channelLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
-        channelLabel.setForeground(accentColour);
-        channelLabel.setPreferredSize(new Dimension(78, 24));
-        gbc.gridx = 0;
-        gbc.anchor = GridBagConstraints.WEST;
-        row.add(channelLabel, gbc);
+        if (footer != null) {
+            JPanel footerWrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+            footerWrap.setOpaque(false);
+            footerWrap.add(footer);
+            tile.add(footerWrap, BorderLayout.SOUTH);
+        }
 
-        JCheckBox muteCheckBox = new JCheckBox(UiText.OptionsWindow.MUTE_CHECKBOX,
-                Settings.IsChannelMuted(channelIndex));
+        return tile;
+    }
+
+    private JComponent createChannelMixerKnobTile(int channelIndex, JCheckBox[] channelMuteCheckBoxes,
+            AudioKnob[] channelVolumeKnobs) {
+        JCheckBox muteCheckBox = new JCheckBox(UiText.OptionsWindow.MUTE_CHECKBOX, Settings.IsChannelMuted(channelIndex));
         muteCheckBox.setOpaque(false);
-        muteCheckBox.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+        muteCheckBox.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 11f));
         muteCheckBox.setForeground(accentColour);
         muteCheckBox.addActionListener(event -> {
             Settings.SetChannelMuted(channelIndex, muteCheckBox.isSelected());
             Config.Save();
         });
         channelMuteCheckBoxes[channelIndex] = muteCheckBox;
-        gbc.gridx = 1;
-        gbc.anchor = GridBagConstraints.CENTER;
-        row.add(muteCheckBox, gbc);
 
-        JSlider channelSlider = new JSlider(0, 100, Settings.GetChannelVolume(channelIndex));
-        channelSlider.setOpaque(false);
-        channelSlider.setFocusable(false);
-        channelSlider.setMajorTickSpacing(25);
-        channelSlider.setMinorTickSpacing(5);
-        channelSlider.setPaintTicks(false);
-        channelSlider.setPaintLabels(false);
-        channelSlider.addChangeListener(event -> {
-            Settings.SetChannelVolume(channelIndex, channelSlider.getValue());
-            refreshChannelVolumeLabel(channelIndex, channelVolumeLabels);
-            if (!channelSlider.getValueIsAdjusting()) {
-                Config.Save();
-            }
-        });
-        channelVolumeSliders[channelIndex] = channelSlider;
-        gbc.gridx = 2;
-        gbc.weightx = 1.0;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
-        row.add(channelSlider, gbc);
-
-        JLabel valueLabel = new JLabel();
-        valueLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
-        valueLabel.setForeground(accentColour);
-        valueLabel.setHorizontalAlignment(SwingConstants.RIGHT);
-        valueLabel.setPreferredSize(new Dimension(40, 24));
-        channelVolumeLabels[channelIndex] = valueLabel;
-        refreshChannelVolumeLabel(channelIndex, channelVolumeLabels);
-        gbc.gridx = 3;
-        gbc.weightx = 0.0;
-        gbc.fill = GridBagConstraints.NONE;
-        gbc.insets = new Insets(0, 4, 0, 0);
-        row.add(valueLabel, gbc);
-
-        return row;
-    }
-
-    private void refreshChannelVolumeLabel(int channelIndex, JLabel[] channelVolumeLabels) {
-        JLabel label = channelVolumeLabels[channelIndex];
-        if (label != null) {
-            label.setText(UiText.OptionsWindow.ChannelVolumeLabel(Settings.GetChannelVolume(channelIndex)));
-        }
+        return createMixerKnobTile(
+                channelName(channelIndex),
+                channelName(channelIndex) + " level",
+                Settings.GetChannelVolume(channelIndex),
+                (newValue, adjusting) -> {
+                    Settings.SetChannelVolume(channelIndex, newValue);
+                    if (!adjusting) {
+                        Config.Save();
+                    }
+                },
+                channelVolumeKnobs,
+                channelIndex,
+                muteCheckBox);
     }
 
     private String channelName(int channelIndex) {
@@ -2078,9 +2017,246 @@ public class OptionsWindow extends DuckWindow {
         return childCount;
     }
 
+    private void installResponsiveTrailingLayout(JPanel panel, Component trailingComponent, int compactWidth) {
+        final boolean[] compact = { false };
+        Runnable applyLayout = () -> {
+            int width = panel.getWidth();
+            boolean nextCompact = width > 0 && width < compactWidth;
+            if (compact[0] == nextCompact) {
+                return;
+            }
+
+            compact[0] = nextCompact;
+            panel.remove(trailingComponent);
+            panel.add(trailingComponent, nextCompact ? BorderLayout.SOUTH : BorderLayout.EAST);
+            panel.revalidate();
+            panel.repaint();
+        };
+
+        panel.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent event) {
+                applyLayout.run();
+            }
+        });
+        SwingUtilities.invokeLater(applyLayout);
+    }
+
+    private void installResponsiveAudioEffectCardLayout(JPanel card, JPanel header, JPanel actions, JLabel effectTitle,
+            JTextArea effectDescription, JButton removeButton) {
+        final boolean[] compact = { false };
+        Runnable applyLayout = () -> {
+            int width = card.getWidth();
+            boolean nextCompact = width > 0 && width < 500;
+            if (compact[0] != nextCompact) {
+                compact[0] = nextCompact;
+                header.remove(actions);
+                header.add(actions, nextCompact ? BorderLayout.SOUTH : BorderLayout.EAST);
+            }
+
+            card.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
+                    BorderFactory.createEmptyBorder(nextCompact ? 10 : 14, nextCompact ? 10 : 14,
+                            nextCompact ? 10 : 14, nextCompact ? 10 : 14)));
+            effectTitle.setFont(Styling.menuFont.deriveFont(Font.BOLD, nextCompact ? 12f : 13f));
+            effectDescription.setFont(Styling.menuFont.deriveFont(Font.PLAIN, nextCompact ? 11f : 12f));
+            removeButton.setPreferredSize(nextCompact ? new Dimension(36, 28) : new Dimension(42, 32));
+            card.revalidate();
+            card.repaint();
+        };
+
+        card.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent event) {
+                applyLayout.run();
+            }
+        });
+        SwingUtilities.invokeLater(applyLayout);
+    }
+
     @FunctionalInterface
     private interface AudioKnobListener {
         void valueChanged(int newValue, boolean adjusting);
+    }
+
+    private static final class ResponsiveTileGridPanel extends JPanel {
+        private final int minTileWidth;
+        private final int gap = 10;
+
+        private ResponsiveTileGridPanel(int minTileWidth) {
+            super(null);
+            this.minTileWidth = Math.max(72, minTileWidth);
+            setOpaque(false);
+            addComponentListener(new ComponentAdapter() {
+                @Override
+                public void componentResized(ComponentEvent event) {
+                    revalidate();
+                    if (getParent() != null) {
+                        getParent().revalidate();
+                    }
+                }
+            });
+        }
+
+        @Override
+        public void doLayout() {
+            int componentCount = getComponentCount();
+            if (componentCount == 0) {
+                return;
+            }
+
+            int availableWidth = Math.max(0, getWidth());
+            int columns = computeColumns(availableWidth);
+            int cellWidth = Math.max(0, (availableWidth - (gap * (columns - 1))) / columns);
+
+            int index = 0;
+            int y = 0;
+            while (index < componentCount) {
+                int rowStart = index;
+                int rowEnd = Math.min(componentCount, rowStart + columns);
+                int rowHeight = 0;
+                for (int rowIndex = rowStart; rowIndex < rowEnd; rowIndex++) {
+                    rowHeight = Math.max(rowHeight, getComponent(rowIndex).getPreferredSize().height);
+                }
+
+                for (int rowIndex = rowStart; rowIndex < rowEnd; rowIndex++) {
+                    int column = rowIndex - rowStart;
+                    int x = column * (cellWidth + gap);
+                    int width = column == columns - 1 ? Math.max(0, availableWidth - x) : cellWidth;
+                    getComponent(rowIndex).setBounds(x, y, width, rowHeight);
+                }
+
+                y += rowHeight + gap;
+                index = rowEnd;
+            }
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            int componentCount = getComponentCount();
+            if (componentCount == 0) {
+                return new Dimension(0, 0);
+            }
+
+            int availableWidth = getParent() == null ? 0 : getParent().getWidth();
+            int columns = computeColumns(availableWidth);
+            int rows = (int) Math.ceil(componentCount / (double) columns);
+            int height = 0;
+            for (int row = 0; row < rows; row++) {
+                int rowStart = row * columns;
+                int rowEnd = Math.min(componentCount, rowStart + columns);
+                int rowHeight = 0;
+                for (int index = rowStart; index < rowEnd; index++) {
+                    rowHeight = Math.max(rowHeight, getComponent(index).getPreferredSize().height);
+                }
+                height += rowHeight;
+                if (row < rows - 1) {
+                    height += gap;
+                }
+            }
+            return new Dimension(0, height);
+        }
+
+        private int computeColumns(int availableWidth) {
+            if (availableWidth <= 0) {
+                return Math.min(Math.max(1, getComponentCount()), 3);
+            }
+            int columns = Math.max(1, (availableWidth + gap) / (minTileWidth + gap));
+            return Math.max(1, Math.min(getComponentCount(), columns));
+        }
+    }
+
+    private static final class ResponsiveAudioKnobPanel extends JPanel {
+        private final int knobCount;
+        private static final int gap = 10;
+
+        private ResponsiveAudioKnobPanel(int knobCount) {
+            super(null);
+            this.knobCount = Math.max(1, knobCount);
+            setOpaque(false);
+            addComponentListener(new ComponentAdapter() {
+                @Override
+                public void componentResized(ComponentEvent event) {
+                    revalidate();
+                    if (getParent() != null) {
+                        getParent().revalidate();
+                    }
+                }
+            });
+        }
+
+        @Override
+        public void doLayout() {
+            int componentCount = getComponentCount();
+            if (componentCount == 0) {
+                return;
+            }
+
+            int availableWidth = Math.max(0, getWidth());
+            int columns = computeColumns(availableWidth);
+            int cellWidth = Math.max(0, (availableWidth - (gap * (columns - 1))) / columns);
+            int rowHeight = computeRowHeight(cellWidth);
+
+            for (int index = 0; index < componentCount; index++) {
+                int row = index / columns;
+                int column = index % columns;
+                int x = column * (cellWidth + gap);
+                int y = row * (rowHeight + gap);
+                int width = column == columns - 1 ? Math.max(0, availableWidth - x) : cellWidth;
+                Component component = getComponent(index);
+                if (component instanceof AudioKnob audioKnob) {
+                    audioKnob.SetCompactWidth(width, rowHeight);
+                }
+                component.setBounds(x, y, width, rowHeight);
+            }
+        }
+
+        @Override
+        public Dimension getPreferredSize() {
+            int componentCount = getComponentCount();
+            if (componentCount == 0) {
+                return new Dimension(0, 0);
+            }
+
+            int availableWidth = getParent() == null ? 0 : getParent().getWidth();
+            int columns = computeColumns(availableWidth);
+            int cellWidth = columns <= 0
+                    ? 0
+                    : Math.max(0, (availableWidth - (gap * (columns - 1))) / columns);
+            int rows = (int) Math.ceil(componentCount / (double) columns);
+            return new Dimension(0, (rows * computeRowHeight(cellWidth)) + ((rows - 1) * gap));
+        }
+
+        private int computeColumns(int availableWidth) {
+            if (availableWidth <= 0) {
+                return Math.min(knobCount, 3);
+            }
+
+            int minCellWidth;
+            if (availableWidth < 320) {
+                minCellWidth = 72;
+            } else if (availableWidth < 460) {
+                minCellWidth = 84;
+            } else {
+                minCellWidth = 104;
+            }
+
+            int fittingColumns = Math.max(1, (availableWidth + gap) / (minCellWidth + gap));
+            return Math.max(1, Math.min(knobCount, fittingColumns));
+        }
+
+        private int computeRowHeight(int cellWidth) {
+            if (cellWidth <= 84) {
+                return 88;
+            }
+            if (cellWidth <= 108) {
+                return 98;
+            }
+            if (cellWidth <= 132) {
+                return 108;
+            }
+            return 122;
+        }
     }
 
     private static final class AudioKnob extends JComponent {
@@ -2090,6 +2266,7 @@ public class OptionsWindow extends DuckWindow {
         private boolean dragging;
         private int dragStartValue;
         private int dragStartY;
+        private boolean compactVisuals;
 
         private AudioKnob(String label, String helperText, int value, AudioKnobListener listener) {
             this.label = label;
@@ -2099,8 +2276,8 @@ public class OptionsWindow extends DuckWindow {
             setFocusable(false);
             setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             setToolTipText(helperText);
-            setPreferredSize(new Dimension(112, 118));
-            setMinimumSize(new Dimension(96, 108));
+            setPreferredSize(new Dimension(96, 108));
+            setMinimumSize(new Dimension(56, 82));
 
             MouseAdapter mouseHandler = new MouseAdapter() {
                 @Override
@@ -2149,24 +2326,27 @@ public class OptionsWindow extends DuckWindow {
             int tileY = 4;
             int tileWidth = width - 8;
             int tileHeight = height - 8;
+            float labelFontSize = compactVisuals ? 9f : 11f;
+            float valueFontSize = compactVisuals ? 10f : 13f;
 
             graphics2d.setColor(Styling.sectionHighlightColour);
             graphics2d.fillRoundRect(tileX, tileY, tileWidth, tileHeight, 22, 22);
             graphics2d.setColor(Styling.sectionHighlightBorderColour);
             graphics2d.drawRoundRect(tileX, tileY, tileWidth, tileHeight, 22, 22);
 
-            graphics2d.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
+            graphics2d.setFont(Styling.menuFont.deriveFont(Font.BOLD, labelFontSize));
             FontMetrics labelMetrics = graphics2d.getFontMetrics();
             graphics2d.setColor(Styling.mutedTextColour);
             int labelWidth = labelMetrics.stringWidth(label);
-            graphics2d.drawString(label, (width - labelWidth) / 2, 20);
+            graphics2d.drawString(label, (width - labelWidth) / 2, compactVisuals ? 16 : 20);
 
-            int dialDiameter = Math.min(50, Math.min(tileWidth - 28, tileHeight - 56));
+            int dialDiameter = Math.min(compactVisuals ? 40 : 50, Math.min(tileWidth - (compactVisuals ? 18 : 28),
+                    tileHeight - (compactVisuals ? 42 : 56)));
             int dialX = (width - dialDiameter) / 2;
-            int dialY = 28;
-            int strokeInset = 5;
+            int dialY = compactVisuals ? 20 : 28;
+            int strokeInset = compactVisuals ? 4 : 5;
 
-            graphics2d.setStroke(new BasicStroke(4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            graphics2d.setStroke(new BasicStroke(compactVisuals ? 3f : 4f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             graphics2d.setColor(new Color(
                     Styling.accentColour.getRed(),
                     Styling.accentColour.getGreen(),
@@ -2194,17 +2374,29 @@ public class OptionsWindow extends DuckWindow {
             double pointerEndX = centreX + Math.cos(angleRadians) * pointerLength;
             double pointerEndY = centreY - Math.sin(angleRadians) * pointerLength;
 
-            graphics2d.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            graphics2d.setStroke(new BasicStroke(compactVisuals ? 2.5f : 3f, BasicStroke.CAP_ROUND,
+                    BasicStroke.JOIN_ROUND));
             graphics2d.setColor(Styling.accentColour);
             graphics2d.draw(new Line2D.Double(centreX, centreY, pointerEndX, pointerEndY));
-            graphics2d.fill(new Ellipse2D.Double(centreX - 3, centreY - 3, 6, 6));
+            graphics2d.fill(new Ellipse2D.Double(centreX - (compactVisuals ? 2.5 : 3),
+                    centreY - (compactVisuals ? 2.5 : 3), compactVisuals ? 5 : 6, compactVisuals ? 5 : 6));
 
             String valueText = value + "%";
-            graphics2d.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+            graphics2d.setFont(Styling.menuFont.deriveFont(Font.BOLD, valueFontSize));
             FontMetrics valueMetrics = graphics2d.getFontMetrics();
-            graphics2d.drawString(valueText, (width - valueMetrics.stringWidth(valueText)) / 2, height - 18);
+            graphics2d.drawString(valueText, (width - valueMetrics.stringWidth(valueText)) / 2,
+                    height - (compactVisuals ? 12 : 18));
 
             graphics2d.dispose();
+        }
+
+        private void SetCompactWidth(int width, int height) {
+            compactVisuals = width < 108 || height < 104;
+        }
+
+        private void SetValue(int newValue) {
+            value = clampValue(newValue);
+            repaint();
         }
 
         private void setValueInternal(int newValue, boolean adjusting) {
@@ -3604,37 +3796,6 @@ public class OptionsWindow extends DuckWindow {
                 controllerShortcutButton.setText(Settings.appShortcutControllerBindings.GetBindingText(shortcut));
             }
         }
-    }
-
-    private void refreshVolumeLabel() {
-        if (volumeValueField != null) {
-            volumeValueField.setText(UiText.OptionsWindow.PercentValue(Settings.masterVolume));
-        }
-    }
-
-    private void commitVolumeInput(JSlider volumeSlider) {
-        if (volumeValueField == null || volumeSlider == null) {
-            return;
-        }
-
-        String rawText = volumeValueField.getText();
-        String numericText = rawText == null ? "" : rawText.replace("%", "").trim();
-        int value;
-
-        try {
-            value = Integer.parseInt(numericText);
-        } catch (NumberFormatException exception) {
-            refreshVolumeLabel();
-            return;
-        }
-
-        value = Math.max(0, Math.min(100, value));
-        Settings.masterVolume = value;
-        if (volumeSlider.getValue() != value) {
-            volumeSlider.setValue(value);
-        }
-        refreshVolumeLabel();
-        Config.Save();
     }
 
     private List<? extends EmulatorButton> controlButtons() {

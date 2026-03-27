@@ -30,6 +30,27 @@ public interface DisplayShader {
     String Description();
 
     /**
+     * Returns the preferred render scale used before post-processing.
+     * Values above 1 let shaders operate on a higher-resolution copy of the
+     * emulator frame so per-pixel structure can be more pronounced.
+     *
+     * @return preferred integer render scale
+     */
+    default int RenderScale() {
+        return 1;
+    }
+
+    /**
+     * Returns whether this shader should be rendered on the async worker rather
+     * than inline with presentation.
+     *
+     * @return true when asynchronous rendering is preferred
+     */
+    default boolean PreferAsyncRendering() {
+        return true;
+    }
+
+    /**
      * Applies the shader from {@code source} into {@code target}.
      *
      * @param source  raw source frame

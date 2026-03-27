@@ -1,12 +1,10 @@
 package com.blackaby.Frontend.Shaders;
 
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
-import com.google.gson.JsonParser;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.Reader;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -26,7 +24,9 @@ import java.util.ServiceLoader;
  */
 public final class DisplayShaderManager {
 
-    private static final String builtInSourceLabel = "Built-in";
+    private static final String bundledShaderIndexResource = "display-shaders/index.txt";
+    private static final String bundledShaderResourcePrefix = "display-shaders/";
+    private static final String builtInSourceLabel = "Built-in JSON";
     private static final String jsonSourceLabel = "JSON preset";
     private static final String pluginSourceLabel = "Plugin JAR";
 
@@ -104,9 +104,7 @@ public final class DisplayShaderManager {
             errors.add("Failed to prepare shader directory: " + exception.getMessage());
         }
 
-        for (DisplayShader shader : PipelineDisplayShader.BuiltIns()) {
-            registerShader(loadedShadersById, new LoadedDisplayShader(shader, builtInSourceLabel, null), errors);
-        }
+        loadBundledShaders(loadedShadersById, errors);
 
         if (Files.isDirectory(shaderDirectory)) {
             loadJsonShaders(shaderDirectory, loadedShadersById, errors);
@@ -121,6 +119,40 @@ public final class DisplayShaderManager {
     private static void EnsureLoaded() {
         if (!loaded) {
             Reload();
+        }
+    }
+
+    private static void loadBundledShaders(Map<String, LoadedDisplayShader> loadedShadersById, List<String> errors) {
+        try (InputStream indexStream = DisplayShaderManager.class.getClassLoader().getResourceAsStream(bundledShaderIndexResource)) {
+            if (indexStream == null) {
+                errors.add("Failed to locate bundled shader index.");
+                return;
+            }
+
+            String[] resourceNames = new String(indexStream.readAllBytes(), StandardCharsets.UTF_8).split("\\R");
+            for (String resourceName : resourceNames) {
+                String trimmedName = resourceName.trim();
+                if (trimmedName.isEmpty() || trimmedName.startsWith("#")) {
+                    continue;
+                }
+
+                String resourcePath = bundledShaderResourcePrefix + trimmedName;
+                try (InputStream shaderStream = DisplayShaderManager.class.getClassLoader().getResourceAsStream(resourcePath)) {
+                    if (shaderStream == null) {
+                        errors.add("Missing bundled shader resource \"" + trimmedName + "\".");
+                        continue;
+                    }
+                    LoadedDisplayShader shader = loadJsonShader(
+                            new InputStreamReader(shaderStream, StandardCharsets.UTF_8),
+                            builtInSourceLabel,
+                            null);
+                    registerShader(loadedShadersById, shader, errors);
+                } catch (IOException | JsonParseException | IllegalArgumentException exception) {
+                    errors.add(trimmedName + ": " + exception.getMessage());
+                }
+            }
+        } catch (IOException exception) {
+            errors.add("Failed to read bundled shader index: " + exception.getMessage());
         }
     }
 
@@ -172,7 +204,9 @@ public final class DisplayShaderManager {
                 Path sourcePath = findOwningJar(shader.getClass().getProtectionDomain().getCodeSource() == null
                         ? null
                         : shader.getClass().getProtectionDomain().getCodeSource().getLocation());
-                registerShader(loadedShadersById, new LoadedDisplayShader(shader, pluginSourceLabel, sourcePath), errors);
+                registerShader(loadedShadersById,
+                        new LoadedDisplayShader(shader, pluginSourceLabel, sourcePath, shader.RenderScale()),
+                        errors);
             }
             }
         } catch (IOException | ServiceConfigurationError exception) {
@@ -193,61 +227,12 @@ public final class DisplayShaderManager {
 
     private static LoadedDisplayShader loadJsonShader(Path path) throws IOException {
         try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            JsonObject root = JsonParser.parseReader(reader).getAsJsonObject();
-            String id = requiredString(root, "id");
-            String name = requiredString(root, "name");
-            String description = optionalString(root, "description", "");
-            JsonArray passArray = root.getAsJsonArray("passes");
-            if (passArray == null || passArray.isEmpty()) {
-                throw new IllegalArgumentException("Shader JSON must contain at least one pass.");
-            }
-
-            List<PipelineDisplayShader.ShaderPass> passes = new ArrayList<>();
-            for (JsonElement passElement : passArray) {
-                if (!passElement.isJsonObject()) {
-                    throw new IllegalArgumentException("Each shader pass must be a JSON object.");
-                }
-                passes.add(parsePass(passElement.getAsJsonObject()));
-            }
-
-            return new LoadedDisplayShader(
-                    new PipelineDisplayShader(id, name, description, passes),
-                    jsonSourceLabel,
-                    path);
+            return loadJsonShader(reader, jsonSourceLabel, path);
         }
     }
 
-    private static PipelineDisplayShader.ShaderPass parsePass(JsonObject passObject) {
-        String type = requiredString(passObject, "type").toLowerCase(Locale.ROOT);
-        return switch (type) {
-            case "scanlines" -> new PipelineDisplayShader.ScanlinesPass(
-                    optionalDouble(passObject, "intensity", 0.08),
-                    optionalInt(passObject, "spacing", 2),
-                    optionalInt(passObject, "offset", 0));
-            case "pixel_grid" -> new PipelineDisplayShader.PixelGridPass(
-                    optionalDouble(passObject, "intensity", 0.06),
-                    optionalInt(passObject, "rowSpacing", 2),
-                    optionalInt(passObject, "columnSpacing", 3));
-            case "vignette" -> new PipelineDisplayShader.VignettePass(
-                    optionalDouble(passObject, "strength", 0.12),
-                    optionalDouble(passObject, "roundness", 1.6));
-            case "bloom" -> new PipelineDisplayShader.BloomPass(
-                    optionalInt(passObject, "radius", 1),
-                    optionalDouble(passObject, "strength", 0.10),
-                    optionalDouble(passObject, "threshold", 0.45));
-            case "rgb_shift" -> new PipelineDisplayShader.RgbShiftPass(
-                    optionalInt(passObject, "redX", optionalInt(passObject, "distance", 1)),
-                    optionalInt(passObject, "redY", 0),
-                    optionalInt(passObject, "blueX", -optionalInt(passObject, "distance", 1)),
-                    optionalInt(passObject, "blueY", 0),
-                    optionalDouble(passObject, "mix", 0.15));
-            case "color_grade" -> new PipelineDisplayShader.ColorGradePass(
-                    optionalDouble(passObject, "brightness", 0.0),
-                    optionalDouble(passObject, "contrast", 1.0),
-                    optionalDouble(passObject, "saturation", 1.0),
-                    optionalDouble(passObject, "warmth", 0.0));
-            default -> throw new IllegalArgumentException("Unsupported shader pass type: " + type);
-        };
+    private static LoadedDisplayShader loadJsonShader(Reader reader, String sourceLabel, Path sourcePath) throws IOException {
+        return ShaderPresetDocument.fromReader(reader).toLoadedShader(sourceLabel, sourcePath);
     }
 
     private static void registerShader(Map<String, LoadedDisplayShader> loadedShadersById, LoadedDisplayShader shader,
@@ -265,39 +250,6 @@ public final class DisplayShaderManager {
         }
 
         loadedShadersById.put(normalizedId, shader);
-    }
-
-    private static String requiredString(JsonObject object, String key) {
-        if (!object.has(key) || object.get(key).isJsonNull()) {
-            throw new IllegalArgumentException("Missing required \"" + key + "\" field.");
-        }
-        String value = object.get(key).getAsString().trim();
-        if (value.isEmpty()) {
-            throw new IllegalArgumentException("Field \"" + key + "\" cannot be blank.");
-        }
-        return value;
-    }
-
-    private static String optionalString(JsonObject object, String key, String fallback) {
-        if (!object.has(key) || object.get(key).isJsonNull()) {
-            return fallback;
-        }
-        String value = object.get(key).getAsString();
-        return value == null ? fallback : value.trim();
-    }
-
-    private static int optionalInt(JsonObject object, String key, int fallback) {
-        if (!object.has(key) || object.get(key).isJsonNull()) {
-            return fallback;
-        }
-        return object.get(key).getAsInt();
-    }
-
-    private static double optionalDouble(JsonObject object, String key, double fallback) {
-        if (!object.has(key) || object.get(key).isJsonNull()) {
-            return fallback;
-        }
-        return object.get(key).getAsDouble();
     }
 
     private static void EnsureReadme(Path shaderDirectory) throws IOException {
@@ -319,9 +271,13 @@ public final class DisplayShaderManager {
                   "id": "my_shader",
                   "name": "My Shader",
                   "description": "Optional description shown in the UI",
+                  "renderScale": 1,
                   "passes": [
                     { "type": "color_grade", "brightness": 0.02, "contrast": 1.05, "saturation": 0.9, "warmth": 0.08 },
+                    { "type": "sprite_interpolation", "strength": 1.0, "cellWidth": 2, "cellHeight": 2, "sharpness": 2.0 },
                     { "type": "pixel_grid", "intensity": 0.06, "rowSpacing": 2, "columnSpacing": 3 },
+                    { "type": "pixel_outline", "intensity": 0.35, "cellWidth": 2, "cellHeight": 2, "edgeWidth": 1 },
+                    { "type": "dot_matrix", "intensity": 0.30, "cellWidth": 2, "cellHeight": 2, "roundness": 1.4 },
                     { "type": "scanlines", "intensity": 0.08, "spacing": 2 },
                     { "type": "bloom", "radius": 1, "strength": 0.10, "threshold": 0.45 },
                     { "type": "vignette", "strength": 0.12, "roundness": 1.6 },
@@ -331,7 +287,10 @@ public final class DisplayShaderManager {
 
                 Supported pass types:
                 - color_grade
+                - sprite_interpolation
                 - pixel_grid
+                - pixel_outline
+                - dot_matrix
                 - scanlines
                 - bloom
                 - vignette

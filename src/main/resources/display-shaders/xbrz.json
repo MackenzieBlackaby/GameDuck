@@ -1,0 +1,9 @@
+{
+  "id": "xbrz",
+  "name": "xBRZ",
+  "description": "A 4x edge-aware smoother aimed at cleaner curves and diagonals for pixel art.",
+  "renderScale": 4,
+  "passes": [
+    { "type": "xbrz" }
+  ]
+}

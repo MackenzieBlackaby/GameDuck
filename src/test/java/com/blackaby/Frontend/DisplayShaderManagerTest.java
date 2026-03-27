@@ -56,4 +56,38 @@ class DisplayShaderManagerTest {
             DisplayShaderManager.Reload();
         }
     }
+
+    @Test
+    void builtInDotMatrixShaderIsAvailable() {
+        DisplayShaderManager.Reload();
+
+        LoadedDisplayShader shader = DisplayShaderManager.Resolve("dot_matrix");
+        int[] source = new int[] {
+                0x7CB060, 0x7CB060,
+                0x7CB060, 0x7CB060
+        };
+        int[] target = new int[source.length];
+        int[] scratch = new int[source.length];
+        shader.apply(source, target, scratch, 2, 2);
+
+        assertEquals("Dot Matrix", shader.displayName());
+        assertEquals(4, shader.renderScale());
+        assertNotEquals(source[0], target[0]);
+    }
+
+    @Test
+    void builtInPixelArtUpscalerShadersAreAvailable() {
+        DisplayShaderManager.Reload();
+
+        LoadedDisplayShader scale2x = DisplayShaderManager.Resolve("scale2x");
+        LoadedDisplayShader scale3x = DisplayShaderManager.Resolve("scale3x");
+        LoadedDisplayShader xbrz = DisplayShaderManager.Resolve("xbrz");
+
+        assertEquals("Scale2x", scale2x.displayName());
+        assertEquals(2, scale2x.renderScale());
+        assertEquals("Scale3x", scale3x.displayName());
+        assertEquals(3, scale3x.renderScale());
+        assertEquals("xBRZ", xbrz.displayName());
+        assertEquals(4, xbrz.renderScale());
+    }
 }

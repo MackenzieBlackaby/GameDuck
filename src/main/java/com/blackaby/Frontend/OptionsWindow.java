@@ -6,6 +6,9 @@ import com.blackaby.Backend.Platform.EmulatorButton;
 import com.blackaby.Backend.Platform.EmulatorProfile;
 import com.blackaby.Backend.Helpers.ManagedGameRegistry;
 import com.blackaby.Backend.Helpers.SaveFileManager;
+import com.blackaby.Frontend.Borders.DisplayBorderManager;
+import com.blackaby.Frontend.Borders.DisplayBorderPreviewRenderer;
+import com.blackaby.Frontend.Borders.LoadedDisplayBorder;
 import com.blackaby.Frontend.Shaders.DisplayShaderManager;
 import com.blackaby.Frontend.Shaders.LoadedDisplayShader;
 import com.blackaby.Misc.AudioEnhancementPreset;
@@ -1975,6 +1978,22 @@ public class OptionsWindow extends DuckWindow {
         stack.add(createSimpleWindowOptionCard(fillWindowCheckBox));
         stack.add(Box.createVerticalStrut(10));
 
+        JCheckBox integerScaleCheckBox = new JCheckBox(
+                UiText.OptionsWindow.WINDOW_INTEGER_SCALE_CHECKBOX,
+                Settings.integerScaleWindowOutput);
+        integerScaleCheckBox.setOpaque(false);
+        integerScaleCheckBox.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+        integerScaleCheckBox.setForeground(accentColour);
+        integerScaleCheckBox.addActionListener(event -> {
+            Settings.integerScaleWindowOutput = integerScaleCheckBox.isSelected();
+            Config.Save();
+            if (mainWindow != null) {
+                mainWindow.RefreshDisplayBorder();
+            }
+        });
+        stack.add(createSimpleWindowOptionCard(integerScaleCheckBox));
+        stack.add(Box.createVerticalStrut(10));
+
         JCheckBox serialOutputCheckBox = new JCheckBox(UiText.OptionsWindow.SERIAL_OUTPUT_CHECKBOX,
                 Settings.showSerialOutput);
         serialOutputCheckBox.setOpaque(false);
@@ -2006,27 +2025,146 @@ public class OptionsWindow extends DuckWindow {
             }
         });
         stack.add(createSelectorWindowOptionCard(UiText.OptionsWindow.GAME_ART_MODE_LABEL, gameArtModeSelector));
+        stack.add(Box.createVerticalStrut(10));
+
+        JComboBox<DisplayBorderChoice> borderSelector = new JComboBox<>();
+        borderSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+
+        JLabel borderSourceValueLabel = createValueLabel("");
+        JLabel borderPathValueLabel = createCompactReadoutLabel("");
+        JLabel borderCutoutValueLabel = createValueLabel("");
+        JLabel borderStatusValueLabel = createCompactReadoutLabel("");
+        ImagePreviewSurface borderPreviewSurface = new ImagePreviewSurface(
+                UiText.BorderManagerWindow.PREVIEW_UNAVAILABLE,
+                280,
+                210);
+        borderPreviewSurface.setBorder(WindowUiSupport.createLineBorder(Styling.surfaceBorderColour));
+
+        final boolean[] updatingBorderSelector = { false };
+
+        Runnable refreshBorderDetails = () -> {
+            DisplayBorderChoice selectedChoice = (DisplayBorderChoice) borderSelector.getSelectedItem();
+            LoadedDisplayBorder border = DisplayBorderManager.Resolve(
+                    selectedChoice == null ? Settings.displayBorderId : selectedChoice.id());
+
+            DisplayBorderPreviewRenderer.PreviewImages previewImages = DisplayBorderPreviewRenderer.render(border);
+            borderPreviewSurface.setImage(previewImages.previewImage());
+            borderSourceValueLabel.setText(border.sourceLabel());
+            setCompactReadout(borderPathValueLabel, border.sourcePathText().isBlank()
+                    ? UiText.OptionsWindow.BORDER_PATH_BUILT_IN
+                    : border.sourcePathText());
+            borderCutoutValueLabel.setText(border.screenRect() == null
+                    ? UiText.BorderManagerWindow.CUTOUT_NOT_AVAILABLE
+                    : border.screenRect().width + " x " + border.screenRect().height);
+            updateBorderStatusLabel(borderStatusValueLabel);
+        };
+
+        Runnable refreshBorderSelector = () -> {
+            List<LoadedDisplayBorder> availableBorders = DisplayBorderManager.GetAvailableBorders();
+            DefaultComboBoxModel<DisplayBorderChoice> model = new DefaultComboBoxModel<>();
+            for (LoadedDisplayBorder border : availableBorders) {
+                model.addElement(new DisplayBorderChoice(border.id(), border.displayName()));
+            }
+
+            String preferredBorderId = Settings.displayBorderId == null || Settings.displayBorderId.isBlank()
+                    ? "none"
+                    : Settings.displayBorderId;
+            int selectedIndex = 0;
+            for (int index = 0; index < model.getSize(); index++) {
+                DisplayBorderChoice choice = model.getElementAt(index);
+                if (preferredBorderId.equalsIgnoreCase(choice.id())) {
+                    selectedIndex = index;
+                    break;
+                }
+            }
+
+            updatingBorderSelector[0] = true;
+            try {
+                borderSelector.setModel(model);
+                if (model.getSize() > 0) {
+                    borderSelector.setSelectedIndex(selectedIndex);
+                }
+            } finally {
+                updatingBorderSelector[0] = false;
+            }
+            refreshBorderDetails.run();
+        };
+
+        borderSelector.addActionListener(event -> {
+            if (updatingBorderSelector[0]) {
+                return;
+            }
+
+            Object selectedItem = borderSelector.getSelectedItem();
+            if (!(selectedItem instanceof DisplayBorderChoice selectedChoice)) {
+                return;
+            }
+
+            Settings.displayBorderId = selectedChoice.id();
+            Config.Save();
+            refreshBorderDetails.run();
+            if (mainWindow != null) {
+                mainWindow.RefreshDisplayBorder();
+            }
+        });
+
+        stack.add(createSelectorWindowOptionCard(UiText.OptionsWindow.DISPLAY_BORDER_LABEL, borderSelector));
+        stack.add(Box.createVerticalStrut(10));
+
+        JPanel borderPreviewCard = new JPanel(new BorderLayout(10, 0));
+        borderPreviewCard.setOpaque(false);
+        borderPreviewCard.add(createFieldCard(UiText.OptionsWindow.BORDER_PREVIEW_LABEL, borderPreviewSurface),
+                BorderLayout.WEST);
+
+        JPanel borderDetailStack = new JPanel();
+        borderDetailStack.setLayout(new BoxLayout(borderDetailStack, BoxLayout.Y_AXIS));
+        borderDetailStack.setOpaque(false);
+        borderDetailStack.add(createFieldCard(UiText.OptionsWindow.BORDER_SOURCE_LABEL, borderSourceValueLabel));
+        borderDetailStack.add(Box.createVerticalStrut(8));
+        borderDetailStack.add(createFieldCard(UiText.OptionsWindow.BORDER_PATH_LABEL, borderPathValueLabel));
+        borderDetailStack.add(Box.createVerticalStrut(8));
+        borderDetailStack.add(createFieldCard(UiText.OptionsWindow.BORDER_CUTOUT_LABEL, borderCutoutValueLabel));
+        borderDetailStack.add(Box.createVerticalStrut(8));
+        borderDetailStack.add(createFieldCard(UiText.OptionsWindow.BORDER_STATUS_LABEL, borderStatusValueLabel));
+        borderPreviewCard.add(borderDetailStack, BorderLayout.CENTER);
+        stack.add(createSimpleWindowOptionCard(borderPreviewCard));
 
         container.add(stack, BorderLayout.CENTER);
+
+        JButton borderManagerButton = createSecondaryButton(UiText.OptionsWindow.OPEN_BORDER_MANAGER_BUTTON);
+        borderManagerButton.addActionListener(event -> new DisplayBorderManagerWindow(() -> {
+            DisplayBorderManager.Reload();
+            refreshBorderSelector.run();
+            if (mainWindow != null) {
+                mainWindow.RefreshDisplayBorder();
+            }
+        }));
 
         JButton resetWindowButton = createSecondaryButton(UiText.OptionsWindow.RESET_WINDOW_BUTTON);
         resetWindowButton.addActionListener(event -> {
             Settings.fillWindowOutput = false;
+            Settings.integerScaleWindowOutput = false;
             Settings.showSerialOutput = true;
             Settings.gameArtDisplayMode = GameArtDisplayMode.BOX_ART;
+            Settings.displayBorderId = "none";
             fillWindowCheckBox.setSelected(Settings.fillWindowOutput);
+            integerScaleCheckBox.setSelected(Settings.integerScaleWindowOutput);
             serialOutputCheckBox.setSelected(Settings.showSerialOutput);
             gameArtModeSelector.setSelectedItem(Settings.gameArtDisplayMode);
+            refreshBorderSelector.run();
             Config.Save();
             if (mainWindow != null) {
                 mainWindow.RefreshWindowPanels();
+                mainWindow.RefreshDisplayBorder();
             }
         });
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
         actions.setOpaque(false);
+        actions.add(borderManagerButton);
         actions.add(resetWindowButton);
         container.add(actions, BorderLayout.SOUTH);
+        refreshBorderSelector.run();
         return container;
     }
 
@@ -2146,6 +2284,15 @@ public class OptionsWindow extends DuckWindow {
         JButton openFolderButton = createSecondaryButton(UiText.OptionsWindow.OPEN_SHADER_FOLDER_BUTTON);
         openFolderButton.addActionListener(event -> openDirectory(DisplayShaderManager.ShaderDirectory()));
 
+        JButton shaderEditorButton = createSecondaryButton(UiText.OptionsWindow.OPEN_SHADER_EDITOR_BUTTON);
+        shaderEditorButton.addActionListener(event -> new ShaderPresetEditorWindow(() -> {
+            DisplayShaderManager.Reload();
+            refreshShaderSelector.run();
+            if (mainWindow != null) {
+                mainWindow.RefreshDisplayShader();
+            }
+        }));
+
         JButton resetShaderButton = createSecondaryButton(UiText.OptionsWindow.RESET_SHADER_BUTTON);
         resetShaderButton.addActionListener(event -> {
             Settings.displayShaderId = "none";
@@ -2158,6 +2305,7 @@ public class OptionsWindow extends DuckWindow {
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
         actions.setOpaque(false);
+        actions.add(shaderEditorButton);
         actions.add(reloadShadersButton);
         actions.add(openFolderButton);
         actions.add(resetShaderButton);
@@ -2212,6 +2360,35 @@ public class OptionsWindow extends DuckWindow {
         });
 
         gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 8, 0);
+        gbc.anchor = GridBagConstraints.WEST;
+        gbc.weightx = 1.0;
+        JLabel recentMenuLimitLabel = createFieldLabel(UiText.OptionsWindow.RECENT_MENU_LIMIT_LABEL);
+        panel.add(recentMenuLimitLabel, gbc);
+
+        gbc.gridy++;
+        gbc.insets = new Insets(8, 0, 12, 0);
+        JSpinner recentMenuLimitSpinner = new JSpinner(new SpinnerNumberModel(Settings.loadRecentMenuLimit, 1, 25, 1));
+        recentMenuLimitSpinner.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+        recentMenuLimitSpinner.addChangeListener(event -> {
+            Object value = recentMenuLimitSpinner.getValue();
+            if (!(value instanceof Number numberValue)) {
+                return;
+            }
+
+            Settings.loadRecentMenuLimit = Math.max(1, Math.min(25, numberValue.intValue()));
+            Config.Save();
+        });
+        panel.add(recentMenuLimitSpinner, gbc);
+
+        gbc.gridy++;
+        gbc.insets = new Insets(0, 0, 16, 0);
+        JLabel recentMenuHelperLabel = new JLabel(UiText.OptionsWindow.RECENT_MENU_LIMIT_HELPER);
+        recentMenuHelperLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+        recentMenuHelperLabel.setForeground(mutedText);
+        panel.add(recentMenuHelperLabel, gbc);
+
+        gbc.gridy++;
         gbc.insets = new Insets(12, 0, 0, 0);
         gbc.anchor = GridBagConstraints.CENTER;
         gbc.weightx = 0.0;
@@ -2220,6 +2397,7 @@ public class OptionsWindow extends DuckWindow {
             Settings.ResetLibrary();
             modeSelector.setSelectedItem(Settings.gameNameBracketDisplayMode);
             helperLabel.setText("<html>" + Settings.gameNameBracketDisplayMode.Description() + "</html>");
+            recentMenuLimitSpinner.setValue(Settings.loadRecentMenuLimit);
             Config.Save();
             if (mainWindow != null) {
                 mainWindow.RefreshLoadedRomDisplay();
@@ -3287,6 +3465,25 @@ public class OptionsWindow extends DuckWindow {
         label.setToolTipText("<html>" + String.join("<br>", escapedErrors) + "</html>");
     }
 
+    private void updateBorderStatusLabel(JLabel label) {
+        List<LoadedDisplayBorder> loadedBorders = DisplayBorderManager.GetAvailableBorders();
+        List<String> borderErrors = DisplayBorderManager.GetLoadErrors();
+        String statusText = borderErrors.isEmpty()
+                ? UiText.OptionsWindow.BorderStatusSummary(loadedBorders.size(), 0)
+                : UiText.OptionsWindow.BorderStatusSummary(loadedBorders.size(), borderErrors.size());
+        setCompactReadout(label, statusText);
+        if (borderErrors.isEmpty()) {
+            label.setToolTipText(UiText.OptionsWindow.BORDER_STATUS_OK_HELPER);
+            return;
+        }
+
+        List<String> escapedErrors = new ArrayList<>();
+        for (String borderError : borderErrors) {
+            escapedErrors.add(escapeHtml(borderError));
+        }
+        label.setToolTipText("<html>" + String.join("<br>", escapedErrors) + "</html>");
+    }
+
     private void setCompactReadout(JLabel label, String text) {
         if (label == null) {
             return;
@@ -3405,6 +3602,13 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private record DisplayShaderChoice(String id, String label) {
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    private record DisplayBorderChoice(String id, String label) {
         @Override
         public String toString() {
             return label;

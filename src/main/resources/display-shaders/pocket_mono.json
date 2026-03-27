@@ -1,0 +1,12 @@
+{
+  "id": "pocket_mono",
+  "name": "Pocket Mono",
+  "description": "A softer handheld monochrome screen with gentle pixel separation and low-contrast scanlines.",
+  "renderScale": 2,
+  "passes": [
+    { "type": "color_grade", "brightness": 0.00, "contrast": 0.96, "saturation": 0.22, "warmth": 0.02 },
+    { "type": "pixel_grid", "intensity": 0.05, "rowSpacing": 2, "columnSpacing": 2 },
+    { "type": "scanlines", "intensity": 0.04, "spacing": 3, "offset": 0 },
+    { "type": "vignette", "strength": 0.07, "roundness": 1.5 }
+  ]
+}

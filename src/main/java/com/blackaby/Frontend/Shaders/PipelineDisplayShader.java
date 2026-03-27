@@ -1,6 +1,5 @@
 package com.blackaby.Frontend.Shaders;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -13,6 +12,7 @@ public final class PipelineDisplayShader implements DisplayShader {
     private final String displayName;
     private final String description;
     private final List<ShaderPass> passes;
+    private final boolean prefersAsyncRendering;
 
     /**
      * Creates a shader pipeline.
@@ -27,6 +27,7 @@ public final class PipelineDisplayShader implements DisplayShader {
         this.displayName = displayName;
         this.description = description == null ? "" : description;
         this.passes = passes == null ? List.of() : List.copyOf(passes);
+        this.prefersAsyncRendering = this.passes.stream().anyMatch(ShaderPass::prefersAsyncRendering);
     }
 
     @Override
@@ -42,6 +43,11 @@ public final class PipelineDisplayShader implements DisplayShader {
     @Override
     public String Description() {
         return description;
+    }
+
+    @Override
+    public boolean PreferAsyncRendering() {
+        return prefersAsyncRendering;
     }
 
     @Override
@@ -71,50 +77,6 @@ public final class PipelineDisplayShader implements DisplayShader {
     }
 
     /**
-     * Creates the bundled built-in shader set.
-     *
-     * @return built-in shaders in display order
-     */
-    public static List<DisplayShader> BuiltIns() {
-        List<DisplayShader> shaders = new ArrayList<>();
-        shaders.add(new PipelineDisplayShader(
-                "none",
-                "Off",
-                "Raw emulator output with no post-process shader.",
-                List.of()));
-        shaders.add(new PipelineDisplayShader(
-                "classic_lcd",
-                "Classic LCD",
-                "A restrained Game Boy LCD look with a touch of warmth, scanlines, and edge falloff.",
-                List.of(
-                        new ColorGradePass(0.02, 1.05, 0.90, 0.08),
-                        new PixelGridPass(0.06, 2, 3),
-                        new ScanlinesPass(0.08, 2, 0),
-                        new BloomPass(1, 0.10, 0.45),
-                        new VignettePass(0.12, 1.6))));
-        shaders.add(new PipelineDisplayShader(
-                "phosphor_glow",
-                "Phosphor Glow",
-                "Soft bloom, faint chromatic separation, and deeper corners for a more dramatic display.",
-                List.of(
-                        new ColorGradePass(0.03, 1.08, 1.04, -0.03),
-                        new BloomPass(2, 0.16, 0.34),
-                        new RgbShiftPass(1, 0, -1, 0, 0.18),
-                        new ScanlinesPass(0.06, 2, 1),
-                        new VignettePass(0.18, 1.8))));
-        shaders.add(new PipelineDisplayShader(
-                "amber_monitor",
-                "Amber Monitor",
-                "A warm monochrome amber tint with bloom and scanlines for late-night sessions.",
-                List.of(
-                        new ColorGradePass(-0.03, 1.12, 0.18, 0.42),
-                        new BloomPass(1, 0.12, 0.28),
-                        new ScanlinesPass(0.10, 2, 0),
-                        new VignettePass(0.16, 1.7))));
-        return List.copyOf(shaders);
-    }
-
-    /**
      * Shared pass contract for JSON-defined and built-in shaders.
      */
     public interface ShaderPass {
@@ -128,6 +90,15 @@ public final class PipelineDisplayShader implements DisplayShader {
          * @param height frame height
          */
         void apply(int[] source, int[] target, int width, int height);
+
+        /**
+         * Returns whether this pass is expensive enough to prefer async rendering.
+         *
+         * @return true when async rendering is preferred
+         */
+        default boolean prefersAsyncRendering() {
+            return false;
+        }
     }
 
     /**
@@ -225,6 +196,488 @@ public final class PipelineDisplayShader implements DisplayShader {
     }
 
     /**
+     * Shapes pixels into repeated rounded dots for LCD and matrix-style looks.
+     */
+    public static final class DotMatrixPass implements ShaderPass {
+        private final double intensity;
+        private final int cellWidth;
+        private final int cellHeight;
+        private final double roundness;
+        private int cachedWidth = -1;
+        private int cachedHeight = -1;
+        private int[] cachedScale256 = new int[0];
+
+        public DotMatrixPass(double intensity, int cellWidth, int cellHeight, double roundness) {
+            this.intensity = clampUnit(intensity);
+            this.cellWidth = Math.max(1, cellWidth);
+            this.cellHeight = Math.max(1, cellHeight);
+            this.roundness = Math.max(0.6, roundness);
+        }
+
+        @Override
+        public void apply(int[] source, int[] target, int width, int height) {
+            ensureScaleCache(width, height);
+            for (int index = 0; index < source.length; index++) {
+                target[index] = scaleRgb256(source[index], cachedScale256[index]);
+            }
+        }
+
+        private void ensureScaleCache(int width, int height) {
+            if (cachedWidth == width && cachedHeight == height) {
+                return;
+            }
+
+            cachedScale256 = new int[width * height];
+            double[] xShape = new double[width];
+            double[] yShape = new double[height];
+            for (int x = 0; x < width; x++) {
+                xShape[x] = axisDistance(x, cellWidth);
+            }
+            for (int y = 0; y < height; y++) {
+                yShape[y] = axisDistance(y, cellHeight);
+            }
+            for (int y = 0; y < height; y++) {
+                int rowOffset = y * width;
+                for (int x = 0; x < width; x++) {
+                    double edge = clampUnit((xShape[x] + yShape[y]) / 1.35);
+                    double factor = 1.0 - (Math.pow(edge, 0.85) * intensity);
+                    cachedScale256[rowOffset + x] = scale256(factor);
+                }
+            }
+
+            cachedWidth = width;
+            cachedHeight = height;
+        }
+
+        private double axisDistance(int index, int cellSize) {
+            double position = (((index % cellSize) + 0.5) / cellSize) * 2.0 - 1.0;
+            return Math.pow(Math.abs(position), roundness);
+        }
+    }
+
+    /**
+     * Darkens the border of each repeated pixel cell.
+     */
+    public static final class PixelOutlinePass implements ShaderPass {
+        private final double intensity;
+        private final int cellWidth;
+        private final int cellHeight;
+        private final int edgeWidth;
+        private int cachedWidth = -1;
+        private int cachedHeight = -1;
+        private int[] cachedScale256 = new int[0];
+
+        public PixelOutlinePass(double intensity, int cellWidth, int cellHeight, int edgeWidth) {
+            this.intensity = clampUnit(intensity);
+            this.cellWidth = Math.max(1, cellWidth);
+            this.cellHeight = Math.max(1, cellHeight);
+            this.edgeWidth = Math.max(1, edgeWidth);
+        }
+
+        @Override
+        public void apply(int[] source, int[] target, int width, int height) {
+            ensureScaleCache(width, height);
+            for (int index = 0; index < source.length; index++) {
+                target[index] = scaleRgb256(source[index], cachedScale256[index]);
+            }
+        }
+
+        private void ensureScaleCache(int width, int height) {
+            if (cachedWidth == width && cachedHeight == height) {
+                return;
+            }
+
+            cachedScale256 = new int[width * height];
+            for (int y = 0; y < height; y++) {
+                int rowOffset = y * width;
+                int distanceY = distanceToCellEdge(y, cellHeight);
+                for (int x = 0; x < width; x++) {
+                    int distanceX = distanceToCellEdge(x, cellWidth);
+                    double darkness = 0.0;
+                    if (distanceX < edgeWidth) {
+                        darkness = Math.max(darkness, (edgeWidth - distanceX) / (double) edgeWidth);
+                    }
+                    if (distanceY < edgeWidth) {
+                        darkness = Math.max(darkness, (edgeWidth - distanceY) / (double) edgeWidth);
+                    }
+                    cachedScale256[rowOffset + x] = scale256(1.0 - (darkness * intensity));
+                }
+            }
+
+            cachedWidth = width;
+            cachedHeight = height;
+        }
+
+        private int distanceToCellEdge(int index, int cellSize) {
+            int offset = Math.floorMod(index, cellSize);
+            return Math.min(offset, cellSize - 1 - offset);
+        }
+    }
+
+    /**
+     * Interpolates enlarged sprite corners while keeping cell centers crisp.
+     */
+    public static final class SpriteInterpolationPass implements ShaderPass {
+        private final double strength;
+        private final int cellWidth;
+        private final int cellHeight;
+        private final int sharpnessBias;
+
+        public SpriteInterpolationPass(double strength, int cellWidth, int cellHeight, double sharpness) {
+            this.strength = clampUnit(strength);
+            this.cellWidth = Math.max(1, cellWidth);
+            this.cellHeight = Math.max(1, cellHeight);
+            this.sharpnessBias = Math.max(0, (int) Math.round(clamp(sharpness, 1.0, 6.0) - 1.0));
+        }
+
+        @Override
+        public void apply(int[] source, int[] target, int width, int height) {
+            if (strength <= 0.0 || (cellWidth <= 1 && cellHeight <= 1)) {
+                System.arraycopy(source, 0, target, 0, source.length);
+                return;
+            }
+
+            int cellColumns = (width + cellWidth - 1) / cellWidth;
+            int cellRows = (height + cellHeight - 1) / cellHeight;
+            for (int cellY = 0; cellY < cellRows; cellY++) {
+                int startY = cellY * cellHeight;
+                int endY = Math.min(height, startY + cellHeight);
+                int actualCellHeight = endY - startY;
+                for (int cellX = 0; cellX < cellColumns; cellX++) {
+                    int startX = cellX * cellWidth;
+                    int endX = Math.min(width, startX + cellWidth);
+                    int actualCellWidth = endX - startX;
+
+                    int center = sampleCell(source, width, height, cellX, cellY);
+                    int north = sampleCell(source, width, height, cellX, cellY - 1);
+                    int south = sampleCell(source, width, height, cellX, cellY + 1);
+                    int west = sampleCell(source, width, height, cellX - 1, cellY);
+                    int east = sampleCell(source, width, height, cellX + 1, cellY);
+
+                    int topLeft = center;
+                    int topRight = center;
+                    int bottomLeft = center;
+                    int bottomRight = center;
+                    if (north != south && west != east) {
+                        topLeft = west == north ? north : center;
+                        topRight = north == east ? east : center;
+                        bottomLeft = west == south ? west : center;
+                        bottomRight = south == east ? east : center;
+                    }
+
+                    int shadedTopLeft = topLeft == center ? center : blend(center, topLeft, strength);
+                    int shadedTopRight = topRight == center ? center : blend(center, topRight, strength);
+                    int shadedBottomLeft = bottomLeft == center ? center : blend(center, bottomLeft, strength);
+                    int shadedBottomRight = bottomRight == center ? center : blend(center, bottomRight, strength);
+
+                    for (int y = startY; y < endY; y++) {
+                        int verticalRegion = subCellRegion(y - startY, actualCellHeight);
+                        int rowOffset = y * width;
+                        for (int x = startX; x < endX; x++) {
+                            int horizontalRegion = subCellRegion(x - startX, actualCellWidth);
+                            target[rowOffset + x] = switch ((verticalRegion + 1) * 3 + (horizontalRegion + 1)) {
+                                case 0 -> shadedTopLeft;
+                                case 2 -> shadedTopRight;
+                                case 6 -> shadedBottomLeft;
+                                case 8 -> shadedBottomRight;
+                                default -> center;
+                            };
+                        }
+                    }
+                }
+            }
+        }
+
+        private int subCellRegion(int offset, int span) {
+            if (span <= 1) {
+                return 0;
+            }
+            int centerStart = Math.max(0, (span / 2) - sharpnessBias);
+            int centerEnd = Math.min(span, ((span + 1) / 2) + sharpnessBias);
+            if (offset < centerStart) {
+                return -1;
+            }
+            if (offset >= centerEnd) {
+                return 1;
+            }
+            return 0;
+        }
+
+        private int sampleCell(int[] source, int width, int height, int cellX, int cellY) {
+            int maxCellX = Math.max(0, (width - 1) / cellWidth);
+            int maxCellY = Math.max(0, (height - 1) / cellHeight);
+            int clampedCellX = Math.max(0, Math.min(maxCellX, cellX));
+            int clampedCellY = Math.max(0, Math.min(maxCellY, cellY));
+            int sampleX = Math.min(width - 1, (clampedCellX * cellWidth) + ((cellWidth - 1) / 2));
+            int sampleY = Math.min(height - 1, (clampedCellY * cellHeight) + ((cellHeight - 1) / 2));
+            return source[(sampleY * width) + sampleX];
+        }
+    }
+
+    /**
+     * Shared helper for fixed-scale pixel-art upscalers that reinterpret the
+     * nearest-neighbour-expanded frame as a logical cell grid.
+     */
+    private abstract static class FixedCellScalerPass implements ShaderPass {
+        private final int scale;
+        private int cachedLogicalWidth = -1;
+        private int cachedLogicalHeight = -1;
+        private int[] logicalBuffer = new int[0];
+
+        protected FixedCellScalerPass(int scale) {
+            this.scale = Math.max(1, scale);
+        }
+
+        @Override
+        public void apply(int[] source, int[] target, int width, int height) {
+            if (scale <= 1
+                    || width <= 0
+                    || height <= 0
+                    || width % scale != 0
+                    || height % scale != 0) {
+                System.arraycopy(source, 0, target, 0, source.length);
+                return;
+            }
+
+            int logicalWidth = width / scale;
+            int logicalHeight = height / scale;
+            ensureLogicalBuffer(logicalWidth, logicalHeight);
+            populateLogicalBuffer(source, width, height, logicalWidth, logicalHeight);
+
+            for (int cellY = 0; cellY < logicalHeight; cellY++) {
+                for (int cellX = 0; cellX < logicalWidth; cellX++) {
+                    renderCell(logicalBuffer, logicalWidth, logicalHeight, cellX, cellY, target, width);
+                }
+            }
+        }
+
+        protected abstract void renderCell(
+                int[] logicalBuffer,
+                int logicalWidth,
+                int logicalHeight,
+                int cellX,
+                int cellY,
+                int[] target,
+                int renderWidth);
+
+        protected final int scale() {
+            return scale;
+        }
+
+        protected final int sampleLogical(int[] logicalBuffer, int logicalWidth, int logicalHeight, int x, int y) {
+            int clampedX = Math.max(0, Math.min(logicalWidth - 1, x));
+            int clampedY = Math.max(0, Math.min(logicalHeight - 1, y));
+            return logicalBuffer[(clampedY * logicalWidth) + clampedX];
+        }
+
+        protected final void fillCell(int[] target, int renderWidth, int cellX, int cellY, int rgb) {
+            int startX = cellX * scale;
+            int startY = cellY * scale;
+            for (int subY = 0; subY < scale; subY++) {
+                int rowOffset = (startY + subY) * renderWidth;
+                Arrays.fill(target, rowOffset + startX, rowOffset + startX + scale, rgb);
+            }
+        }
+
+        protected final void setCellPixel(int[] target, int renderWidth, int cellX, int cellY, int subX, int subY, int rgb) {
+            int x = (cellX * scale) + subX;
+            int y = (cellY * scale) + subY;
+            target[(y * renderWidth) + x] = rgb;
+        }
+
+        private void ensureLogicalBuffer(int logicalWidth, int logicalHeight) {
+            int requiredLength = logicalWidth * logicalHeight;
+            if (cachedLogicalWidth == logicalWidth
+                    && cachedLogicalHeight == logicalHeight
+                    && logicalBuffer.length == requiredLength) {
+                return;
+            }
+
+            logicalBuffer = new int[requiredLength];
+            cachedLogicalWidth = logicalWidth;
+            cachedLogicalHeight = logicalHeight;
+        }
+
+        private void populateLogicalBuffer(int[] source, int renderWidth, int renderHeight, int logicalWidth, int logicalHeight) {
+            int sampleOffsetX = scale / 2;
+            int sampleOffsetY = scale / 2;
+            for (int cellY = 0; cellY < logicalHeight; cellY++) {
+                int sampleY = Math.min(renderHeight - 1, (cellY * scale) + sampleOffsetY);
+                int rowOffset = cellY * logicalWidth;
+                for (int cellX = 0; cellX < logicalWidth; cellX++) {
+                    int sampleX = Math.min(renderWidth - 1, (cellX * scale) + sampleOffsetX);
+                    logicalBuffer[rowOffset + cellX] = source[(sampleY * renderWidth) + sampleX];
+                }
+            }
+        }
+    }
+
+    /**
+     * Applies the classic Scale2x rules to a 2x nearest-neighbour-expanded frame.
+     */
+    public static final class Scale2xPass extends FixedCellScalerPass {
+        public Scale2xPass() {
+            super(2);
+        }
+
+        @Override
+        protected void renderCell(int[] logicalBuffer, int logicalWidth, int logicalHeight, int cellX, int cellY,
+                int[] target, int renderWidth) {
+            int north = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX, cellY - 1);
+            int west = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX - 1, cellY);
+            int center = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX, cellY);
+            int east = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX + 1, cellY);
+            int south = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX, cellY + 1);
+
+            int topLeft = center;
+            int topRight = center;
+            int bottomLeft = center;
+            int bottomRight = center;
+            if (north != south && west != east) {
+                topLeft = west == north ? west : center;
+                topRight = north == east ? east : center;
+                bottomLeft = west == south ? west : center;
+                bottomRight = south == east ? east : center;
+            }
+
+            setCellPixel(target, renderWidth, cellX, cellY, 0, 0, topLeft);
+            setCellPixel(target, renderWidth, cellX, cellY, 1, 0, topRight);
+            setCellPixel(target, renderWidth, cellX, cellY, 0, 1, bottomLeft);
+            setCellPixel(target, renderWidth, cellX, cellY, 1, 1, bottomRight);
+        }
+    }
+
+    /**
+     * Applies the classic Scale3x rules to a 3x nearest-neighbour-expanded frame.
+     */
+    public static final class Scale3xPass extends FixedCellScalerPass {
+        public Scale3xPass() {
+            super(3);
+        }
+
+        @Override
+        protected void renderCell(int[] logicalBuffer, int logicalWidth, int logicalHeight, int cellX, int cellY,
+                int[] target, int renderWidth) {
+            int northWest = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX - 1, cellY - 1);
+            int north = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX, cellY - 1);
+            int northEast = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX + 1, cellY - 1);
+            int west = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX - 1, cellY);
+            int center = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX, cellY);
+            int east = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX + 1, cellY);
+            int southWest = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX - 1, cellY + 1);
+            int south = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX, cellY + 1);
+            int southEast = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX + 1, cellY + 1);
+
+            int[] cell = new int[] {
+                    center, center, center,
+                    center, center, center,
+                    center, center, center
+            };
+            if (north != south && west != east) {
+                cell[0] = west == north ? west : center;
+                cell[1] = (west == north && center != northEast) || (north == east && center != northWest) ? north : center;
+                cell[2] = north == east ? east : center;
+                cell[3] = (west == north && center != southWest) || (west == south && center != northWest) ? west : center;
+                cell[5] = (north == east && center != southEast) || (south == east && center != northEast) ? east : center;
+                cell[6] = west == south ? west : center;
+                cell[7] = (west == south && center != southEast) || (south == east && center != southWest) ? south : center;
+                cell[8] = south == east ? east : center;
+            }
+
+            for (int subY = 0; subY < 3; subY++) {
+                for (int subX = 0; subX < 3; subX++) {
+                    setCellPixel(target, renderWidth, cellX, cellY, subX, subY, cell[(subY * 3) + subX]);
+                }
+            }
+        }
+    }
+
+    /**
+     * Applies an xBRZ-inspired diagonal reconstruction to a 4x expanded frame.
+     */
+    public static final class XbrzPass extends FixedCellScalerPass {
+        public XbrzPass() {
+            super(4);
+        }
+
+        @Override
+        public boolean prefersAsyncRendering() {
+            return true;
+        }
+
+        @Override
+        protected void renderCell(int[] logicalBuffer, int logicalWidth, int logicalHeight, int cellX, int cellY,
+                int[] target, int renderWidth) {
+            int northWest = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX - 1, cellY - 1);
+            int north = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX, cellY - 1);
+            int northEast = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX + 1, cellY - 1);
+            int west = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX - 1, cellY);
+            int center = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX, cellY);
+            int east = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX + 1, cellY);
+            int southWest = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX - 1, cellY + 1);
+            int south = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX, cellY + 1);
+            int southEast = sampleLogical(logicalBuffer, logicalWidth, logicalHeight, cellX + 1, cellY + 1);
+
+            fillCell(target, renderWidth, cellX, cellY, center);
+
+            if (north == west && north != center) {
+                blendCorner(target, renderWidth, cellX, cellY, 0, north, northWest == north ? 1.0 : 0.82);
+            }
+            if (north == east && north != center) {
+                blendCorner(target, renderWidth, cellX, cellY, 1, north, northEast == north ? 1.0 : 0.82);
+            }
+            if (south == west && south != center) {
+                blendCorner(target, renderWidth, cellX, cellY, 2, south, southWest == south ? 1.0 : 0.82);
+            }
+            if (south == east && south != center) {
+                blendCorner(target, renderWidth, cellX, cellY, 3, south, southEast == south ? 1.0 : 0.82);
+            }
+        }
+
+        private void blendCorner(int[] target, int renderWidth, int cellX, int cellY, int corner, int rgb, double strength) {
+            for (int subY = 0; subY < scale(); subY++) {
+                for (int subX = 0; subX < scale(); subX++) {
+                    double mix = cornerBlendMix(subX, subY, corner) * strength;
+                    if (mix <= 0.0) {
+                        continue;
+                    }
+
+                    int x = (cellX * scale()) + subX;
+                    int y = (cellY * scale()) + subY;
+                    int index = (y * renderWidth) + x;
+                    target[index] = mix >= 0.995 ? rgb : blend(target[index], rgb, mix);
+                }
+            }
+        }
+
+        private double cornerBlendMix(int subX, int subY, int corner) {
+            double u = (subX + 0.5) / scale();
+            double v = (subY + 0.5) / scale();
+            double metric = switch (corner) {
+                case 0 -> u + v;
+                case 1 -> (1.0 - u) + v;
+                case 2 -> u + (1.0 - v);
+                case 3 -> (1.0 - u) + (1.0 - v);
+                default -> 2.0;
+            };
+
+            if (metric <= 0.70) {
+                return 1.0;
+            }
+            if (metric <= 1.00) {
+                return 0.82;
+            }
+            if (metric <= 1.28) {
+                return 0.55;
+            }
+            if (metric <= 1.55) {
+                return 0.28;
+            }
+            return 0.0;
+        }
+    }
+
+    /**
      * Darkens the edges to focus the image center.
      */
     public static final class VignettePass implements ShaderPass {
@@ -294,10 +747,23 @@ public final class PipelineDisplayShader implements DisplayShader {
         }
 
         @Override
+        public boolean prefersAsyncRendering() {
+            return true;
+        }
+
+        @Override
         public void apply(int[] source, int[] target, int width, int height) {
+            if (glowScale256 <= 0) {
+                System.arraycopy(source, 0, target, 0, source.length);
+                return;
+            }
+
             int stride = width + 1;
             ensureIntegralCapacity(stride, height + 1);
-            buildIntegralBuffers(source, width, height, stride);
+            if (buildIntegralBuffers(source, width, height, stride) == 0) {
+                System.arraycopy(source, 0, target, 0, source.length);
+                return;
+            }
             for (int y = 0; y < height; y++) {
                 int rowOffset = y * width;
                 int minY = Math.max(0, y - radius);
@@ -340,12 +806,13 @@ public final class PipelineDisplayShader implements DisplayShader {
             cachedStride = stride;
         }
 
-        private void buildIntegralBuffers(int[] source, int width, int height, int stride) {
+        private int buildIntegralBuffers(int[] source, int width, int height, int stride) {
             Arrays.fill(integralRed, 0, stride, 0);
             Arrays.fill(integralGreen, 0, stride, 0);
             Arrays.fill(integralBlue, 0, stride, 0);
             Arrays.fill(integralCount, 0, stride, 0);
 
+            int brightPixelCount = 0;
             for (int y = 1; y <= height; y++) {
                 int rowSourceOffset = (y - 1) * width;
                 int rowIntegralOffset = y * stride;
@@ -366,6 +833,7 @@ public final class PipelineDisplayShader implements DisplayShader {
                         runningGreen += green(sampleRgb);
                         runningBlue += blue(sampleRgb);
                         runningCount++;
+                        brightPixelCount++;
                     }
 
                     int integralIndex = rowIntegralOffset + x;
@@ -376,6 +844,8 @@ public final class PipelineDisplayShader implements DisplayShader {
                     integralCount[integralIndex] = integralCount[previousRowIndex] + runningCount;
                 }
             }
+
+            return brightPixelCount;
         }
     }
 

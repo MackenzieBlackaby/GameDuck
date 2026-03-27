@@ -1,0 +1,13 @@
+{
+  "id": "phosphor_glow",
+  "name": "Phosphor Glow",
+  "description": "Soft bloom, faint chromatic separation, and deeper corners for a more dramatic display.",
+  "renderScale": 2,
+  "passes": [
+    { "type": "color_grade", "brightness": 0.03, "contrast": 1.08, "saturation": 1.04, "warmth": -0.03 },
+    { "type": "bloom", "radius": 2, "strength": 0.16, "threshold": 0.34 },
+    { "type": "rgb_shift", "distance": 1, "mix": 0.18 },
+    { "type": "scanlines", "intensity": 0.06, "spacing": 2, "offset": 1 },
+    { "type": "vignette", "strength": 0.18, "roundness": 1.8 }
+  ]
+}

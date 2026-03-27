@@ -35,6 +35,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.JTextArea;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
@@ -96,6 +97,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private JMenu loadStateMenu;
     private final JMenuItem[] saveStateSlotItems = new JMenuItem[QuickStateManager.maxSlot + 1];
     private final JMenuItem[] loadStateSlotItems = new JMenuItem[QuickStateManager.maxSlot + 1];
+    private final Timer displayStatsTimer;
 
     private JMenuBar menuBar;
     private JLabel romLabel;
@@ -175,12 +177,15 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         setJMenuBar(menuBar);
         DebugLogger.AddSerialListener(serialOutputListener);
         SetSerialOutput(DebugLogger.GetSerialOutput());
+        displayStatsTimer = new Timer(250, event -> RefreshDisplayStats());
+        displayStatsTimer.start();
         RefreshAppShortcuts();
         ApplyWindowMode();
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent event) {
+                displayStatsTimer.stop();
                 emulation.StopEmulation();
                 dispose();
                 System.exit(0);
@@ -1178,5 +1183,31 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         if (display != null) {
             display.RefreshShader();
         }
+    }
+
+    /**
+     * Reapplies the currently selected display border to the visible frame.
+     */
+    public void RefreshDisplayBorder() {
+        if (display != null) {
+            display.RefreshBorder();
+        }
+    }
+
+    private void RefreshDisplayStats() {
+        if (displayHintLabel == null || display == null) {
+            return;
+        }
+
+        DuckDisplay.PresentationStats stats = display.SnapshotPresentationStats();
+        if (stats == null || stats.paintedFps() <= 0.0) {
+            displayHintLabel.setText(UiText.MainWindow.DISPLAY_HINT);
+            return;
+        }
+
+        displayHintLabel.setText(String.format("%s  %.1f fps  %.2f ms",
+                UiText.MainWindow.DISPLAY_HINT,
+                stats.paintedFps(),
+                stats.averageFrameTimeMs()));
     }
 }

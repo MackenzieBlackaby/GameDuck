@@ -2,6 +2,9 @@ package com.blackaby.Frontend;
 
 import com.blackaby.Backend.Emulation.DuckBackend;
 import com.blackaby.Backend.Platform.EmulatorDisplaySpec;
+import com.blackaby.Frontend.Borders.DisplayBorderManager;
+import com.blackaby.Frontend.Borders.DisplayBorderRenderer;
+import com.blackaby.Frontend.Borders.LoadedDisplayBorder;
 import com.blackaby.Frontend.Shaders.DisplayShaderManager;
 import com.blackaby.Frontend.Shaders.LoadedDisplayShader;
 import com.blackaby.Misc.Settings;
@@ -20,7 +23,15 @@ import javax.swing.*;
  * Handles pixel manipulation, image scaling, and drawing logic.
  */
 public class DuckDisplay extends JPanel {
+    private static final int dmgPreviousFrameBlendWeight = 3;
+    private static final int dmgCurrentFrameBlendWeight = 5;
+    private static final int cgbPreviousFrameBlendWeight = 1;
+    private static final int cgbCurrentFrameBlendWeight = 7;
+
     public record FrameState(int[] frontBuffer, int[] backBuffer) implements java.io.Serializable {
+    }
+
+    public record PresentationStats(double paintedFps, double averageFrameTimeMs) {
     }
 
     private final EmulatorDisplaySpec displaySpec;
@@ -28,7 +39,7 @@ public class DuckDisplay extends JPanel {
     private final Object shaderQueueLock = new Object();
     private final AtomicBoolean repaintQueued = new AtomicBoolean();
     private final AtomicBoolean shaderRenderQueued = new AtomicBoolean();
-    private final boolean asyncShaderRenderingEnabled = !GraphicsEnvironment.isHeadless();
+    private final boolean asyncShaderRenderingEnabled;
     private final ExecutorService shaderRenderExecutor = Executors.newSingleThreadExecutor(run -> {
         Thread thread = new Thread(run, "gameduck-display-shader");
         thread.setDaemon(true);
@@ -39,15 +50,28 @@ public class DuckDisplay extends JPanel {
     private int[] backBuffer;
     private int[] imageBuffer;
     private int[] paintBuffer;
+    private int[] shaderSourceBuffer;
     private int[] shaderScratchBuffer;
-    private int[] pendingShaderSourceBuffer;
+    private int[] pendingFrameBuffer;
+    private int[] workerFrameBuffer;
     private int[] workerShaderSourceBuffer;
     private int[] workerShaderTargetBuffer;
     private int[] workerShaderScratchBuffer;
     private volatile LoadedDisplayShader activeShader;
+    private volatile LoadedDisplayBorder activeBorder;
+    private transient DisplayBorderRenderer.PreparedBorderFrame preparedBorderFrame;
+    private transient String preparedBorderId;
+    private transient int preparedBorderWidth = -1;
+    private transient int preparedBorderHeight = -1;
+    private transient long statsWindowStartNanos;
+    private transient int statsWindowPaintCount;
+    private transient long lastPaintNanos;
+    private transient double smoothedFrameIntervalNanos;
+    private volatile PresentationStats presentationStats = new PresentationStats(0.0, 0.0);
     private int pendingShaderFrameVersion;
     private int displayedShaderFrameVersion;
     private int shaderRenderEpoch;
+    private int renderScale = 1;
 
     /**
      * Constructs a DuckDisplay with a black background and
@@ -63,12 +87,19 @@ public class DuckDisplay extends JPanel {
      * @param displaySpec backend display geometry
      */
     public DuckDisplay(EmulatorDisplaySpec displaySpec) {
+        this(displaySpec, !GraphicsEnvironment.isHeadless());
+    }
+
+    DuckDisplay(EmulatorDisplaySpec displaySpec, boolean asyncShaderRenderingEnabled) {
         super();
         this.displaySpec = displaySpec;
+        this.asyncShaderRenderingEnabled = asyncShaderRenderingEnabled;
         setBackground(displaySpec == null ? Color.BLACK : displaySpec.backgroundColour());
         setDoubleBuffered(true);
-        initializeBuffers();
+        initializeFrameBuffers();
+        initializeRenderBuffers(1);
         RefreshShader();
+        RefreshBorder();
     }
 
     /**
@@ -175,7 +206,7 @@ public class DuckDisplay extends JPanel {
      * Copies the completed emulation back buffer to the image presented on the EDT.
      */
     public void presentFrame() {
-        presentFrame(false);
+        presentFrame(0, 1);
     }
 
     /**
@@ -185,17 +216,31 @@ public class DuckDisplay extends JPanel {
      * previously displayed image to approximate LCD persistence
      */
     public void presentFrame(boolean blendWithPreviousFrame) {
+        presentFrame(
+                blendWithPreviousFrame ? dmgPreviousFrameBlendWeight : 0,
+                blendWithPreviousFrame ? dmgCurrentFrameBlendWeight : 1);
+    }
+
+    /**
+     * Copies the completed emulation back buffer using weighted blending with the
+     * previously displayed image.
+     *
+     * @param previousFrameWeight blend weight for the previous frame
+     * @param currentFrameWeight  blend weight for the current frame
+     */
+    public void presentFrame(int previousFrameWeight, int currentFrameWeight) {
         if (backBuffer == null || frontBuffer == null) {
             return;
         }
 
         boolean repaintNow;
         synchronized (frameLock) {
-            if (!blendWithPreviousFrame) {
+            if (previousFrameWeight <= 0 || currentFrameWeight <= 0) {
                 System.arraycopy(backBuffer, 0, frontBuffer, 0, backBuffer.length);
             } else {
                 for (int index = 0; index < backBuffer.length; index++) {
-                    frontBuffer[index] = BlendRgb(frontBuffer[index], backBuffer[index]);
+                    frontBuffer[index] = BlendRgb(frontBuffer[index], backBuffer[index],
+                            previousFrameWeight, currentFrameWeight);
                 }
             }
             repaintNow = RenderImageBufferLocked();
@@ -258,23 +303,17 @@ public class DuckDisplay extends JPanel {
         super.paintComponent(g);
         if (image != null) {
             Graphics2D g2d = (Graphics2D) g.create();
-            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-            g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
-
-            // Calculate scaled dimensions while maintaining aspect ratio
-            double scale = Math.min(
-                    getWidth() / (double) frameWidth(),
-                    getHeight() / (double) frameHeight());
-            int scaledWidth = (int) (frameWidth() * scale);
-            int scaledHeight = (int) (frameHeight() * scale);
-
-            // Calculate position to center the scaled image
-            int x = (getWidth() - scaledWidth) / 2;
-            int y = (getHeight() - scaledHeight) / 2;
-
-            g2d.drawImage(image, x, y, scaledWidth, scaledHeight, null);
+            LoadedDisplayBorder border = activeBorder == null
+                    ? DisplayBorderManager.Resolve(Settings.displayBorderId)
+                    : activeBorder;
+            DisplayBorderRenderer.paint(g2d, image, prepareBorderFrame(border, getWidth(), getHeight()));
             g2d.dispose();
+            recordPaintPresentation();
         }
+    }
+
+    public PresentationStats SnapshotPresentationStats() {
+        return presentationStats;
     }
 
     /**
@@ -282,7 +321,8 @@ public class DuckDisplay extends JPanel {
      * standard Game Boy resolution, preserving existing content if possible.
      */
     public void resizeImage() {
-        initializeBuffers();
+        initializeFrameBuffers();
+        initializeRenderBuffers(activeShader == null ? 1 : activeShader.renderScale());
         RefreshShader();
     }
 
@@ -295,12 +335,22 @@ public class DuckDisplay extends JPanel {
         boolean repaintNow = false;
         synchronized (frameLock) {
             if (frontBuffer != null && imageBuffer != null && shaderScratchBuffer != null) {
+                EnsureRenderBuffersForShader(activeShader);
                 repaintNow = RenderImageBufferLocked();
             }
         }
         if (repaintNow) {
             RequestRepaint();
         }
+    }
+
+    /**
+     * Re-resolves the selected display border and repaints the display.
+     */
+    public void RefreshBorder() {
+        activeBorder = DisplayBorderManager.Resolve(Settings.displayBorderId);
+        invalidatePreparedBorderFrame();
+        RequestRepaint();
     }
 
     /**
@@ -329,27 +379,38 @@ public class DuckDisplay extends JPanel {
         return new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE);
     }
 
-    private void initializeBuffers() {
-        image = new BufferedImage(frameWidth(), frameHeight(), BufferedImage.TYPE_INT_RGB);
-        paintBuffer = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
-        imageBuffer = new int[frameWidth() * frameHeight()];
+    private void initializeFrameBuffers() {
         frontBuffer = new int[frameWidth() * frameHeight()];
         backBuffer = new int[frameWidth() * frameHeight()];
-        shaderScratchBuffer = new int[frameWidth() * frameHeight()];
-        pendingShaderSourceBuffer = new int[frameWidth() * frameHeight()];
-        workerShaderSourceBuffer = new int[frameWidth() * frameHeight()];
-        workerShaderTargetBuffer = new int[frameWidth() * frameHeight()];
-        workerShaderScratchBuffer = new int[frameWidth() * frameHeight()];
-        Arrays.fill(paintBuffer, Color.BLACK.getRGB());
-        Arrays.fill(imageBuffer, Color.BLACK.getRGB());
         Arrays.fill(frontBuffer, Color.BLACK.getRGB());
         Arrays.fill(backBuffer, Color.BLACK.getRGB());
-        Arrays.fill(shaderScratchBuffer, Color.BLACK.getRGB());
-        Arrays.fill(pendingShaderSourceBuffer, Color.BLACK.getRGB());
-        Arrays.fill(workerShaderSourceBuffer, Color.BLACK.getRGB());
-        Arrays.fill(workerShaderTargetBuffer, Color.BLACK.getRGB());
-        Arrays.fill(workerShaderScratchBuffer, Color.BLACK.getRGB());
-        InvalidateAsyncShaderFrames();
+        pendingFrameBuffer = new int[frameWidth() * frameHeight()];
+        workerFrameBuffer = new int[frameWidth() * frameHeight()];
+        Arrays.fill(pendingFrameBuffer, Color.BLACK.getRGB());
+        Arrays.fill(workerFrameBuffer, Color.BLACK.getRGB());
+    }
+
+    private void initializeRenderBuffers(int nextRenderScale) {
+        int clampedRenderScale = Math.max(1, nextRenderScale);
+        synchronized (shaderQueueLock) {
+            renderScale = clampedRenderScale;
+            image = new BufferedImage(renderWidth(), renderHeight(), BufferedImage.TYPE_INT_RGB);
+            paintBuffer = ((DataBufferInt) image.getRaster().getDataBuffer()).getData();
+            imageBuffer = new int[renderWidth() * renderHeight()];
+            shaderSourceBuffer = new int[renderWidth() * renderHeight()];
+            shaderScratchBuffer = new int[renderWidth() * renderHeight()];
+            workerShaderSourceBuffer = new int[renderWidth() * renderHeight()];
+            workerShaderTargetBuffer = new int[renderWidth() * renderHeight()];
+            workerShaderScratchBuffer = new int[renderWidth() * renderHeight()];
+            Arrays.fill(paintBuffer, Color.BLACK.getRGB());
+            Arrays.fill(imageBuffer, Color.BLACK.getRGB());
+            Arrays.fill(shaderSourceBuffer, Color.BLACK.getRGB());
+            Arrays.fill(shaderScratchBuffer, Color.BLACK.getRGB());
+            Arrays.fill(workerShaderSourceBuffer, Color.BLACK.getRGB());
+            Arrays.fill(workerShaderTargetBuffer, Color.BLACK.getRGB());
+            Arrays.fill(workerShaderScratchBuffer, Color.BLACK.getRGB());
+            InvalidateAsyncShaderFramesLocked();
+        }
     }
 
     private int frameWidth() {
@@ -358,6 +419,14 @@ public class DuckDisplay extends JPanel {
 
     private int frameHeight() {
         return displaySpec == null ? 144 : displaySpec.frameHeight();
+    }
+
+    private int renderWidth() {
+        return frameWidth() * renderScale;
+    }
+
+    private int renderHeight() {
+        return frameHeight() * renderScale;
     }
 
     private void RequestRepaint() {
@@ -371,7 +440,23 @@ public class DuckDisplay extends JPanel {
         });
     }
 
-    private int BlendRgb(int previousRgb, int currentRgb) {
+    public static int DefaultDmgPreviousFrameBlendWeight() {
+        return dmgPreviousFrameBlendWeight;
+    }
+
+    public static int DefaultDmgCurrentFrameBlendWeight() {
+        return dmgCurrentFrameBlendWeight;
+    }
+
+    public static int DefaultCgbPreviousFrameBlendWeight() {
+        return cgbPreviousFrameBlendWeight;
+    }
+
+    public static int DefaultCgbCurrentFrameBlendWeight() {
+        return cgbCurrentFrameBlendWeight;
+    }
+
+    private int BlendRgb(int previousRgb, int currentRgb, int previousWeight, int currentWeight) {
         int previousRed = (previousRgb >> 16) & 0xFF;
         int previousGreen = (previousRgb >> 8) & 0xFF;
         int previousBlue = previousRgb & 0xFF;
@@ -380,9 +465,10 @@ public class DuckDisplay extends JPanel {
         int currentGreen = (currentRgb >> 8) & 0xFF;
         int currentBlue = currentRgb & 0xFF;
 
-        int blendedRed = ((previousRed * 3) + (currentRed * 5)) / 8;
-        int blendedGreen = ((previousGreen * 3) + (currentGreen * 5)) / 8;
-        int blendedBlue = ((previousBlue * 3) + (currentBlue * 5)) / 8;
+        int totalWeight = Math.max(1, previousWeight + currentWeight);
+        int blendedRed = ((previousRed * previousWeight) + (currentRed * currentWeight)) / totalWeight;
+        int blendedGreen = ((previousGreen * previousWeight) + (currentGreen * currentWeight)) / totalWeight;
+        int blendedBlue = ((previousBlue * previousWeight) + (currentBlue * currentWeight)) / totalWeight;
         return (blendedRed << 16) | (blendedGreen << 8) | blendedBlue;
     }
 
@@ -394,19 +480,23 @@ public class DuckDisplay extends JPanel {
         LoadedDisplayShader shader = activeShader == null
                 ? DisplayShaderManager.Resolve(Settings.displayShaderId)
                 : activeShader;
+        EnsureRenderBuffersForShader(shader);
         if (ShouldRenderShaderAsync(shader)) {
+            prepareShaderSource(frontBuffer, imageBuffer);
+            CopyVisibleImageBufferLocked();
             QueueAsyncShaderRenderLocked();
-            return false;
+            return true;
         }
 
         try {
-            shader.apply(frontBuffer, imageBuffer, shaderScratchBuffer, frameWidth(), frameHeight());
+            prepareShaderSource(frontBuffer, shaderSourceBuffer);
+            shader.apply(shaderSourceBuffer, imageBuffer, shaderScratchBuffer, renderWidth(), renderHeight());
         } catch (RuntimeException exception) {
             exception.printStackTrace();
-            System.arraycopy(frontBuffer, 0, imageBuffer, 0, frontBuffer.length);
+            prepareShaderSource(frontBuffer, imageBuffer);
         }
         if (paintBuffer != null && paintBuffer.length == imageBuffer.length) {
-            System.arraycopy(imageBuffer, 0, paintBuffer, 0, imageBuffer.length);
+            CopyVisibleImageBufferLocked();
         }
         return true;
     }
@@ -414,16 +504,17 @@ public class DuckDisplay extends JPanel {
     private boolean ShouldRenderShaderAsync(LoadedDisplayShader shader) {
         return asyncShaderRenderingEnabled
                 && shader != null
-                && !"none".equals(shader.id());
+                && !"none".equals(shader.id())
+                && shader.prefersAsyncRendering();
     }
 
     private void QueueAsyncShaderRenderLocked() {
-        if (pendingShaderSourceBuffer == null || frontBuffer == null || pendingShaderSourceBuffer.length != frontBuffer.length) {
+        if (pendingFrameBuffer == null || frontBuffer == null || pendingFrameBuffer.length != frontBuffer.length) {
             return;
         }
 
         synchronized (shaderQueueLock) {
-            System.arraycopy(frontBuffer, 0, pendingShaderSourceBuffer, 0, frontBuffer.length);
+            System.arraycopy(frontBuffer, 0, pendingFrameBuffer, 0, frontBuffer.length);
             pendingShaderFrameVersion++;
         }
         ScheduleAsyncShaderRender();
@@ -443,18 +534,21 @@ public class DuckDisplay extends JPanel {
                 LoadedDisplayShader shader;
                 int frameVersion;
                 int epoch;
+                int queuedRenderScale;
                 synchronized (shaderQueueLock) {
                     if (pendingShaderFrameVersion == displayedShaderFrameVersion
-                            || pendingShaderSourceBuffer == null
+                            || pendingFrameBuffer == null
+                            || workerFrameBuffer == null
                             || workerShaderSourceBuffer == null
                             || workerShaderTargetBuffer == null
                             || workerShaderScratchBuffer == null) {
                         return;
                     }
 
-                    System.arraycopy(pendingShaderSourceBuffer, 0, workerShaderSourceBuffer, 0, pendingShaderSourceBuffer.length);
+                    System.arraycopy(pendingFrameBuffer, 0, workerFrameBuffer, 0, pendingFrameBuffer.length);
                     frameVersion = pendingShaderFrameVersion;
                     epoch = shaderRenderEpoch;
+                    queuedRenderScale = renderScale;
                     shader = activeShader == null
                             ? DisplayShaderManager.Resolve(Settings.displayShaderId)
                             : activeShader;
@@ -462,20 +556,22 @@ public class DuckDisplay extends JPanel {
 
                 try {
                     if (shader == null || "none".equals(shader.id())) {
-                        System.arraycopy(workerShaderSourceBuffer, 0, workerShaderTargetBuffer, 0, workerShaderSourceBuffer.length);
+                        prepareShaderSource(workerFrameBuffer, workerShaderTargetBuffer, queuedRenderScale);
                     } else {
+                        prepareShaderSource(workerFrameBuffer, workerShaderSourceBuffer, queuedRenderScale);
                         shader.apply(workerShaderSourceBuffer, workerShaderTargetBuffer,
-                                workerShaderScratchBuffer, frameWidth(), frameHeight());
+                                workerShaderScratchBuffer, frameWidth() * queuedRenderScale, frameHeight() * queuedRenderScale);
                     }
                 } catch (RuntimeException exception) {
                     exception.printStackTrace();
-                    System.arraycopy(workerShaderSourceBuffer, 0, workerShaderTargetBuffer, 0, workerShaderSourceBuffer.length);
+                    prepareShaderSource(workerFrameBuffer, workerShaderTargetBuffer, queuedRenderScale);
                 }
 
                 boolean repaintNow = false;
                 synchronized (shaderQueueLock) {
                     if (epoch == shaderRenderEpoch
                             && frameVersion == pendingShaderFrameVersion
+                            && frameVersion > displayedShaderFrameVersion
                             && imageBuffer != null
                             && paintBuffer != null
                             && workerShaderTargetBuffer.length == imageBuffer.length
@@ -508,11 +604,112 @@ public class DuckDisplay extends JPanel {
         }
     }
 
+    private void CopyVisibleImageBufferLocked() {
+        if (paintBuffer != null && imageBuffer != null && paintBuffer.length == imageBuffer.length) {
+            System.arraycopy(imageBuffer, 0, paintBuffer, 0, imageBuffer.length);
+        }
+    }
+
+    private void EnsureRenderBuffersForShader(LoadedDisplayShader shader) {
+        int desiredScale = shader == null ? 1 : Math.max(1, shader.renderScale());
+        int desiredLength = frameWidth() * frameHeight() * desiredScale * desiredScale;
+        if (renderScale != desiredScale || imageBuffer == null || imageBuffer.length != desiredLength) {
+            initializeRenderBuffers(desiredScale);
+        }
+    }
+
+    private void prepareShaderSource(int[] logicalSource, int[] renderTarget) {
+        prepareShaderSource(logicalSource, renderTarget, renderScale);
+    }
+
+    private void prepareShaderSource(int[] logicalSource, int[] renderTarget, int targetRenderScale) {
+        if (logicalSource == null || renderTarget == null) {
+            return;
+        }
+        int logicalWidth = frameWidth();
+        int logicalHeight = frameHeight();
+        if (targetRenderScale <= 1) {
+            System.arraycopy(logicalSource, 0, renderTarget, 0, Math.min(logicalSource.length, renderTarget.length));
+            return;
+        }
+
+        int renderWidth = logicalWidth * targetRenderScale;
+        for (int y = 0; y < logicalHeight; y++) {
+            int sourceRowOffset = y * logicalWidth;
+            int renderRowBase = y * targetRenderScale * renderWidth;
+            int destinationOffset = renderRowBase;
+            for (int x = 0; x < logicalWidth; x++) {
+                int rgb = logicalSource[sourceRowOffset + x];
+                Arrays.fill(renderTarget, destinationOffset, destinationOffset + targetRenderScale, rgb);
+                destinationOffset += targetRenderScale;
+            }
+            for (int subY = 1; subY < targetRenderScale; subY++) {
+                System.arraycopy(renderTarget, renderRowBase, renderTarget,
+                        renderRowBase + (subY * renderWidth), renderWidth);
+            }
+        }
+    }
+
     private void InvalidateAsyncShaderFrames() {
         synchronized (shaderQueueLock) {
-            shaderRenderEpoch++;
-            pendingShaderFrameVersion = 0;
-            displayedShaderFrameVersion = 0;
+            InvalidateAsyncShaderFramesLocked();
         }
+    }
+
+    private void InvalidateAsyncShaderFramesLocked() {
+        shaderRenderEpoch++;
+        pendingShaderFrameVersion = 0;
+        displayedShaderFrameVersion = 0;
+    }
+
+    private DisplayBorderRenderer.PreparedBorderFrame prepareBorderFrame(LoadedDisplayBorder border, int width, int height) {
+        String borderId = border == null ? "none" : border.id();
+        if (preparedBorderFrame != null
+                && preparedBorderWidth == width
+                && preparedBorderHeight == height
+                && ((preparedBorderId == null && borderId == null)
+                || (preparedBorderId != null && preparedBorderId.equalsIgnoreCase(borderId)))) {
+            return preparedBorderFrame;
+        }
+
+        preparedBorderFrame = DisplayBorderRenderer.prepare(border, width, height);
+        preparedBorderId = borderId;
+        preparedBorderWidth = width;
+        preparedBorderHeight = height;
+        return preparedBorderFrame;
+    }
+
+    private void invalidatePreparedBorderFrame() {
+        preparedBorderFrame = null;
+        preparedBorderId = null;
+        preparedBorderWidth = -1;
+        preparedBorderHeight = -1;
+    }
+
+    private void recordPaintPresentation() {
+        long now = System.nanoTime();
+        if (lastPaintNanos > 0L) {
+            long frameIntervalNanos = now - lastPaintNanos;
+            smoothedFrameIntervalNanos = smoothedFrameIntervalNanos <= 0.0
+                    ? frameIntervalNanos
+                    : (smoothedFrameIntervalNanos * 0.85) + (frameIntervalNanos * 0.15);
+        }
+        lastPaintNanos = now;
+
+        if (statsWindowStartNanos == 0L) {
+            statsWindowStartNanos = now;
+        }
+
+        statsWindowPaintCount++;
+        long elapsedNanos = now - statsWindowStartNanos;
+        if (elapsedNanos < 250_000_000L) {
+            return;
+        }
+
+        double fps = (statsWindowPaintCount * 1_000_000_000.0) / elapsedNanos;
+        double averageFrameTimeMs = smoothedFrameIntervalNanos / 1_000_000.0;
+        presentationStats = new PresentationStats(fps, averageFrameTimeMs);
+        statsWindowStartNanos = now;
+        statsWindowPaintCount = 0;
     }
 }

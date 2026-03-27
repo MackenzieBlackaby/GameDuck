@@ -1,0 +1,9 @@
+{
+  "id": "scale2x",
+  "name": "Scale2x",
+  "description": "Classic 2x pixel-art scaling with cleaner diagonals than nearest neighbour.",
+  "renderScale": 2,
+  "passes": [
+    { "type": "scale2x" }
+  ]
+}

@@ -8,7 +8,12 @@ import java.nio.file.Path;
 public record LoadedDisplayShader(
         DisplayShader shader,
         String sourceLabel,
-        Path sourcePath) {
+        Path sourcePath,
+        int renderScale) {
+
+    public LoadedDisplayShader {
+        renderScale = Math.max(1, Math.min(6, renderScale));
+    }
 
     /**
      * Returns the shader identifier.
@@ -48,6 +53,15 @@ public record LoadedDisplayShader(
      */
     public void apply(int[] source, int[] target, int[] scratch, int width, int height) {
         shader.Apply(source, target, scratch, width, height);
+    }
+
+    /**
+     * Returns whether the wrapped shader prefers async rendering.
+     *
+     * @return true when async rendering is preferred
+     */
+    public boolean prefersAsyncRendering() {
+        return shader.PreferAsyncRendering();
     }
 
     /**

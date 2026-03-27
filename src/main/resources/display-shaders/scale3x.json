@@ -1,0 +1,9 @@
+{
+  "id": "scale3x",
+  "name": "Scale3x",
+  "description": "Classic 3x pixel-art scaling that smooths stair-step diagonals while staying crisp.",
+  "renderScale": 3,
+  "passes": [
+    { "type": "scale3x" }
+  ]
+}

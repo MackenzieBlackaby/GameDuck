@@ -7,6 +7,7 @@ import com.blackaby.Backend.Helpers.GUIActions;
 import com.blackaby.Backend.Helpers.GUIActions.Action;
 import com.blackaby.Backend.Helpers.GameArtProvider;
 import com.blackaby.Backend.Helpers.GameArtProvider.GameArtResult;
+import com.blackaby.Backend.Helpers.GameLibraryStore;
 import com.blackaby.Backend.Helpers.QuickStateManager;
 import com.blackaby.Backend.Platform.EmulatorBackend;
 import com.blackaby.Backend.Platform.EmulatorGame;
@@ -29,6 +30,7 @@ import javax.swing.JLabel;
 import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
@@ -44,6 +46,7 @@ import java.awt.Font;
 import java.awt.image.BufferedImage;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import java.io.IOException;
 import java.nio.file.attribute.FileTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -88,6 +91,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         }
     };
     private JButton fullViewButton;
+    private JMenu recentGamesMenu;
     private JMenu saveStateMenu;
     private JMenu loadStateMenu;
     private final JMenuItem[] saveStateSlotItems = new JMenuItem[QuickStateManager.maxSlot + 1];
@@ -468,6 +472,8 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_LIBRARY, Action.LIBRARY);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_OPEN_ROM, Action.LOADROM);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_OPEN_IPS_PATCH, Action.LOADIPS);
+        recentGamesMenu = CreateRecentGamesMenu();
+        menu.add(recentGamesMenu);
         menu.addSeparator();
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_PAUSE_GAME, Action.PAUSEGAME);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_RESET_GAME, Action.RESETGAME);
@@ -490,6 +496,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             @Override
             public void menuSelected(MenuEvent event) {
                 RefreshSaveStateMenus();
+                RefreshRecentGamesMenu();
             }
 
             @Override
@@ -551,6 +558,14 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         } else {
             loadStateMenu = menu;
         }
+        return menu;
+    }
+
+    private JMenu CreateRecentGamesMenu() {
+        JMenu menu = new JMenu(UiText.MainWindow.GAME_MENU_LOAD_RECENT);
+        menu.setFont(Styling.menuFont);
+        menu.setForeground(Styling.accentColour);
+        RefreshRecentGamesMenu(menu);
         return menu;
     }
 
@@ -952,6 +967,68 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             if (pendingSerialAppend.length() > 0 && serialAppendQueued.compareAndSet(false, true)) {
                 SwingUtilities.invokeLater(this::FlushPendingSerialOutput);
             }
+        }
+    }
+
+    private void RefreshRecentGamesMenu() {
+        Runnable refresh = () -> RefreshRecentGamesMenu(recentGamesMenu);
+        if (SwingUtilities.isEventDispatchThread()) {
+            refresh.run();
+        } else {
+            SwingUtilities.invokeLater(refresh);
+        }
+    }
+
+    private void RefreshRecentGamesMenu(JMenu menu) {
+        if (menu == null) {
+            return;
+        }
+
+        menu.removeAll();
+        List<GameLibraryStore.LibraryEntry> recentEntries = GameLibraryStore.GetRecentEntries(Settings.loadRecentMenuLimit);
+        if (recentEntries.isEmpty()) {
+            JMenuItem emptyItem = new JMenuItem(UiText.MainWindow.GAME_MENU_LOAD_RECENT_EMPTY);
+            ConfigureMenuItem(emptyItem);
+            emptyItem.setEnabled(false);
+            menu.add(emptyItem);
+        } else {
+            for (GameLibraryStore.LibraryEntry entry : recentEntries) {
+                JMenuItem entryItem = new JMenuItem(ResolveDisplayedRomName(entry, true));
+                ConfigureMenuItem(entryItem);
+                entryItem.addActionListener(event -> LoadLibraryEntry(entry));
+                menu.add(entryItem);
+            }
+        }
+
+        menu.addSeparator();
+        JMenuItem clearRecentItem = new JMenuItem(UiText.MainWindow.GAME_MENU_CLEAR_RECENT);
+        ConfigureMenuItem(clearRecentItem);
+        clearRecentItem.setEnabled(!recentEntries.isEmpty());
+        clearRecentItem.addActionListener(event -> {
+            GameLibraryStore.ClearRecentHistory();
+            RefreshRecentGamesMenu();
+        });
+        menu.add(clearRecentItem);
+    }
+
+    private void ConfigureMenuItem(JMenuItem menuItem) {
+        if (menuItem == null) {
+            return;
+        }
+        menuItem.setFont(Styling.menuFont);
+        menuItem.setForeground(Styling.accentColour);
+    }
+
+    private void LoadLibraryEntry(GameLibraryStore.LibraryEntry entry) {
+        if (entry == null) {
+            return;
+        }
+
+        try {
+            emulation.StartEmulation(entry.LoadRom());
+        } catch (IOException | IllegalArgumentException exception) {
+            JOptionPane.showMessageDialog(this, exception.getMessage(), UiText.GuiActions.LIBRARY_LOAD_ERROR_TITLE,
+                    JOptionPane.ERROR_MESSAGE);
         }
     }
 

@@ -106,6 +106,23 @@ public final class GameLibraryStore {
     }
 
     /**
+     * Returns the most recently played library entries up to the requested limit.
+     *
+     * @param limit maximum number of entries to return
+     * @return recent entries ordered newest first
+     */
+    public static synchronized List<LibraryEntry> GetRecentEntries(int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+
+        return GetEntries().stream()
+                .filter(entry -> entry.lastPlayedMillis() > 0L)
+                .limit(limit)
+                .toList();
+    }
+
+    /**
      * Marks a managed library entry as favourite or not favourite.
      *
      * @param key entry key
@@ -161,6 +178,20 @@ public final class GameLibraryStore {
 
         store.EnsureLoaded();
         return new EntryProperties(key).GetBoolean(favouriteSuffix, false);
+    }
+
+    /**
+     * Clears the recent-play history for all managed library entries.
+     */
+    public static synchronized void ClearRecentHistory() {
+        store.EnsureLoaded();
+        for (String key : store.StoredKeys()) {
+            EntryProperties entry = new EntryProperties(key);
+            if (entry.Exists()) {
+                entry.Set(lastPlayedSuffix, 0L);
+            }
+        }
+        store.Persist();
     }
 
     private static LibraryEntry ReadEntry(String key) {
@@ -312,6 +343,10 @@ public final class GameLibraryStore {
         }
 
         private void Set(String suffix, boolean value) {
+            entry.Set(suffix, value);
+        }
+
+        private void Set(String suffix, long value) {
             entry.Set(suffix, value);
         }
 

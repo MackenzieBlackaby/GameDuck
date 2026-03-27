@@ -52,11 +52,15 @@ public final class Config {
     private static final String useBootRomKey = "emulation.use_boot_rom";
     private static final String useCgbBootRomKey = "emulation.use_cgb_boot_rom";
     private static final String fillWindowOutputKey = "ui.fill_window_output";
+    private static final String integerScaleWindowOutputKey = "ui.integer_scale_window_output";
     private static final String displayShaderKey = "ui.display_shader";
+    private static final String displayBorderKey = "ui.display_border";
     private static final String showSerialOutputKey = "ui.show_serial_output";
     private static final String gameArtDisplayModeKey = "ui.game_art_display_mode";
     private static final String gameNameBracketDisplayModeKey = "library.game_name_bracket_display_mode";
     private static final String libraryViewModeKey = "library.view_mode";
+    private static final String librarySortModeKey = "library.sort_mode";
+    private static final String loadRecentMenuLimitKey = "library.load_recent_menu_limit";
     private static final String preferDmgModeForGbcCompatibleGamesKey = "palette.prefer_dmg_mode_for_gbc_compatible_games";
     private static final String gbcPaletteModeEnabledKey = "palette.gbc_mode_enabled";
     private static final String gbcBackgroundPalettePrefix = "palette.gbc.background.";
@@ -543,7 +547,10 @@ public final class Config {
     private static void ApplyWindowSettings() {
         Settings.ResetWindow();
         Settings.fillWindowOutput = Boolean.parseBoolean(properties.getProperty(fillWindowOutputKey, "false"));
+        Settings.integerScaleWindowOutput = Boolean.parseBoolean(
+                properties.getProperty(integerScaleWindowOutputKey, "false"));
         Settings.displayShaderId = properties.getProperty(displayShaderKey, "none");
+        Settings.displayBorderId = properties.getProperty(displayBorderKey, "none");
         Settings.showSerialOutput = Boolean.parseBoolean(properties.getProperty(showSerialOutputKey, "true"));
         String configuredGameArtMode = properties.getProperty(gameArtDisplayModeKey, GameArtDisplayMode.BOX_ART.name());
         try {
@@ -567,6 +574,16 @@ public final class Config {
         Settings.libraryViewMode = configuredViewMode == null || configuredViewMode.isBlank()
                 ? "LIST"
                 : configuredViewMode;
+        String configuredSortMode = properties.getProperty(librarySortModeKey, "ALPHABETICAL");
+        Settings.librarySortMode = configuredSortMode == null || configuredSortMode.isBlank()
+                ? "ALPHABETICAL"
+                : configuredSortMode;
+        try {
+            int configuredRecentLimit = Integer.parseInt(properties.getProperty(loadRecentMenuLimitKey, "10"));
+            Settings.loadRecentMenuLimit = Math.max(1, Math.min(25, configuredRecentLimit));
+        } catch (NumberFormatException exception) {
+            Settings.loadRecentMenuLimit = 10;
+        }
     }
 
     private static void ApplyEmulationSettings() {
@@ -637,8 +654,11 @@ public final class Config {
 
     private static void SyncWindowSettings() {
         properties.setProperty(fillWindowOutputKey, String.valueOf(Settings.fillWindowOutput));
+        properties.setProperty(integerScaleWindowOutputKey, String.valueOf(Settings.integerScaleWindowOutput));
         properties.setProperty(displayShaderKey,
                 Settings.displayShaderId == null || Settings.displayShaderId.isBlank() ? "none" : Settings.displayShaderId);
+        properties.setProperty(displayBorderKey,
+                Settings.displayBorderId == null || Settings.displayBorderId.isBlank() ? "none" : Settings.displayBorderId);
         properties.setProperty(showSerialOutputKey, String.valueOf(Settings.showSerialOutput));
         properties.setProperty(gameArtDisplayModeKey, Settings.gameArtDisplayMode.name());
     }
@@ -647,6 +667,11 @@ public final class Config {
         properties.setProperty(gameNameBracketDisplayModeKey, Settings.gameNameBracketDisplayMode.name());
         properties.setProperty(libraryViewModeKey,
                 Settings.libraryViewMode == null || Settings.libraryViewMode.isBlank() ? "LIST" : Settings.libraryViewMode);
+        properties.setProperty(librarySortModeKey,
+                Settings.librarySortMode == null || Settings.librarySortMode.isBlank()
+                        ? "ALPHABETICAL"
+                        : Settings.librarySortMode);
+        properties.setProperty(loadRecentMenuLimitKey, String.valueOf(Settings.loadRecentMenuLimit));
     }
 
     private static List<String> GetSavedThemeNamesInternal() {

@@ -96,6 +96,24 @@ class GameLibraryStoreTest {
         assertEquals(firstEntry.key(), remainingEntries.get(0).key());
     }
 
+    @Test
+    void recentEntriesCanBeListedAndCleared() throws Exception {
+        GameLibraryStore.LibraryEntry firstEntry = GameLibraryStore.RememberGame(
+                createRom("recent-one.gb", "Recent One", List.of(), List.of()));
+        Thread.sleep(5L);
+        GameLibraryStore.LibraryEntry secondEntry = GameLibraryStore.RememberGame(
+                createRom("recent-two.gb", "Recent Two", List.of(), List.of()));
+
+        List<String> recentKeys = GameLibraryStore.GetRecentEntries(10).stream()
+                .map(GameLibraryStore.LibraryEntry::key)
+                .toList();
+        assertEquals(List.of(secondEntry.key(), firstEntry.key()), recentKeys);
+
+        GameLibraryStore.ClearRecentHistory();
+
+        assertTrue(GameLibraryStore.GetRecentEntries(10).isEmpty());
+    }
+
     private ROM createRom(String filename, String displayName, List<String> patchNames, List<String> patchSourcePaths) {
         ROM baseRom = EmulatorTestUtils.CreateBlankRom(
                 0x10,

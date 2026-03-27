@@ -94,6 +94,9 @@ public final class UiText {
         public static final String GAME_MENU_LIBRARY = "Library";
         public static final String GAME_MENU_OPEN_ROM = "Open ROM";
         public static final String GAME_MENU_OPEN_IPS_PATCH = "Open IPS Patch";
+        public static final String GAME_MENU_LOAD_RECENT = "Load Recent";
+        public static final String GAME_MENU_LOAD_RECENT_EMPTY = "No recent games";
+        public static final String GAME_MENU_CLEAR_RECENT = "Clear Recent";
         public static final String GAME_MENU_PAUSE_GAME = "Pause Game";
         public static final String GAME_MENU_RESET_GAME = "Reset Game";
         public static final String GAME_MENU_CLOSE_GAME = "Close Game";
@@ -219,6 +222,155 @@ public final class UiText {
         }
     }
 
+    public static final class ShaderEditorWindow {
+        public static final String WINDOW_TITLE = "Shader Presets";
+        public static final String TITLE = "Shader Preset Editor";
+        public static final String SUBTITLE = "Build custom shader chains with live controls, ordering, and preview";
+        public static final String PRESET_LIST_TITLE = "Custom Presets";
+        public static final String EDITOR_TITLE = "Preset Builder";
+        public static final String FILE_NAME_LABEL = "Preset File";
+        public static final String SHADER_ID_LABEL = "Shader ID";
+        public static final String SHADER_NAME_LABEL = "Shader Name";
+        public static final String DESCRIPTION_LABEL = "Description";
+        public static final String RENDER_SCALE_LABEL = "Render Scale";
+        public static final String STATUS_LABEL = "Status";
+        public static final String EMPTY = "No custom shader presets yet";
+        public static final String NEW_BUTTON = "New Preset";
+        public static final String SAVE_BUTTON = "Save";
+        public static final String IMPORT_BUTTON = "Import";
+        public static final String DELETE_BUTTON = "Delete";
+        public static final String RELOAD_BUTTON = "Reload";
+        public static final String OPEN_FOLDER_BUTTON = "Open Folder";
+        public static final String CLOSE_BUTTON = "Close";
+        public static final String IMPORT_DIALOG_TITLE = "Import shader preset";
+        public static final String DELETE_CONFIRM_TITLE = "Delete Shader Preset";
+        public static final String IMPORT_FAILED_TITLE = "Failed to import shader preset";
+        public static final String SAVE_FAILED_TITLE = "Failed to save shader preset";
+        public static final String LOAD_FAILED_TITLE = "Failed to load shader preset";
+        public static final String DELETE_FAILED_TITLE = "Failed to delete shader preset";
+        public static final String OPEN_FOLDER_FAILED_TITLE = "Failed to open shader folder";
+        public static final String FILE_NAME_REQUIRED = "Enter a preset file name ending in .json.";
+        public static final String TEMPLATE_STATUS = "New preset template ready";
+        public static final String RELOAD_STATUS = "Shader preset list reloaded";
+        public static final String UNSAVED_STATUS = "Unsaved changes";
+        public static final String ADD_PASS_TITLE = "Add Shader Pass";
+        public static final String ADD_TO_CHAIN_BUTTON = "Add To Chain";
+        public static final String CHAIN_TITLE = "Active Shader Chain";
+        public static final String CHAIN_HELPER = "Passes run top to bottom. Reorder them to change the final look.";
+        public static final String PASS_PARAMETERS_TITLE = "Selected Pass";
+        public static final String PASS_PARAMETERS_EMPTY = "Select a pass to edit its parameters.";
+        public static final String PASS_DESCRIPTION_PLACEHOLDER = "Choose a pass type to see what it does.";
+        public static final String PREVIEW_TITLE = "Live Preview";
+        public static final String PREVIEW_HELPER = "Preview uses the current render scale and pass order.";
+        public static final String SOURCE_PREVIEW_LABEL = "Source";
+        public static final String OUTPUT_PREVIEW_LABEL = "Shader Output";
+        public static final String PREVIEW_UNAVAILABLE = "Preview unavailable";
+        public static final String MOVE_UP_BUTTON = "Move Up";
+        public static final String MOVE_DOWN_BUTTON = "Move Down";
+        public static final String REMOVE_BUTTON = "Remove";
+        public static final String CLEAR_CHAIN_BUTTON = "Clear Chain";
+
+        private ShaderEditorWindow() {
+        }
+
+        public static String DeleteConfirmMessage(String presetName) {
+            return "Delete shader preset \"" + presetName + "\"?";
+        }
+
+        public static String SavedStatus(String presetName) {
+            return "Saved " + presetName;
+        }
+
+        public static String ImportedStatus(String presetName) {
+            return "Imported " + presetName;
+        }
+
+        public static String DeletedStatus(String presetName) {
+            return "Deleted " + presetName;
+        }
+
+        public static String ReloadWarningStatus(int errorCount) {
+            return errorCount <= 0
+                    ? RELOAD_STATUS
+                    : "Reloaded presets with " + errorCount + " shader warning" + (errorCount == 1 ? "" : "s");
+        }
+
+        public static String PassChainItemLabel(int index, String passLabel) {
+            return (index + 1) + ". " + passLabel;
+        }
+
+        public static String PreviewStatus(int renderScale, int passCount) {
+            String passLabel = passCount == 1 ? "1 pass" : passCount + " passes";
+            return "Render scale " + renderScale + "x | " + passLabel;
+        }
+    }
+
+    public static final class BorderManagerWindow {
+        public static final String WINDOW_TITLE = "Display Borders";
+        public static final String TITLE = "Display Border Manager";
+        public static final String SUBTITLE = "Import, preview, export, and manage PNG display borders";
+        public static final String BORDER_LIST_TITLE = "Available Borders";
+        public static final String PREVIEW_TITLE = "Live Preview";
+        public static final String PREVIEW_HELPER = "Preview shows raw game output beside the active border composite.";
+        public static final String SOURCE_PREVIEW_LABEL = "Source";
+        public static final String OUTPUT_PREVIEW_LABEL = "Border Output";
+        public static final String NAME_LABEL = "Border Name";
+        public static final String SOURCE_LABEL = "Source";
+        public static final String PATH_LABEL = "Location";
+        public static final String CUTOUT_LABEL = "Gameplay Cutout";
+        public static final String STATUS_LABEL = "Status";
+        public static final String EMPTY = "No display borders are currently available";
+        public static final String STATUS_OK = "Border library loaded";
+        public static final String CUTOUT_NOT_AVAILABLE = "Not applicable";
+        public static final String BUILT_IN_PATH = "Bundled with GameDuck";
+        public static final String PREVIEW_UNAVAILABLE = "Preview unavailable";
+        public static final String IMPORT_BUTTON = "Import";
+        public static final String EXPORT_BUTTON = "Export";
+        public static final String DELETE_BUTTON = "Delete";
+        public static final String RELOAD_BUTTON = "Reload";
+        public static final String REVEAL_FOLDER_BUTTON = "Reveal Folder";
+        public static final String CLOSE_BUTTON = "Close";
+        public static final String IMPORT_DIALOG_TITLE = "Import display border";
+        public static final String EXPORT_DIALOG_TITLE = "Export display border";
+        public static final String DELETE_CONFIRM_TITLE = "Delete Display Border";
+        public static final String IMPORT_FAILED_TITLE = "Failed to import display border";
+        public static final String EXPORT_FAILED_TITLE = "Failed to export display border";
+        public static final String DELETE_FAILED_TITLE = "Failed to delete display border";
+        public static final String OPEN_FOLDER_FAILED_TITLE = "Failed to reveal border folder";
+        public static final String BUILT_IN_DELETE_WARNING = "Built-in borders cannot be deleted.";
+
+        private BorderManagerWindow() {
+        }
+
+        public static String DeleteConfirmMessage(String borderName) {
+            return "Delete display border \"" + borderName + "\"?";
+        }
+
+        public static String ImportedStatus(String borderName) {
+            return "Imported " + borderName;
+        }
+
+        public static String ExportedStatus(String pathText) {
+            return "Exported border to " + pathText;
+        }
+
+        public static String DeletedStatus(String borderName) {
+            return "Deleted " + borderName;
+        }
+
+        public static String ReloadWarningStatus(int errorCount) {
+            return errorCount <= 0
+                    ? STATUS_OK
+                    : "Reloaded borders with " + errorCount + " warning" + (errorCount == 1 ? "" : "s");
+        }
+
+        public static String PreviewStatus(int width, int height) {
+            return width <= 0 || height <= 0
+                    ? "Raw output preview"
+                    : "Border size " + width + " x " + height;
+        }
+    }
+
     // ---------------------------------------------------------------------
     // Library browsing and ROM metadata
     // ---------------------------------------------------------------------
@@ -230,6 +382,7 @@ public final class UiText {
 
         // List controls: filter and view headings.
         public static final String FILTER_TITLE = "Filter";
+        public static final String SORT_TITLE = "Sort";
         public static final String VIEW_TITLE = "View";
 
         // List controls: filter options.
@@ -242,6 +395,9 @@ public final class UiText {
         public static final String VIEW_LIST = "List View";
         public static final String VIEW_SMALL_ICONS = "Small Icons";
         public static final String VIEW_LARGE_ICONS = "Large Icons";
+        public static final String SORT_ALPHABETICAL = "Alphabetical";
+        public static final String SORT_RECENTLY_PLAYED = "Recently Played";
+        public static final String SORT_NOT_PLAYED_FOR_A_WHILE = "Not Played for a While";
 
         // Artwork and preview placeholders.
         public static final String ART_LOADING = "Loading art...";
@@ -576,8 +732,8 @@ public final class UiText {
         public static final String SECTION_WINDOW_DESCRIPTION = "";
         public static final String SECTION_DISPLAY_SHADER_TITLE = "Display Shaders";
         public static final String SECTION_DISPLAY_SHADER_DESCRIPTION = "Apply built-in looks or load your own JSON presets and plugin shaders";
-        public static final String SECTION_LIBRARY_TITLE = "Game Name Display";
-        public static final String SECTION_LIBRARY_DESCRIPTION = "Control whether displayed game names keep or hide bracketed suffixes such as regions, revisions, or hack tags";
+        public static final String SECTION_LIBRARY_TITLE = "Library Preferences";
+        public static final String SECTION_LIBRARY_DESCRIPTION = "Control displayed game names and how much recent-play history appears in the Game menu";
         public static final String SECTION_THEME_LIBRARY_TITLE = "Theme Library";
         public static final String SECTION_THEME_LIBRARY_DESCRIPTION = "Adjust the app theming";
         public static final String SECTION_THEME_PRESETS_TITLE = "Theme Presets";
@@ -723,9 +879,19 @@ public final class UiText {
         // Window tab: main window layout and library naming controls.
         // -----------------------------------------------------------------
         public static final String WINDOW_FILL_CHECKBOX = "Fill window with output";
+        public static final String WINDOW_INTEGER_SCALE_CHECKBOX = "Use integer scaling";
         public static final String SERIAL_OUTPUT_CHECKBOX = "Show serial output";
         public static final String GAME_ART_MODE_LABEL = "Game Art";
         public static final String RESET_WINDOW_BUTTON = "Reset Window Layout";
+        public static final String DISPLAY_BORDER_LABEL = "Display Border";
+        public static final String BORDER_PREVIEW_LABEL = "Preview";
+        public static final String BORDER_SOURCE_LABEL = "Source";
+        public static final String BORDER_PATH_LABEL = "Location";
+        public static final String BORDER_CUTOUT_LABEL = "Gameplay Cutout";
+        public static final String BORDER_STATUS_LABEL = "Library Status";
+        public static final String BORDER_PATH_BUILT_IN = "Bundled with GameDuck";
+        public static final String BORDER_STATUS_OK_HELPER = "No border load errors were reported the last time the folder was scanned.";
+        public static final String OPEN_BORDER_MANAGER_BUTTON = "Border Manager";
         public static final String DISPLAY_SHADER_LABEL = "Display Shader";
         public static final String SHADER_DESCRIPTION_LABEL = "Description";
         public static final String SHADER_SOURCE_LABEL = "Source";
@@ -736,9 +902,12 @@ public final class UiText {
         public static final String SHADER_STATUS_OK_HELPER = "No shader load errors were reported the last time the folder was scanned.";
         public static final String RELOAD_SHADERS_BUTTON = "Reload Shader Folder";
         public static final String OPEN_SHADER_FOLDER_BUTTON = "Open Shader Folder";
+        public static final String OPEN_SHADER_EDITOR_BUTTON = "Shader Editor";
         public static final String RESET_SHADER_BUTTON = "Reset Shader";
         public static final String LIBRARY_MODE_LABEL = "Bracketed Content";
-        public static final String RESET_LIBRARY_BUTTON = "Reset Library Naming";
+        public static final String RECENT_MENU_LIMIT_LABEL = "Load Recent Size";
+        public static final String RECENT_MENU_LIMIT_HELPER = "How many games appear in Game > Load Recent";
+        public static final String RESET_LIBRARY_BUTTON = "Reset Library Settings";
 
         // -----------------------------------------------------------------
         // Emulation tab: save-state manager launcher and window copy.
@@ -945,6 +1114,12 @@ public final class UiText {
             String shaderLabel = shaderCount == 1 ? "1 shader loaded" : shaderCount + " shaders loaded";
             String errorLabel = errorCount == 1 ? "1 load error" : errorCount + " load errors";
             return shaderLabel + " | " + errorLabel;
+        }
+
+        public static String BorderStatusSummary(int borderCount, int errorCount) {
+            String borderLabel = borderCount == 1 ? "1 border loaded" : borderCount + " borders loaded";
+            String errorLabel = errorCount == 1 ? "1 load error" : errorCount + " load errors";
+            return borderLabel + " | " + errorLabel;
         }
 
         public static String ChannelName(int channelIndex) {

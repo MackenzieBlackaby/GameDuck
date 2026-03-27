@@ -132,8 +132,14 @@ public final class Settings {
     /** Whether the main display should stretch to fill the host window. */
     public static boolean fillWindowOutput = false;
 
+    /** Whether the gameplay area should use integer scaling when space allows. */
+    public static boolean integerScaleWindowOutput = false;
+
     /** Active display shader identifier. */
     public static String displayShaderId = "none";
+
+    /** Active display border identifier. */
+    public static String displayBorderId = "none";
 
     /** Whether the serial output panel should be shown in the main window. */
     public static boolean showSerialOutput = true;
@@ -146,6 +152,12 @@ public final class Settings {
 
     /** Remembered library browser view mode. */
     public static String libraryViewMode = "LIST";
+
+    /** Remembered library browser sort mode. */
+    public static String librarySortMode = "ALPHABETICAL";
+
+    /** How many games should appear in the Game -> Load Recent menu. */
+    public static int loadRecentMenuLimit = 10;
 
     private Settings() {
     }
@@ -374,7 +386,9 @@ public final class Settings {
      */
     public static void ResetWindow() {
         fillWindowOutput = false;
+        integerScaleWindowOutput = false;
         displayShaderId = "none";
+        displayBorderId = "none";
         showSerialOutput = true;
         gameArtDisplayMode = GameArtDisplayMode.BOX_ART;
 
@@ -386,6 +400,8 @@ public final class Settings {
     public static void ResetLibrary() {
         gameNameBracketDisplayMode = GameNameBracketDisplayMode.NONE;
         libraryViewMode = "LIST";
+        librarySortMode = "ALPHABETICAL";
+        loadRecentMenuLimit = 10;
 
     }
 

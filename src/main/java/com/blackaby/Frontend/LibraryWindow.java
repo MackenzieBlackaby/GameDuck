@@ -46,6 +46,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -92,6 +93,23 @@ public final class LibraryWindow extends DuckWindow {
         }
     }
 
+    private enum SortMode {
+        ALPHABETICAL(UiText.LibraryWindow.SORT_ALPHABETICAL),
+        RECENTLY_PLAYED(UiText.LibraryWindow.SORT_RECENTLY_PLAYED),
+        NOT_PLAYED_FOR_A_WHILE(UiText.LibraryWindow.SORT_NOT_PLAYED_FOR_A_WHILE);
+
+        private final String label;
+
+        SortMode(String label) {
+            this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
     private static final int smallArtSize = 64;
     private static final int largeArtSize = 128;
     private static final int largeTilePreferredWidth = 220;
@@ -126,6 +144,7 @@ public final class LibraryWindow extends DuckWindow {
     private JButton favouriteButton;
     private ViewMode viewMode = ViewMode.LIST;
     private FilterMode filterMode = FilterMode.ALL;
+    private SortMode sortMode = SortMode.ALPHABETICAL;
     private RomConsoleFilter consoleFilter = RomConsoleFilter.ALL;
     private String searchQuery = "";
     private String selectedEntryKey = "";
@@ -135,6 +154,7 @@ public final class LibraryWindow extends DuckWindow {
         this.mainWindow = mainWindow;
         this.emulation = emulation;
         this.viewMode = resolveSavedViewMode();
+        this.sortMode = resolveSavedSortMode();
         panelBackground = Styling.appBackgroundColour;
         cardBackground = Styling.surfaceColour;
         cardBorder = Styling.surfaceBorderColour;
@@ -227,6 +247,22 @@ public final class LibraryWindow extends DuckWindow {
             }
         });
         viewControls.add(consoleSelector);
+
+        JLabel sortLabel = new JLabel(UiText.LibraryWindow.SORT_TITLE);
+        sortLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+        sortLabel.setForeground(accentColour);
+        viewControls.add(sortLabel);
+
+        JComboBox<SortMode> sortSelector = new JComboBox<>(SortMode.values());
+        sortSelector.setSelectedItem(sortMode);
+        sortSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+        sortSelector.addActionListener(event -> {
+            Object selectedItem = sortSelector.getSelectedItem();
+            if (selectedItem instanceof SortMode selectedSortMode) {
+                applySortMode(selectedSortMode);
+            }
+        });
+        viewControls.add(sortSelector);
 
         JLabel searchLabel = new JLabel(UiText.Common.SEARCH_TITLE);
         searchLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
@@ -412,7 +448,7 @@ public final class LibraryWindow extends DuckWindow {
                 .filter(this::matchesFilterMode)
                 .filter(this::matchesConsoleFilter)
                 .filter(this::matchesSearchQuery)
-                .sorted(java.util.Comparator.comparing(this::resolveDisplayName, String.CASE_INSENSITIVE_ORDER))
+                .sorted(resolveSortComparator())
                 .toList();
 
         for (LibraryEntry entry : entries) {
@@ -582,6 +618,13 @@ public final class LibraryWindow extends DuckWindow {
 
     private void applyConsoleFilter(RomConsoleFilter nextConsoleFilter) {
         consoleFilter = nextConsoleFilter == null ? RomConsoleFilter.ALL : nextConsoleFilter;
+        refreshEntryList();
+    }
+
+    private void applySortMode(SortMode nextSortMode) {
+        sortMode = nextSortMode == null ? SortMode.ALPHABETICAL : nextSortMode;
+        Settings.librarySortMode = sortMode.name();
+        Config.Save();
         refreshEntryList();
     }
 
@@ -1091,6 +1134,31 @@ public final class LibraryWindow extends DuckWindow {
         } catch (IllegalArgumentException exception) {
             return ViewMode.LIST;
         }
+    }
+
+    private SortMode resolveSavedSortMode() {
+        String configuredMode = Settings.librarySortMode;
+        if (configuredMode == null || configuredMode.isBlank()) {
+            return SortMode.ALPHABETICAL;
+        }
+        try {
+            return SortMode.valueOf(configuredMode);
+        } catch (IllegalArgumentException exception) {
+            return SortMode.ALPHABETICAL;
+        }
+    }
+
+    private Comparator<LibraryEntry> resolveSortComparator() {
+        Comparator<LibraryEntry> nameComparator = Comparator.comparing(this::resolveDisplayName, String.CASE_INSENSITIVE_ORDER);
+        return switch (sortMode) {
+            case RECENTLY_PLAYED -> Comparator.comparingLong(LibraryEntry::lastPlayedMillis)
+                    .reversed()
+                    .thenComparing(nameComparator);
+            case NOT_PLAYED_FOR_A_WHILE -> Comparator.comparingLong(LibraryEntry::lastPlayedMillis)
+                    .thenComparing(nameComparator);
+            case ALPHABETICAL -> nameComparator.thenComparing(
+                    Comparator.comparingLong(LibraryEntry::lastPlayedMillis).reversed());
+        };
     }
 
     private javax.swing.border.Border createCardBorder() {

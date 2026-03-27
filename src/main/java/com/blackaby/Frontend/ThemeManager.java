@@ -117,11 +117,30 @@ public final class ThemeManager extends DuckWindow {
                     UiText.ThemeManager.DeleteConfirmMessage(selectedTheme), UiText.ThemeManager.DELETE_CONFIRM_TITLE,
                     JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
             if (result == JOptionPane.YES_OPTION) {
-                Config.DeleteTheme(selectedTheme);
+                try {
+                    Config.DeleteTheme(selectedTheme);
+                    RefreshThemeList();
+                    if (!themeListModel.isEmpty()) {
+                        themeList.setSelectedIndex(0);
+                    }
+                } catch (IllegalStateException exception) {
+                    JOptionPane.showMessageDialog(this, exception.getMessage(),
+                            UiText.Common.WARNING_TITLE, JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        JButton restoreDefaultsButton = CreateSecondaryButton(UiText.ThemeManager.RESTORE_DEFAULTS_BUTTON);
+        restoreDefaultsButton.addActionListener(event -> {
+            try {
+                Config.RestoreDefaultThemes();
                 RefreshThemeList();
                 if (!themeListModel.isEmpty()) {
                     themeList.setSelectedIndex(0);
                 }
+            } catch (IllegalStateException exception) {
+                JOptionPane.showMessageDialog(this, exception.getMessage(),
+                        UiText.Common.WARNING_TITLE, JOptionPane.ERROR_MESSAGE);
             }
         });
 
@@ -138,6 +157,7 @@ public final class ThemeManager extends DuckWindow {
             dispose();
         });
 
+        buttonPanel.add(restoreDefaultsButton);
         buttonPanel.add(deleteButton);
         buttonPanel.add(loadButton);
         card.add(buttonPanel, BorderLayout.SOUTH);

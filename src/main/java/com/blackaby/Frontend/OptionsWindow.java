@@ -314,16 +314,6 @@ public class OptionsWindow extends DuckWindow {
                 UiText.OptionsWindow.SECTION_THEME_LIBRARY_TITLE,
                 UiText.OptionsWindow.SECTION_THEME_LIBRARY_DESCRIPTION,
                 createThemeLibraryPanel()));
-        content.add(Box.createVerticalStrut(16));
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_THEME_PRESETS_TITLE,
-                UiText.OptionsWindow.SECTION_THEME_PRESETS_DESCRIPTION,
-                createThemePresetsPanel()));
-        content.add(Box.createVerticalStrut(16));
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_THEME_COLORS_TITLE,
-                UiText.OptionsWindow.SECTION_THEME_COLORS_DESCRIPTION,
-                createThemeColorsPanel()));
         return content;
     }
 
@@ -800,16 +790,21 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createThemeLibraryPanel() {
-        JPanel content = new JPanel(new BorderLayout(0, 12));
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setOpaque(false);
 
-        content.add(createThemePreviewBanner(), BorderLayout.NORTH);
+        JComponent previewBanner = createThemePreviewBanner();
+        previewBanner.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(previewBanner);
+        content.add(Box.createVerticalStrut(12));
 
         JPanel actionCard = new JPanel(new BorderLayout(14, 0));
         actionCard.setOpaque(false);
         actionCard.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
                 BorderFactory.createEmptyBorder(12, 14, 12, 14)));
+        actionCard.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         JPanel textColumn = new JPanel();
         textColumn.setLayout(new BoxLayout(textColumn, BoxLayout.Y_AXIS));
@@ -847,8 +842,14 @@ public class OptionsWindow extends DuckWindow {
                 return;
             }
 
-            Config.SaveTheme(name);
-            JOptionPane.showMessageDialog(this, UiText.OptionsWindow.ThemeSavedMessage(name));
+            try {
+                Config.SaveTheme(name);
+                JOptionPane.showMessageDialog(this, UiText.OptionsWindow.ThemeSavedMessage(name));
+            } catch (IllegalStateException exception) {
+                JOptionPane.showMessageDialog(this, exception.getMessage(),
+                        UiText.Common.WARNING_TITLE,
+                        JOptionPane.ERROR_MESSAGE);
+            }
         });
 
         JButton browseThemesButton = createSecondaryButton(UiText.OptionsWindow.BROWSE_BUTTON);
@@ -865,7 +866,24 @@ public class OptionsWindow extends DuckWindow {
         actionCard.add(textColumn, BorderLayout.CENTER);
         actionCard.add(buttonColumn, BorderLayout.EAST);
 
-        content.add(actionCard, BorderLayout.CENTER);
+        content.add(actionCard);
+        content.add(Box.createVerticalStrut(12));
+
+        JButton resetThemeButton = createSecondaryButton(UiText.OptionsWindow.RESET_THEME_BUTTON);
+        resetThemeButton.addActionListener(event -> {
+            Settings.ResetAppTheme();
+            Config.Save();
+            if (mainWindow != null) {
+                mainWindow.RefreshTheme();
+            }
+            reopenWithCurrentTab();
+        });
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        actions.setOpaque(false);
+        actions.setAlignmentX(Component.LEFT_ALIGNMENT);
+        actions.add(resetThemeButton);
+        content.add(actions);
         return content;
     }
 
@@ -1280,12 +1298,21 @@ public class OptionsWindow extends DuckWindow {
 
         AppTheme currentTheme = Settings.CurrentAppTheme();
         for (AppThemeColorRole role : AppThemeColorRole.values()) {
+            final AppThemeColorRole swatchRole = role;
             JPanel swatch = new JPanel();
             swatch.setPreferredSize(new Dimension(38, 38));
             swatch.setBackground(currentTheme.CoreColour(role));
             swatch.setBorder(BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(new Color(58, 92, 132, 60), 1, true),
                     BorderFactory.createEmptyBorder(3, 3, 3, 3)));
+            swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            swatch.setToolTipText(UiText.OptionsWindow.ChooseColorTitle(role.Label()));
+            swatch.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent event) {
+                    chooseThemeColor(swatchRole);
+                }
+            });
             themeStripPreviews[role.ordinal()] = swatch;
             swatchStrip.add(swatch);
         }

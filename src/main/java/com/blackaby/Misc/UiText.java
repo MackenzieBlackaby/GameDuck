@@ -205,12 +205,13 @@ public final class UiText {
     public static final class ThemeManager {
         // Window and heading text.
         public static final String WINDOW_TITLE = "Theme Manager";
-        public static final String TITLE = "Saved Themes";
-        public static final String SUBTITLE = "Load or delete saved themes";
+        public static final String TITLE = "Theme Library";
+        public static final String SUBTITLE = "Load, delete, or restore saved themes";
 
         // Buttons and dialog titles.
         public static final String LOAD_BUTTON = "Load";
         public static final String DELETE_BUTTON = "Delete";
+        public static final String RESTORE_DEFAULTS_BUTTON = "Restore Default Themes";
         public static final String DELETE_CONFIRM_TITLE = "Delete Theme";
 
         private ThemeManager() {
@@ -735,7 +736,7 @@ public final class UiText {
         public static final String SECTION_LIBRARY_TITLE = "Library Preferences";
         public static final String SECTION_LIBRARY_DESCRIPTION = "Control displayed game names and how much recent-play history appears in the Game menu";
         public static final String SECTION_THEME_LIBRARY_TITLE = "Theme Library";
-        public static final String SECTION_THEME_LIBRARY_DESCRIPTION = "Adjust the app theming";
+        public static final String SECTION_THEME_LIBRARY_DESCRIPTION = "Save the active theme, browse saved JSON themes, or restore the bundled defaults";
         public static final String SECTION_THEME_PRESETS_TITLE = "Theme Presets";
         public static final String SECTION_THEME_PRESETS_DESCRIPTION = "Built-in palette presets";
         public static final String SECTION_THEME_COLORS_TITLE = "Theme Colors";
@@ -778,9 +779,9 @@ public final class UiText {
         // Theme tab: saved theme handling and active theme editing.
         // -----------------------------------------------------------------
         public static final String ACTIVE_APP_THEME_TITLE = "Active App Theme";
-        public static final String ACTIVE_APP_THEME_HELPER = "Current colors used by the window chrome and controls";
+        public static final String ACTIVE_APP_THEME_HELPER = "Click any swatch to customise the current window chrome and control colours";
         public static final String SAVE_CURRENT_THEME = "Save Current Theme";
-        public static final String SAVE_CURRENT_THEME_HELPER = "Save the active window theme or reopen a custom preset";
+        public static final String SAVE_CURRENT_THEME_HELPER = "Save the active window theme or reopen a saved JSON theme";
         public static final String SAVE_THEME_BUTTON = "Save Theme";
         public static final String RESET_THEME_BUTTON = "Reset Theme";
         public static final String CHOOSE_COLOR_BUTTON = "Choose Color";

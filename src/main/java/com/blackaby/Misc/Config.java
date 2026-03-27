@@ -90,6 +90,7 @@ public final class Config {
         }
 
         PaletteStore.LoadResult paletteLoadResult = PaletteStore.Load(paletteConfigPath, properties);
+        ThemeStore.LoadResult themeLoadResult = ThemeStore.Load(properties);
         paletteStore = paletteLoadResult.store();
         ApplyCurrentPalette();
         ApplyAppTheme();
@@ -102,7 +103,7 @@ public final class Config {
         ApplyLibrarySettings();
         loaded = true;
 
-        if (paletteLoadResult.migratedFromLegacy()) {
+        if (paletteLoadResult.migratedFromLegacy() || themeLoadResult.migratedFromLegacy()) {
             Persist();
         }
     }
@@ -180,18 +181,7 @@ public final class Config {
     public static void SaveTheme(String name) {
         synchronized (Config.class) {
             EnsureLoaded();
-
-            String encodedName = EncodeName(name);
-            List<String> themeNames = GetSavedThemeNamesInternal();
-            if (!themeNames.contains(name)) {
-                themeNames.add(name);
-            }
-
-            AppTheme theme = Settings.CurrentAppTheme().Renamed(name);
-            for (AppThemeColorRole role : AppThemeColorRole.values()) {
-                properties.setProperty(savedThemePrefix + encodedName + "." + role.name(), theme.CoreHex(role));
-            }
-            properties.setProperty(savedThemeListKey, String.join(",", EncodeNames(themeNames)));
+            ThemeStore.SaveTheme(Settings.CurrentAppTheme().Renamed(name));
             SyncCurrentPalette();
             SyncAppTheme();
             SyncInputBindings();
@@ -280,7 +270,7 @@ public final class Config {
      */
     public static synchronized List<String> GetSavedThemeNames() {
         EnsureLoaded();
-        return new ArrayList<>(GetSavedThemeNamesInternal());
+        return new ArrayList<>(ThemeStore.SavedThemeNames());
     }
 
     /**
@@ -349,20 +339,8 @@ public final class Config {
      */
     public static synchronized boolean LoadTheme(String name) {
         EnsureLoaded();
-
-        String encodedName = EncodeName(name);
-        AppTheme currentTheme = Settings.CurrentAppTheme();
-        AppTheme loadedTheme = currentTheme.Renamed(name);
-        boolean found = false;
-
-        for (AppThemeColorRole role : AppThemeColorRole.values()) {
-            String value = properties.getProperty(savedThemePrefix + encodedName + "." + role.name());
-            if (value == null || value.isBlank()) {
-                continue;
-            }
-            loadedTheme.SetCoreColour(role, value);
-            found = true;
-        }
+        AppTheme loadedTheme = ThemeStore.FindTheme(name);
+        boolean found = loadedTheme != null;
 
         if (found) {
             Settings.ApplyAppTheme(loadedTheme);
@@ -427,15 +405,7 @@ public final class Config {
      */
     public static synchronized void DeleteTheme(String name) {
         EnsureLoaded();
-
-        String encodedName = EncodeName(name);
-        for (AppThemeColorRole role : AppThemeColorRole.values()) {
-            properties.remove(savedThemePrefix + encodedName + "." + role.name());
-        }
-
-        List<String> themeNames = GetSavedThemeNamesInternal();
-        themeNames.remove(name);
-        properties.setProperty(savedThemeListKey, String.join(",", EncodeNames(themeNames)));
+        ThemeStore.DeleteTheme(name);
         SyncCurrentPalette();
         SyncAppTheme();
         SyncInputBindings();
@@ -446,6 +416,14 @@ public final class Config {
         SyncWindowSettings();
         SyncLibrarySettings();
         Persist();
+    }
+
+    /**
+     * Restores the bundled default themes into the managed theme JSON library.
+     */
+    public static synchronized void RestoreDefaultThemes() {
+        EnsureLoaded();
+        ThemeStore.RestoreDefaultThemes();
     }
 
     private static void ApplyCurrentPalette() {

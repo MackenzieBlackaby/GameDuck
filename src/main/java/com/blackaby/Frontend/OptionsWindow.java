@@ -121,6 +121,7 @@ public class OptionsWindow extends DuckWindow {
     private final Map<EmulatorButton, JButton> bindingButtons = new HashMap<>();
     private final Map<EmulatorButton, JButton> controllerBindingButtons = new HashMap<>();
     private final EnumMap<AppShortcut, JButton> shortcutButtons = new EnumMap<>(AppShortcut.class);
+    private final EnumMap<AppShortcut, JButton> controllerShortcutButtons = new EnumMap<>(AppShortcut.class);
     private final MainWindow mainWindow;
     private final int initialTabIndex;
     private JTabbedPane tabs;
@@ -1125,18 +1126,64 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createShortcutCard(AppShortcut shortcut) {
-        return createActionBindingCard(
-                shortcut.Label(),
-                shortcut.Description(),
-                UiText.OptionsWindow.APP_BADGE,
-                true,
-                Settings.appShortcutBindings.GetKeyText(shortcut),
-                new Dimension(112, 38),
-                13f,
-                10,
-                12,
-                () -> captureShortcut(shortcut),
-                shortcutButton -> shortcutButtons.put(shortcut, shortcutButton));
+        JPanel card = new JPanel(new BorderLayout(12, 0));
+        card.setBackground(Styling.cardTintColour);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+
+        JLabel titleLabel = new JLabel(shortcut.Label());
+        titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+        titleLabel.setForeground(accentColour);
+
+        JLabel helperLabel = new JLabel("<html><body style='width: 132px'>" + shortcut.Description() + "</body></html>");
+        helperLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+        helperLabel.setForeground(mutedText);
+
+        JPanel labelPanel = new JPanel(new BorderLayout(0, 4));
+        labelPanel.setOpaque(false);
+        JPanel titleRow = new JPanel(new BorderLayout());
+        titleRow.setOpaque(false);
+        titleRow.add(titleLabel, BorderLayout.WEST);
+        titleRow.add(createBadgeLabel(UiText.OptionsWindow.APP_BADGE), BorderLayout.EAST);
+        labelPanel.add(titleRow, BorderLayout.NORTH);
+        labelPanel.add(helperLabel, BorderLayout.CENTER);
+
+        JButton keyboardButton = createPrimaryButton(Settings.appShortcutBindings.GetKeyText(shortcut));
+        keyboardButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+        keyboardButton.setPreferredSize(new Dimension(124, 34));
+        keyboardButton.addActionListener(event -> captureShortcut(shortcut));
+        shortcutButtons.put(shortcut, keyboardButton);
+
+        JButton controllerButton = createSecondaryButton(Settings.appShortcutControllerBindings.GetBindingText(shortcut));
+        controllerButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+        controllerButton.setPreferredSize(new Dimension(124, 32));
+        controllerButton.addActionListener(event -> captureControllerShortcut(shortcut));
+        controllerShortcutButtons.put(shortcut, controllerButton);
+
+        JPanel buttonColumn = new JPanel();
+        buttonColumn.setLayout(new BoxLayout(buttonColumn, BoxLayout.Y_AXIS));
+        buttonColumn.setOpaque(false);
+        buttonColumn.add(createShortcutBindingRow(UiText.OptionsWindow.SHORTCUT_KEYBOARD_LABEL, keyboardButton));
+        buttonColumn.add(Box.createVerticalStrut(8));
+        buttonColumn.add(createShortcutBindingRow(UiText.OptionsWindow.SHORTCUT_CONTROLLER_LABEL, controllerButton));
+
+        card.add(labelPanel, BorderLayout.CENTER);
+        card.add(buttonColumn, BorderLayout.EAST);
+        return card;
+    }
+
+    private JComponent createShortcutBindingRow(String labelText, JButton actionButton) {
+        JPanel row = new JPanel(new BorderLayout(0, 4));
+        row.setOpaque(false);
+
+        JLabel rowLabel = new JLabel(labelText, SwingConstants.CENTER);
+        rowLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
+        rowLabel.setForeground(mutedText);
+
+        row.add(rowLabel, BorderLayout.NORTH);
+        row.add(actionButton, BorderLayout.CENTER);
+        return row;
     }
 
     private JComponent createActionBindingCard(String title, String helperText, String badgeText,
@@ -3062,7 +3109,30 @@ public class OptionsWindow extends DuckWindow {
         removeDispatcher.run();
     }
 
+    private void captureControllerShortcut(AppShortcut shortcut) {
+        captureControllerInput(
+                UiText.OptionsWindow.ShortcutControllerDialogTitle(shortcut.Label()),
+                UiText.OptionsWindow.ShortcutControllerDialogPrompt(shortcut.Label()),
+                binding -> {
+                    Settings.appShortcutControllerBindings.SetBinding(shortcut, binding);
+                    refreshShortcutButtons();
+                    Config.Save();
+                });
+    }
+
     private boolean captureControllerBinding(EmulatorButton button) {
+        return captureControllerInput(
+                UiText.OptionsWindow.ControllerRebindDialogTitle(formatControlButtonName(button)),
+                UiText.OptionsWindow.ControllerRebindDialogPrompt(formatControlButtonName(button)),
+                binding -> {
+                    Settings.controllerBindings.SetBinding(button, binding);
+                    refreshControllerBindingButtons();
+                    refreshControllerStatus();
+                    Config.Save();
+                });
+    }
+
+    private boolean captureControllerInput(String dialogTitle, String dialogPrompt, Consumer<ControllerBinding> onCapture) {
         if (controllerInputService.GetInitialisationError() != null) {
             JOptionPane.showMessageDialog(this, controllerInputService.GetInitialisationError(),
                     UiText.OptionsWindow.CONTROLLER_WINDOW_TITLE, JOptionPane.WARNING_MESSAGE);
@@ -3075,9 +3145,7 @@ public class OptionsWindow extends DuckWindow {
             return false;
         }
 
-        JDialog dialog = new JDialog(this,
-                UiText.OptionsWindow.ControllerRebindDialogTitle(formatControlButtonName(button)),
-                true);
+        JDialog dialog = new JDialog(this, dialogTitle, true);
         dialog.setLayout(new BorderLayout());
         dialog.getContentPane().setBackground(panelBackground);
 
@@ -3085,8 +3153,7 @@ public class OptionsWindow extends DuckWindow {
         content.setBackground(cardBackground);
         content.setBorder(createCardBorder());
 
-        JLabel title = new JLabel(UiText.OptionsWindow.ControllerRebindDialogPrompt(formatControlButtonName(button)),
-                SwingConstants.CENTER);
+        JLabel title = new JLabel(dialogPrompt, SwingConstants.CENTER);
         title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 18f));
         title.setForeground(accentColour);
 
@@ -3118,11 +3185,8 @@ public class OptionsWindow extends DuckWindow {
                 return;
             }
 
-            Settings.controllerBindings.SetBinding(button, candidate);
+            onCapture.accept(candidate);
             captured[0] = true;
-            refreshControllerBindingButtons();
-            refreshControllerStatus();
-            Config.Save();
             dialog.dispose();
         });
 
@@ -3348,6 +3412,10 @@ public class OptionsWindow extends DuckWindow {
             JButton shortcutButton = shortcutButtons.get(shortcut);
             if (shortcutButton != null) {
                 shortcutButton.setText(Settings.appShortcutBindings.GetKeyText(shortcut));
+            }
+            JButton controllerShortcutButton = controllerShortcutButtons.get(shortcut);
+            if (controllerShortcutButton != null) {
+                controllerShortcutButton.setText(Settings.appShortcutControllerBindings.GetBindingText(shortcut));
             }
         }
     }

@@ -794,11 +794,13 @@ public final class UiText {
         public static final String PLAYER_CONTROLS_TITLE = "Player Controls";
         public static final String PLAYER_CONTROLS_DESCRIPTION = "Keyboard and controller rebinding now live in the visual mapper window.";
         public static final String WINDOW_SHORTCUTS_TITLE = "Window Shortcuts";
-        public static final String WINDOW_SHORTCUTS_DESCRIPTION = "Rebind shortcuts to app functions. Modifiers like Ctrl and Shift are supported.";
+        public static final String WINDOW_SHORTCUTS_DESCRIPTION = "Rebind app functions to keyboard shortcuts and controller inputs.";
         public static final String PLAYER_CONTROLS_BADGE = "Game Boy Input";
         public static final String WINDOW_SHORTCUTS_BADGE = "App Action";
         public static final String DMG_BADGE = "Game Boy";
         public static final String APP_BADGE = "APP";
+        public static final String SHORTCUT_KEYBOARD_LABEL = "Keyboard";
+        public static final String SHORTCUT_CONTROLLER_LABEL = "Controller";
         public static final String INPUT_MAPPER_WINDOW_TITLE = "Input Mapper";
         public static final String INPUT_MAPPER_WINDOW_HEADER = "Input Mapper";
         public static final String INPUT_MAPPER_WINDOW_SUBTITLE = "Switch between keyboard and controller tabs, then click the callouts around the Game Boy layout to rebind each button.";
@@ -1082,6 +1084,14 @@ public final class UiText {
 
         public static String ShortcutDialogPrompt(String shortcutLabel) {
             return "Press a shortcut for " + shortcutLabel;
+        }
+
+        public static String ShortcutControllerDialogTitle(String shortcutLabel) {
+            return "Controller shortcut for " + shortcutLabel;
+        }
+
+        public static String ShortcutControllerDialogPrompt(String shortcutLabel) {
+            return "Press a controller input for " + shortcutLabel;
         }
 
         public static String ControllerRebindDialogTitle(String buttonName) {

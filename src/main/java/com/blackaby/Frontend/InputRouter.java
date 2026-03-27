@@ -6,14 +6,18 @@ import com.blackaby.Backend.Platform.EmulatorProfile;
 import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Misc.AppShortcut;
 import com.blackaby.Misc.AppShortcutBindings;
+import com.blackaby.Misc.ControllerBinding;
 import com.blackaby.Misc.Settings;
 
+import javax.swing.SwingUtilities;
 import javax.swing.KeyStroke;
 import java.awt.event.ActionEvent;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.Window;
 import java.awt.event.KeyEvent;
+import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.Executors;
@@ -37,6 +41,7 @@ public final class InputRouter implements KeyEventDispatcher {
     private final Set<String> keyboardPressedButtons = new HashSet<>();
     private final Set<String> controllerPressedButtons = new HashSet<>();
     private final Set<String> polledControllerButtonIds = new HashSet<>();
+    private final EnumSet<AppShortcut> controllerPressedShortcuts = EnumSet.noneOf(AppShortcut.class);
     private final ScheduledExecutorService controllerPollingExecutor = Executors.newSingleThreadScheduledExecutor(run -> {
         Thread thread = new Thread(run, "gameduck-controller-input");
         thread.setDaemon(true);
@@ -132,8 +137,13 @@ public final class InputRouter implements KeyEventDispatcher {
     }
 
     private void TriggerShortcut(AppShortcut shortcut) {
-        new GUIActions(mainWindow, shortcut.Action(), emulation)
+        Runnable action = () -> new GUIActions(mainWindow, shortcut.Action(), emulation)
                 .actionPerformed(new ActionEvent(mainWindow, ActionEvent.ACTION_PERFORMED, shortcut.name()));
+        if (SwingUtilities.isEventDispatchThread()) {
+            action.run();
+        } else {
+            SwingUtilities.invokeLater(action);
+        }
     }
 
     private void PollControllerInput() {
@@ -148,6 +158,7 @@ public final class InputRouter implements KeyEventDispatcher {
 
         routedInputActive = true;
         ApplyControllerState(profile.controlButtons(), PollControllerButtonIds());
+        ApplyControllerShortcutState(PollControllerShortcuts());
     }
 
     private void SetKeyboardButtonState(EmulatorButton button, boolean pressed) {
@@ -192,6 +203,7 @@ public final class InputRouter implements KeyEventDispatcher {
             consumedShortcutKeyCodes.clear();
             keyboardPressedButtons.clear();
             controllerPressedButtons.clear();
+            controllerPressedShortcuts.clear();
             for (EmulatorButton button : profile.controlButtons()) {
                 emulation.SetButtonPressed(button.id(), false);
             }
@@ -204,6 +216,46 @@ public final class InputRouter implements KeyEventDispatcher {
             polledControllerButtonIds.add(button.id());
         }
         return polledControllerButtonIds;
+    }
+
+    private EnumSet<AppShortcut> PollControllerShortcuts() {
+        EnumSet<AppShortcut> pressedShortcuts = EnumSet.noneOf(AppShortcut.class);
+        if (!Settings.controllerInputEnabled) {
+            return pressedShortcuts;
+        }
+
+        Set<ControllerBinding> activeInputs = Set.copyOf(controllerInputService.PollActiveInputs());
+        for (AppShortcut shortcut : AppShortcut.values()) {
+            ControllerBinding binding = Settings.appShortcutControllerBindings.GetBinding(shortcut);
+            if (binding != null && activeInputs.contains(binding)) {
+                pressedShortcuts.add(shortcut);
+            }
+        }
+        return pressedShortcuts;
+    }
+
+    private void ApplyControllerShortcutState(EnumSet<AppShortcut> pressedShortcuts) {
+        List<AppShortcut> shortcutsToTrigger = new ArrayList<>();
+        synchronized (inputStateLock) {
+            for (AppShortcut shortcut : AppShortcut.values()) {
+                boolean nextPressed = pressedShortcuts.contains(shortcut);
+                boolean currentlyPressed = controllerPressedShortcuts.contains(shortcut);
+                if (nextPressed == currentlyPressed) {
+                    continue;
+                }
+
+                if (nextPressed) {
+                    controllerPressedShortcuts.add(shortcut);
+                    shortcutsToTrigger.add(shortcut);
+                } else {
+                    controllerPressedShortcuts.remove(shortcut);
+                }
+            }
+        }
+
+        for (AppShortcut shortcut : shortcutsToTrigger) {
+            TriggerShortcut(shortcut);
+        }
     }
 
     /**

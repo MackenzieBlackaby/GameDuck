@@ -90,6 +90,9 @@ public final class Settings {
     /** Active keyboard bindings for host window shortcuts. */
     public static final AppShortcutBindings appShortcutBindings = new AppShortcutBindings();
 
+    /** Active controller bindings for host window shortcuts. */
+    public static final AppShortcutControllerBindings appShortcutControllerBindings = new AppShortcutControllerBindings();
+
     /** Whether generic controller input is enabled. */
     public static boolean controllerInputEnabled = true;
 
@@ -261,6 +264,7 @@ public final class Settings {
      */
     public static void ResetAppShortcuts() {
         appShortcutBindings.ResetToDefaults();
+        appShortcutControllerBindings.ResetToDefaults();
     }
 
     /**

@@ -39,6 +39,7 @@ public final class Config {
     private static final String inputPrefix = "input.";
     private static final String controllerInputPrefix = "controller.input.";
     private static final String shortcutPrefix = "shortcut.";
+    private static final String controllerShortcutPrefix = "shortcut.controller.";
     private static final String themePrefix = "theme.";
     private static final String controllerEnabledKey = "controller.enabled";
     private static final String controllerPreferredIdKey = "controller.preferred_id";
@@ -470,6 +471,8 @@ public final class Config {
         for (AppShortcut shortcut : AppShortcut.values()) {
             Settings.appShortcutBindings.LoadFromConfigValue(shortcut,
                     properties.getProperty(shortcutPrefix + shortcut.name()));
+            Settings.appShortcutControllerBindings.LoadFromConfigValue(shortcut,
+                    properties.getProperty(controllerShortcutPrefix + shortcut.name()));
         }
     }
 
@@ -609,6 +612,8 @@ public final class Config {
         for (AppShortcut shortcut : AppShortcut.values()) {
             properties.setProperty(shortcutPrefix + shortcut.name(),
                     Settings.appShortcutBindings.ToConfigValue(shortcut));
+            properties.setProperty(controllerShortcutPrefix + shortcut.name(),
+                    Settings.appShortcutControllerBindings.ToConfigValue(shortcut));
         }
     }
 

@@ -518,7 +518,7 @@ public final class Config {
 
         Settings.SetAudioEnhancementChain(ParseAudioEnhancementChain(properties.getProperty(soundEnhancementChainKey, "")));
         Settings.SetAudioEnhancementChainEnabled(
-                Boolean.parseBoolean(properties.getProperty(soundEnhancementEnabledKey, "true")));
+                Boolean.parseBoolean(properties.getProperty(soundEnhancementEnabledKey, "false")));
     }
 
     private static void ApplyWindowSettings() {

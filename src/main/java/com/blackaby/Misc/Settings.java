@@ -118,7 +118,7 @@ public final class Settings {
     public static volatile List<AudioEnhancementSetting> audioEnhancementChain = List.of();
 
     /** Whether the host-side enhancement chain should be applied to audio output. */
-    public static boolean audioEnhancementChainEnabled = true;
+    public static boolean audioEnhancementChainEnabled = false;
 
     /** Monotonic version used to refresh the live enhancement chain. */
     private static volatile long audioEnhancementChainVersion;
@@ -275,7 +275,7 @@ public final class Settings {
         masterVolume = 100;
         channelMuted = new boolean[] { false, false, false, false };
         channelVolume = new int[] { 100, 100, 100, 100 };
-        audioEnhancementChainEnabled = true;
+        audioEnhancementChainEnabled = false;
         SetAudioEnhancementChainInternal(List.of(), false);
 
     }

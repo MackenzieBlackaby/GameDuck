@@ -71,6 +71,8 @@ public class DuckPPU {
     private final int[] visibleSpriteX = new int[maxSpritesPerScanline];
     private final int[] visibleSpriteTile = new int[maxSpritesPerScanline];
     private final int[] visibleSpriteAttributes = new int[maxSpritesPerScanline];
+    private final int[] visibleSpriteRowLow = new int[maxSpritesPerScanline];
+    private final int[] visibleSpriteRowHigh = new int[maxSpritesPerScanline];
     private final int[] activeBackgroundPalette = new int[4];
     private final int[] activeSpritePalette0 = new int[4];
     private final int[] activeSpritePalette1 = new int[4];
@@ -83,6 +85,15 @@ public class DuckPPU {
     private int visibleSpriteCount;
     private int windowLineCounter;
     private boolean windowRenderedOnCurrentScanline;
+    private boolean backgroundTileCacheValid;
+    private boolean backgroundTileCacheWindowLayer;
+    private int backgroundTileCacheTileAddress;
+    private int backgroundTileCacheTileLine;
+    private boolean backgroundTileCacheUnsignedTileData;
+    private boolean backgroundTileCacheCgbMode;
+    private int backgroundTileCacheAttributes;
+    private int backgroundTileCacheLowByte;
+    private int backgroundTileCacheHighByte;
 
     /**
      * Creates a PPU bound to the current CPU, memory bus, and display target.
@@ -208,6 +219,7 @@ public class DuckPPU {
         visibleSpriteCount = (mode == PpuMode.VRAM || mode == PpuMode.HBLANK)
                 ? LoadSpritesOnScanline((memory.ReadRegisterDirect(regLcdc) & 0x04) != 0)
                 : 0;
+        InvalidatePixelTransferCaches();
         completedFrames = 0;
     }
 
@@ -252,6 +264,7 @@ public class DuckPPU {
         visibleSpriteCount = 0;
         windowLineCounter = 0;
         windowRenderedOnCurrentScanline = false;
+        InvalidatePixelTransferCaches();
         memory.WriteDirect(regLy, 0);
 
         int stat = memory.ReadRegisterDirect(regStat);
@@ -298,6 +311,7 @@ public class DuckPPU {
     private void BeginPixelTransfer() {
         pixelTransferX = 0;
         windowRenderedOnCurrentScanline = false;
+        InvalidatePixelTransferCaches();
         Arrays.fill(backgroundPriorityBuffer, 0);
         Arrays.fill(backgroundTilePriorityBuffer, false);
         visibleSpriteCount = LoadSpritesOnScanline((memory.ReadRegisterDirect(regLcdc) & 0x04) != 0);
@@ -374,39 +388,22 @@ public class DuckPPU {
         int tileColumn = (xPosition & 0xFF) / 8;
 
         int tileAddress = tileMapBase + (tileRow * 32) + tileColumn;
-        int tileNumber = cgbMode ? memory.ReadVideoRam(0, tileAddress) : memory.Read(tileAddress);
-        int tileAttributes = cgbMode ? memory.ReadVideoRam(1, tileAddress) : 0;
-        if (!unsignedTileData) {
-            tileNumber = (byte) tileNumber;
-        }
-
-        int tileLineAddress = tileDataBase + (tileNumber * 16);
         int tileLine = yPosition % 8;
-        if (cgbMode && (tileAttributes & 0x40) != 0) {
-            tileLine = 7 - tileLine;
-        }
-        int lineOffset = tileLine * 2;
-        int vramBank = cgbMode && (tileAttributes & 0x08) != 0 ? 1 : 0;
-        int lowByte = cgbMode
-                ? memory.ReadVideoRam(vramBank, tileLineAddress + lineOffset)
-                : memory.Read(tileLineAddress + lineOffset);
-        int highByte = cgbMode
-                ? memory.ReadVideoRam(vramBank, tileLineAddress + lineOffset + 1)
-                : memory.Read(tileLineAddress + lineOffset + 1);
+        LoadBackgroundTileRow(windowLayer, tileAddress, tileLine, unsignedTileData, tileDataBase, cgbMode);
 
         int bit = 7 - (xPosition % 8);
-        if (cgbMode && (tileAttributes & 0x20) != 0) {
+        if (cgbMode && (backgroundTileCacheAttributes & 0x20) != 0) {
             bit = xPosition % 8;
         }
-        int high = (highByte >> bit) & 1;
-        int low = (lowByte >> bit) & 1;
+        int high = (backgroundTileCacheHighByte >> bit) & 1;
+        int low = (backgroundTileCacheLowByte >> bit) & 1;
         int colourIndex = (high << 1) | low;
 
         backgroundPriorityBuffer[screenX] = colourIndex;
-        backgroundTilePriorityBuffer[screenX] = cgbMode && (tileAttributes & 0x80) != 0;
+        backgroundTilePriorityBuffer[screenX] = cgbMode && (backgroundTileCacheAttributes & 0x80) != 0;
 
         return cgbMode
-                ? memory.ReadCgbBackgroundPaletteColourRgb(tileAttributes & 0x07, colourIndex)
+                ? memory.ReadCgbBackgroundPaletteColourRgb(backgroundTileCacheAttributes & 0x07, colourIndex)
                 : ResolveDmgPaletteColour(memory.ReadRegisterDirect(regBgp), activeBackgroundPalette, colourIndex);
     }
 
@@ -419,7 +416,7 @@ public class DuckPPU {
         boolean bgMasterPriority = cgbMode && (lcdControl & 0x01) != 0;
 
         for (int spriteIndex = 0; spriteIndex < visibleSpriteCount; spriteIndex++) {
-            int colour = ResolveSpritePixelFromEntry(screenX, spriteIndex, use8x16, cgbMode, bgMasterPriority);
+            int colour = ResolveSpritePixelFromEntry(screenX, spriteIndex, cgbMode, bgMasterPriority);
             if (colour != noSpritePixel) {
                 return colour;
             }
@@ -427,38 +424,18 @@ public class DuckPPU {
         return noSpritePixel;
     }
 
-    private int ResolveSpritePixelFromEntry(int screenX, int spriteIndex, boolean use8x16, boolean cgbMode,
+    private int ResolveSpritePixelFromEntry(int screenX, int spriteIndex, boolean cgbMode,
             boolean bgMasterPriority) {
-        int spriteHeight = use8x16 ? 16 : 8;
         int attributes = visibleSpriteAttributes[spriteIndex];
         int spriteStartX = visibleSpriteX[spriteIndex];
         if (screenX < spriteStartX || screenX >= spriteStartX + 8) {
             return noSpritePixel;
         }
 
-        int line = scanline - visibleSpriteY[spriteIndex];
-        if ((attributes & 0x40) != 0) {
-            line = spriteHeight - 1 - line;
-        }
-
-        int tileIndex = visibleSpriteTile[spriteIndex];
-        if (use8x16) {
-            tileIndex &= 0xFE;
-            if (line >= 8) {
-                tileIndex |= 0x01;
-                line -= 8;
-            }
-        }
-
-        int tileAddress = 0x8000 + (tileIndex * 16) + (line * 2);
-        int vramBank = (attributes & 0x08) != 0 ? 1 : 0;
-        int lowByte = cgbMode ? memory.ReadVideoRam(vramBank, tileAddress) : memory.Read(tileAddress);
-        int highByte = cgbMode ? memory.ReadVideoRam(vramBank, tileAddress + 1) : memory.Read(tileAddress + 1);
-
         int localX = screenX - spriteStartX;
         int bit = (attributes & 0x20) != 0 ? localX : 7 - localX;
-        int high = (highByte >> bit) & 1;
-        int low = (lowByte >> bit) & 1;
+        int high = (visibleSpriteRowHigh[spriteIndex] >> bit) & 1;
+        int low = (visibleSpriteRowLow[spriteIndex] >> bit) & 1;
         int colourIndex = (high << 1) | low;
 
         if (colourIndex == 0) {
@@ -488,16 +465,17 @@ public class DuckPPU {
 
         for (int index = 0; index < 40; index++) {
             int address = 0xFE00 + (index * 4);
-            int y = memory.Read(address) - 16;
-            int x = memory.Read(address + 1) - 8;
-            int tile = memory.Read(address + 2);
-            int attributes = memory.Read(address + 3);
+            int y = memory.ReadOamByte(address) - 16;
+            int x = memory.ReadOamByte(address + 1) - 8;
+            int tile = memory.ReadOamByte(address + 2);
+            int attributes = memory.ReadOamByte(address + 3);
 
             if (scanline >= y && scanline < (y + spriteHeight)) {
                 visibleSpriteY[visibleSpriteCount] = y;
                 visibleSpriteX[visibleSpriteCount] = x;
                 visibleSpriteTile[visibleSpriteCount] = tile;
                 visibleSpriteAttributes[visibleSpriteCount] = attributes;
+                CacheVisibleSpriteRow(visibleSpriteCount, use8x16, y, tile, attributes);
                 visibleSpriteCount++;
             }
 
@@ -518,6 +496,8 @@ public class DuckPPU {
             int spriteX = visibleSpriteX[index];
             int spriteTile = visibleSpriteTile[index];
             int spriteAttributes = visibleSpriteAttributes[index];
+            int spriteRowLow = visibleSpriteRowLow[index];
+            int spriteRowHigh = visibleSpriteRowHigh[index];
             int compareIndex = index - 1;
 
             while (compareIndex >= 0 && spriteX < visibleSpriteX[compareIndex]) {
@@ -525,6 +505,8 @@ public class DuckPPU {
                 visibleSpriteX[compareIndex + 1] = visibleSpriteX[compareIndex];
                 visibleSpriteTile[compareIndex + 1] = visibleSpriteTile[compareIndex];
                 visibleSpriteAttributes[compareIndex + 1] = visibleSpriteAttributes[compareIndex];
+                visibleSpriteRowLow[compareIndex + 1] = visibleSpriteRowLow[compareIndex];
+                visibleSpriteRowHigh[compareIndex + 1] = visibleSpriteRowHigh[compareIndex];
                 compareIndex--;
             }
 
@@ -532,6 +514,8 @@ public class DuckPPU {
             visibleSpriteX[compareIndex + 1] = spriteX;
             visibleSpriteTile[compareIndex + 1] = spriteTile;
             visibleSpriteAttributes[compareIndex + 1] = spriteAttributes;
+            visibleSpriteRowLow[compareIndex + 1] = spriteRowLow;
+            visibleSpriteRowHigh[compareIndex + 1] = spriteRowHigh;
         }
     }
 
@@ -556,6 +540,77 @@ public class DuckPPU {
 
     private boolean ShouldUseGbcColourisation() {
         return Settings.gbcPaletteModeEnabled && !memory.IsLoadedRomCgbCompatible();
+    }
+
+    private void LoadBackgroundTileRow(boolean windowLayer, int tileAddress, int tileLine, boolean unsignedTileData,
+            int tileDataBase, boolean cgbMode) {
+        if (backgroundTileCacheValid
+                && backgroundTileCacheWindowLayer == windowLayer
+                && backgroundTileCacheTileAddress == tileAddress
+                && backgroundTileCacheTileLine == tileLine
+                && backgroundTileCacheUnsignedTileData == unsignedTileData
+                && backgroundTileCacheCgbMode == cgbMode) {
+            return;
+        }
+
+        int tileNumber = cgbMode ? memory.ReadVideoRam(0, tileAddress) : memory.Read(tileAddress);
+        int tileAttributes = cgbMode ? memory.ReadVideoRam(1, tileAddress) : 0;
+        if (!unsignedTileData) {
+            tileNumber = (byte) tileNumber;
+        }
+
+        int resolvedTileLine = tileLine;
+        if (cgbMode && (tileAttributes & 0x40) != 0) {
+            resolvedTileLine = 7 - resolvedTileLine;
+        }
+
+        int tileLineAddress = tileDataBase + (tileNumber * 16);
+        int lineOffset = resolvedTileLine * 2;
+        int vramBank = cgbMode && (tileAttributes & 0x08) != 0 ? 1 : 0;
+
+        backgroundTileCacheWindowLayer = windowLayer;
+        backgroundTileCacheTileAddress = tileAddress;
+        backgroundTileCacheTileLine = tileLine;
+        backgroundTileCacheUnsignedTileData = unsignedTileData;
+        backgroundTileCacheCgbMode = cgbMode;
+        backgroundTileCacheAttributes = tileAttributes;
+        backgroundTileCacheLowByte = cgbMode
+                ? memory.ReadVideoRam(vramBank, tileLineAddress + lineOffset)
+                : memory.Read(tileLineAddress + lineOffset);
+        backgroundTileCacheHighByte = cgbMode
+                ? memory.ReadVideoRam(vramBank, tileLineAddress + lineOffset + 1)
+                : memory.Read(tileLineAddress + lineOffset + 1);
+        backgroundTileCacheValid = true;
+    }
+
+    private void CacheVisibleSpriteRow(int spriteIndex, boolean use8x16, int spriteY, int tile, int attributes) {
+        int line = scanline - spriteY;
+        int spriteHeight = use8x16 ? 16 : 8;
+        if ((attributes & 0x40) != 0) {
+            line = spriteHeight - 1 - line;
+        }
+
+        int tileIndex = tile;
+        if (use8x16) {
+            tileIndex &= 0xFE;
+            if (line >= 8) {
+                tileIndex |= 0x01;
+                line -= 8;
+            }
+        }
+
+        int tileAddress = 0x8000 + (tileIndex * 16) + (line * 2);
+        int vramBank = (attributes & 0x08) != 0 ? 1 : 0;
+        visibleSpriteRowLow[spriteIndex] = memory.IsCgbMode()
+                ? memory.ReadVideoRam(vramBank, tileAddress)
+                : memory.Read(tileAddress);
+        visibleSpriteRowHigh[spriteIndex] = memory.IsCgbMode()
+                ? memory.ReadVideoRam(vramBank, tileAddress + 1)
+                : memory.Read(tileAddress + 1);
+    }
+
+    private void InvalidatePixelTransferCaches() {
+        backgroundTileCacheValid = false;
     }
 }
 

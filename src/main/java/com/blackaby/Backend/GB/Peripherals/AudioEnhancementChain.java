@@ -10,6 +10,8 @@ import java.util.List;
  * Applies a configurable sequence of host-side audio enhancements.
  */
 public final class AudioEnhancementChain {
+    private static final double silenceThreshold = 0.0005;
+    private static final double wetMixFloor = 0.0001;
 
     /**
      * Mutable stereo frame reused during processing to avoid per-sample allocation.
@@ -29,14 +31,25 @@ public final class AudioEnhancementChain {
 
     private interface Processor {
         void Process(StereoFrame frame);
+
+        default void ResetState() {
+        }
     }
 
     private final float sampleRate;
     private final StereoFrame workingFrame = new StereoFrame();
+    private final int silenceHoldSamples;
+    private final double wetMixFadeStep;
     private List<Processor> processors = List.of();
+    private int consecutiveSilentSamples;
+    private double wetPathMix = 1.0;
+    private boolean processorsAtRest;
 
     public AudioEnhancementChain(float sampleRate) {
         this.sampleRate = sampleRate;
+        this.silenceHoldSamples = Math.max(1, Math.round(sampleRate * 0.060f));
+        int fadeSamples = Math.max(1, Math.round(sampleRate * 0.030f));
+        this.wetMixFadeStep = 1.0 / fadeSamples;
     }
 
     /**
@@ -53,6 +66,7 @@ public final class AudioEnhancementChain {
             rebuilt.add(ProcessorsFor(setting));
         }
         processors = List.copyOf(rebuilt);
+        ResetState();
     }
 
     /**
@@ -63,14 +77,34 @@ public final class AudioEnhancementChain {
      * @return processed frame reference
      */
     public StereoFrame Process(double left, double right) {
+        UpdateSilenceState(left, right);
+
         workingFrame.left = left;
         workingFrame.right = right;
 
-        for (Processor processor : processors) {
-            processor.Process(workingFrame);
+        if (processors.isEmpty() || processorsAtRest || wetPathMix <= wetMixFloor) {
+            return workingFrame;
         }
 
+        for (Processor processor : processors) {
+            processor.Process(workingFrame);
+            workingFrame.left = ClampSample(workingFrame.left);
+            workingFrame.right = ClampSample(workingFrame.right);
+        }
+
+        workingFrame.left = ClampSample(left + ((workingFrame.left - left) * wetPathMix));
+        workingFrame.right = ClampSample(right + ((workingFrame.right - right) * wetPathMix));
         return workingFrame;
+    }
+
+    /**
+     * Clears any retained effect state so the next audible sample starts cleanly.
+     */
+    public void ResetState() {
+        consecutiveSilentSamples = 0;
+        wetPathMix = 1.0;
+        processorsAtRest = false;
+        ResetProcessors();
     }
 
     private Processor ProcessorsFor(AudioEnhancementSetting setting) {
@@ -86,19 +120,19 @@ public final class AudioEnhancementChain {
             case STEREO_WIDEN -> List.of(new StereoWidthProcessor(Interpolate(setting.primaryPercent(), 0.8, 1.6)));
             case ROOM_REVERB -> List.of(new RoomReverbProcessor(
                     sampleRate,
-                    Interpolate(setting.primaryPercent(), 0.14, 0.38),
-                    Interpolate(setting.primaryPercent(), 0.20, 0.44),
-                    0.12,
+                    Interpolate(setting.primaryPercent(), 0.12, 0.24),
+                    Interpolate(setting.primaryPercent(), 0.18, 0.30),
+                    0.08,
                     Interpolate(setting.secondaryPercent(), 2_400.0, 6_000.0)));
             case SHIMMER_CHORUS -> List.of(
                     new ChorusProcessor(
                             sampleRate,
                             11.0,
-                            Interpolate(setting.primaryPercent(), 2.0, 8.0),
-                            Interpolate(setting.primaryPercent(), 0.20, 0.44),
-                            0.10,
-                            Interpolate(setting.secondaryPercent(), 0.12, 0.42)),
-                    new StereoWidthProcessor(Interpolate(setting.secondaryPercent(), 1.0, 1.24)));
+                            Interpolate(setting.primaryPercent(), 2.0, 6.0),
+                            Interpolate(setting.primaryPercent(), 0.16, 0.28),
+                            0.04,
+                            Interpolate(setting.secondaryPercent(), 0.12, 0.32)),
+                    new StereoWidthProcessor(Interpolate(setting.secondaryPercent(), 1.0, 1.16)));
             case DUB_ECHO -> List.of(
                     new PingPongDelayProcessor(
                             sampleRate,
@@ -126,6 +160,36 @@ public final class AudioEnhancementChain {
         return minimum + ((maximum - minimum) * (Math.max(0, Math.min(100, percent)) / 100.0));
     }
 
+    private void UpdateSilenceState(double left, double right) {
+        double peak = Math.max(Math.abs(left), Math.abs(right));
+        if (peak > silenceThreshold) {
+            consecutiveSilentSamples = 0;
+            wetPathMix = 1.0;
+            processorsAtRest = false;
+            return;
+        }
+
+        consecutiveSilentSamples++;
+        if (processorsAtRest || consecutiveSilentSamples <= silenceHoldSamples) {
+            return;
+        }
+
+        wetPathMix = Math.max(0.0, wetPathMix - wetMixFadeStep);
+        if (wetPathMix > wetMixFloor) {
+            return;
+        }
+
+        wetPathMix = 0.0;
+        ResetProcessors();
+        processorsAtRest = true;
+    }
+
+    private void ResetProcessors() {
+        for (Processor processor : processors) {
+            processor.ResetState();
+        }
+    }
+
     private static final class IntensityProcessor implements Processor {
         private final List<Processor> processors;
         private final double mix;
@@ -142,10 +206,19 @@ public final class AudioEnhancementChain {
 
             for (Processor processor : processors) {
                 processor.Process(frame);
+                frame.left = ClampSample(frame.left);
+                frame.right = ClampSample(frame.right);
             }
 
-            frame.left = dryLeft + ((frame.left - dryLeft) * mix);
-            frame.right = dryRight + ((frame.right - dryRight) * mix);
+            frame.left = ClampSample(dryLeft + ((frame.left - dryLeft) * mix));
+            frame.right = ClampSample(dryRight + ((frame.right - dryRight) * mix));
+        }
+
+        @Override
+        public void ResetState() {
+            for (Processor processor : processors) {
+                processor.ResetState();
+            }
         }
     }
 
@@ -166,6 +239,12 @@ public final class AudioEnhancementChain {
             rightState += alpha * (frame.right - rightState);
             frame.left = leftState;
             frame.right = rightState;
+        }
+
+        @Override
+        public void ResetState() {
+            leftState = 0.0;
+            rightState = 0.0;
         }
     }
 
@@ -197,6 +276,14 @@ public final class AudioEnhancementChain {
 
             frame.left = filteredLeft;
             frame.right = filteredRight;
+        }
+
+        @Override
+        public void ResetState() {
+            previousInputLeft = 0.0;
+            previousInputRight = 0.0;
+            previousOutputLeft = 0.0;
+            previousOutputRight = 0.0;
         }
     }
 
@@ -268,8 +355,8 @@ public final class AudioEnhancementChain {
             double delayedLeft = ReadInterpolated(leftBuffer, writeIndex, modulatedLeftDelay);
             double delayedRight = ReadInterpolated(rightBuffer, writeIndex, modulatedRightDelay);
 
-            leftBuffer[writeIndex] = dryLeft + delayedLeft * feedback;
-            rightBuffer[writeIndex] = dryRight + delayedRight * feedback;
+            leftBuffer[writeIndex] = ClampSample(dryLeft + delayedLeft * feedback);
+            rightBuffer[writeIndex] = ClampSample(dryRight + delayedRight * feedback);
 
             writeIndex = (writeIndex + 1) % leftBuffer.length;
             phase += phaseIncrement;
@@ -277,8 +364,16 @@ public final class AudioEnhancementChain {
                 phase -= Math.PI * 2.0;
             }
 
-            frame.left = dryLeft * (1.0 - wet) + delayedLeft * wet;
-            frame.right = dryRight * (1.0 - wet) + delayedRight * wet;
+            frame.left = ClampSample(dryLeft * (1.0 - wet) + delayedLeft * wet);
+            frame.right = ClampSample(dryRight * (1.0 - wet) + delayedRight * wet);
+        }
+
+        @Override
+        public void ResetState() {
+            java.util.Arrays.fill(leftBuffer, 0.0);
+            java.util.Arrays.fill(rightBuffer, 0.0);
+            writeIndex = 0;
+            phase = 0.0;
         }
     }
 
@@ -311,13 +406,24 @@ public final class AudioEnhancementChain {
 
             leftFeedbackState += dampingAlpha * ((dryLeft + delayedRight * feedback) - leftFeedbackState);
             rightFeedbackState += dampingAlpha * ((dryRight + delayedLeft * feedback) - rightFeedbackState);
+            leftFeedbackState = ClampSample(leftFeedbackState);
+            rightFeedbackState = ClampSample(rightFeedbackState);
 
             leftBuffer[writeIndex] = leftFeedbackState;
             rightBuffer[writeIndex] = rightFeedbackState;
             writeIndex = (writeIndex + 1) % leftBuffer.length;
 
-            frame.left = dryLeft * (1.0 - wet) + delayedLeft * wet;
-            frame.right = dryRight * (1.0 - wet) + delayedRight * wet;
+            frame.left = ClampSample(dryLeft * (1.0 - wet) + delayedLeft * wet);
+            frame.right = ClampSample(dryRight * (1.0 - wet) + delayedRight * wet);
+        }
+
+        @Override
+        public void ResetState() {
+            java.util.Arrays.fill(leftBuffer, 0.0);
+            java.util.Arrays.fill(rightBuffer, 0.0);
+            writeIndex = 0;
+            leftFeedbackState = 0.0;
+            rightFeedbackState = 0.0;
         }
     }
 
@@ -363,20 +469,31 @@ public final class AudioEnhancementChain {
             double dryLeft = frame.left;
             double dryRight = frame.right;
 
-            double wetLeft = ReadTapped(leftBuffer, writeIndex, leftTapOffsets, tapGains)
-                    + ReadTapped(rightBuffer, writeIndex, rightTapOffsets, tapGains) * 0.18;
-            double wetRight = ReadTapped(rightBuffer, writeIndex, rightTapOffsets, tapGains)
-                    + ReadTapped(leftBuffer, writeIndex, leftTapOffsets, tapGains) * 0.18;
+            double wetLeft = ClampSample(ReadTapped(leftBuffer, writeIndex, leftTapOffsets, tapGains)
+                    + ReadTapped(rightBuffer, writeIndex, rightTapOffsets, tapGains) * 0.18);
+            double wetRight = ClampSample(ReadTapped(rightBuffer, writeIndex, rightTapOffsets, tapGains)
+                    + ReadTapped(leftBuffer, writeIndex, leftTapOffsets, tapGains) * 0.18);
 
             leftStoreState += dampingAlpha * ((dryLeft + wetLeft * feedback + wetRight * crossfeed) - leftStoreState);
             rightStoreState += dampingAlpha * ((dryRight + wetRight * feedback + wetLeft * crossfeed) - rightStoreState);
+            leftStoreState = ClampSample(leftStoreState);
+            rightStoreState = ClampSample(rightStoreState);
 
             leftBuffer[writeIndex] = leftStoreState;
             rightBuffer[writeIndex] = rightStoreState;
             writeIndex = (writeIndex + 1) % leftBuffer.length;
 
-            frame.left = dryLeft * (1.0 - wet) + wetLeft * wet;
-            frame.right = dryRight * (1.0 - wet) + wetRight * wet;
+            frame.left = ClampSample(dryLeft * (1.0 - wet) + wetLeft * wet);
+            frame.right = ClampSample(dryRight * (1.0 - wet) + wetRight * wet);
+        }
+
+        @Override
+        public void ResetState() {
+            java.util.Arrays.fill(leftBuffer, 0.0);
+            java.util.Arrays.fill(rightBuffer, 0.0);
+            writeIndex = 0;
+            leftStoreState = 0.0;
+            rightStoreState = 0.0;
         }
     }
 
@@ -412,6 +529,10 @@ public final class AudioEnhancementChain {
         double dt = 1.0 / sampleRate;
         double rc = 1.0 / (2.0 * Math.PI * cutoffHz);
         return dt / (rc + dt);
+    }
+
+    private static double ClampSample(double sample) {
+        return Math.max(-1.0, Math.min(1.0, sample));
     }
 }
 

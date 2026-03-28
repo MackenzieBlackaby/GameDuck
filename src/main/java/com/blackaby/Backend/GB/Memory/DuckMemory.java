@@ -940,6 +940,20 @@ public class DuckMemory {
     }
 
     /**
+     * Reads one byte from OAM without applying CPU-side access rules.
+     *
+     * @param address OAM address from {@code 0xFE00} to {@code 0xFE9F}
+     * @return raw OAM byte
+     */
+    public int ReadOamByte(int address) {
+        int resolvedAddress = address & 0xFFFF;
+        if (resolvedAddress < DuckAddresses.OAM_START || resolvedAddress > DuckAddresses.OAM_END) {
+            return 0xFF;
+        }
+        return ram[resolvedAddress] & 0xFF;
+    }
+
+    /**
      * Returns one CGB background palette colour as packed ARGB.
      *
      * @param paletteIndex palette index from 0 to 7

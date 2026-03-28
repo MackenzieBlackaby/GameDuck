@@ -145,6 +145,10 @@ public class DuckAPU {
         audioOutput.Close();
     }
 
+    public void ResetAudioOutputState() {
+        audioOutput.DiscardBufferedAudio();
+    }
+
     public void Tick() {
         if (powerEnabled) {
             channel1.TickTimer();
@@ -340,6 +344,7 @@ public class DuckAPU {
         for (int address = DuckAddresses.WAVE_PATTERN_START; address <= DuckAddresses.WAVE_PATTERN_END; address++) {
             memory.WriteDirect(address, waveRam[address - DuckAddresses.WAVE_PATTERN_START]);
         }
+        audioOutput.DiscardBufferedAudio();
     }
 
     private void SyncMirrors() {

@@ -1329,6 +1329,7 @@ public class OptionsWindow extends DuckWindow {
         soundEnabledCheckBox.addActionListener(event -> {
             Settings.soundEnabled = soundEnabledCheckBox.isSelected();
             Config.Save();
+            mainWindow.GetEmulation().ResetTransientAudioState();
         });
 
         JPanel outputCard = new JPanel(new BorderLayout());
@@ -1445,6 +1446,7 @@ public class OptionsWindow extends DuckWindow {
             enhancementChainModel.clear();
             enhancementEnabledCheckBox.setSelected(Settings.IsAudioEnhancementChainEnabled());
             Config.Save();
+            mainWindow.GetEmulation().ResetTransientAudioState();
         });
 
         JPanel actions = createResponsiveGroup(180, 1, resetSoundButton);

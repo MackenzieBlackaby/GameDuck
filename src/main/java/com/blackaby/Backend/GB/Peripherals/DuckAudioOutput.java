@@ -87,6 +87,7 @@ public class DuckAudioOutput {
 
         if (line == null) {
             writeIndex = 0;
+            enhancementChain.ResetState();
             return;
         }
 
@@ -96,6 +97,7 @@ public class DuckAudioOutput {
         if (writableBytes <= 0) {
             // Drop queued audio rather than stalling the emulation thread.
             writeIndex = 0;
+            enhancementChain.ResetState();
             return;
         }
 
@@ -103,6 +105,7 @@ public class DuckAudioOutput {
         bytesToWrite -= bytesToWrite % frameBytes;
         if (bytesToWrite <= 0) {
             writeIndex = 0;
+            enhancementChain.ResetState();
             return;
         }
 
@@ -121,10 +124,11 @@ public class DuckAudioOutput {
             return;
         }
 
-        Flush();
-        line.drain();
-        line.stop();
-        line.close();
+        DiscardBufferedAudio();
+        if (line != null) {
+            line.stop();
+            line.close();
+        }
         available = false;
         line = null;
     }
@@ -137,6 +141,7 @@ public class DuckAudioOutput {
         if (line != null) {
             line.flush();
         }
+        enhancementChain.ResetState();
     }
 
     private short ToPcm16(double sample) {

@@ -306,6 +306,15 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
         SetButtonPressed(GBButton.FromId(buttonId), pressed);
     }
 
+    @Override
+    public void ResetTransientAudioState() {
+        synchronized (stateLock) {
+            if (apu != null) {
+                apu.ResetAudioOutputState();
+            }
+        }
+    }
+
     /**
      * Returns whether a ROM image is currently available for patching or restart.
      *

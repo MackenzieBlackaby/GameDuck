@@ -47,5 +47,7 @@ public interface EmulatorRuntime {
 
     void SetButtonPressed(String buttonId, boolean pressed);
 
+    void ResetTransientAudioState();
+
     List<EmulatorStateSlot> DescribeCurrentStateSlots();
 }

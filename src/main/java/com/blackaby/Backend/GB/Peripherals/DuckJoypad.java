@@ -74,7 +74,7 @@ public class DuckJoypad {
     /**
      * Updates the pressed state for a button.
      *
-     * @param button joypad button to update
+     * @param button  joypad button to update
      * @param pressed whether the button is pressed
      */
     public synchronized void SetButtonPressed(GBButton button, boolean pressed) {
@@ -154,4 +154,3 @@ public class DuckJoypad {
     }
 
 }
-

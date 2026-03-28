@@ -1,6 +1,6 @@
 package com.blackaby.Misc;
 
-import com.blackaby.Backend.Emulation.Peripherals.DuckJoypad;
+import com.blackaby.Backend.GB.GBButton;
 import com.blackaby.Backend.Platform.EmulatorButton;
 
 import java.util.EnumMap;
@@ -10,7 +10,7 @@ import java.util.EnumMap;
  */
 public final class ControllerBindings {
 
-    private final EnumMap<DuckJoypad.Button, ControllerBinding> bindings = new EnumMap<>(DuckJoypad.Button.class);
+    private final EnumMap<GBButton, ControllerBinding> bindings = new EnumMap<>(GBButton.class);
 
     /**
      * Creates a binding set initialised with the default controller map.
@@ -24,14 +24,14 @@ public final class ControllerBindings {
      */
     public synchronized void ResetToDefaults() {
         bindings.clear();
-        bindings.put(DuckJoypad.Button.UP, ControllerBinding.Pov(ControllerBinding.Direction.UP));
-        bindings.put(DuckJoypad.Button.DOWN, ControllerBinding.Pov(ControllerBinding.Direction.DOWN));
-        bindings.put(DuckJoypad.Button.LEFT, ControllerBinding.Pov(ControllerBinding.Direction.LEFT));
-        bindings.put(DuckJoypad.Button.RIGHT, ControllerBinding.Pov(ControllerBinding.Direction.RIGHT));
-        bindings.put(DuckJoypad.Button.A, ControllerBinding.Button("0"));
-        bindings.put(DuckJoypad.Button.B, ControllerBinding.Button("1"));
-        bindings.put(DuckJoypad.Button.START, ControllerBinding.Button("7"));
-        bindings.put(DuckJoypad.Button.SELECT, ControllerBinding.Button("6"));
+        bindings.put(GBButton.UP, ControllerBinding.Pov(ControllerBinding.Direction.UP));
+        bindings.put(GBButton.DOWN, ControllerBinding.Pov(ControllerBinding.Direction.DOWN));
+        bindings.put(GBButton.LEFT, ControllerBinding.Pov(ControllerBinding.Direction.LEFT));
+        bindings.put(GBButton.RIGHT, ControllerBinding.Pov(ControllerBinding.Direction.RIGHT));
+        bindings.put(GBButton.A, ControllerBinding.Button("0"));
+        bindings.put(GBButton.B, ControllerBinding.Button("1"));
+        bindings.put(GBButton.START, ControllerBinding.Button("7"));
+        bindings.put(GBButton.SELECT, ControllerBinding.Button("6"));
     }
 
     /**
@@ -40,12 +40,12 @@ public final class ControllerBindings {
      * @param button button to inspect
      * @return assigned controller binding
      */
-    public synchronized ControllerBinding GetBinding(DuckJoypad.Button button) {
+    public synchronized ControllerBinding GetBinding(GBButton button) {
         return bindings.get(button);
     }
 
     public synchronized ControllerBinding GetBinding(EmulatorButton button) {
-        return button instanceof DuckJoypad.Button joypadButton ? GetBinding(joypadButton) : null;
+        return button instanceof GBButton joypadButton ? GetBinding(joypadButton) : null;
     }
 
     /**
@@ -54,7 +54,7 @@ public final class ControllerBindings {
      * @param button button to inspect
      * @return display text for the assigned input
      */
-    public synchronized String GetBindingText(DuckJoypad.Button button) {
+    public synchronized String GetBindingText(GBButton button) {
         ControllerBinding binding = GetBinding(button);
         return binding == null ? "Unbound" : binding.ToDisplayText();
     }
@@ -70,13 +70,13 @@ public final class ControllerBindings {
      * @param button  button to update
      * @param binding replacement controller binding
      */
-    public synchronized void SetBinding(DuckJoypad.Button button, ControllerBinding binding) {
+    public synchronized void SetBinding(GBButton button, ControllerBinding binding) {
         if (binding == null) {
             return;
         }
 
         ControllerBinding currentBinding = GetBinding(button);
-        DuckJoypad.Button existingButton = GetButtonForBinding(binding);
+        GBButton existingButton = GetButtonForBinding(binding);
         bindings.put(button, binding);
 
         if (existingButton != null && existingButton != button) {
@@ -85,7 +85,7 @@ public final class ControllerBindings {
     }
 
     public synchronized void SetBinding(EmulatorButton button, ControllerBinding binding) {
-        if (button instanceof DuckJoypad.Button joypadButton) {
+        if (button instanceof GBButton joypadButton) {
             SetBinding(joypadButton, binding);
         }
     }
@@ -96,12 +96,12 @@ public final class ControllerBindings {
      * @param binding binding to look up
      * @return matching button, or {@code null} if none is bound
      */
-    public synchronized DuckJoypad.Button GetButtonForBinding(ControllerBinding binding) {
+    public synchronized GBButton GetButtonForBinding(ControllerBinding binding) {
         if (binding == null) {
             return null;
         }
 
-        for (DuckJoypad.Button button : DuckJoypad.Button.values()) {
+        for (GBButton button : GBButton.values()) {
             if (binding.equals(bindings.get(button))) {
                 return button;
             }
@@ -109,3 +109,5 @@ public final class ControllerBindings {
         return null;
     }
 }
+
+

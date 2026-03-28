@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.Emulation.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.ROM;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -75,3 +75,4 @@ public final class RomConsoleSupport {
         return lowerPath.endsWith(".gbc") || lowerPath.endsWith(".cgb");
     }
 }
+

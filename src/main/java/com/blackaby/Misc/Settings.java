@@ -1,6 +1,6 @@
 package com.blackaby.Misc;
 
-import com.blackaby.Backend.Emulation.Graphics.GBColor;
+import com.blackaby.Backend.GB.Graphics.GBColor;
 
 import java.util.List;
 
@@ -520,3 +520,4 @@ public final class Settings {
         }
     }
 }
+

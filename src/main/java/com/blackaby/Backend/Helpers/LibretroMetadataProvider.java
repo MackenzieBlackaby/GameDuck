@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.Emulation.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.ROM;
 
 import java.io.IOException;
 import java.net.URI;
@@ -272,3 +272,4 @@ public final class LibretroMetadataProvider {
         return value == null || value.isBlank() ? null : value;
     }
 }
+

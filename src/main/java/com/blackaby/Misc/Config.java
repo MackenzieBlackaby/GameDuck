@@ -1,7 +1,7 @@
 package com.blackaby.Misc;
 
-import com.blackaby.Backend.Emulation.Graphics.GBColor;
-import com.blackaby.Backend.Emulation.Peripherals.DuckJoypad;
+import com.blackaby.Backend.GB.GBButton;
+import com.blackaby.Backend.GB.Graphics.GBColor;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -447,7 +447,7 @@ public final class Config {
 
     private static void ApplyInputBindings() {
         Settings.ResetControls();
-        for (DuckJoypad.Button button : DuckJoypad.Button.values()) {
+        for (GBButton button : GBButton.values()) {
             String storedCode = properties.getProperty(inputPrefix + button.name());
             if (storedCode == null) {
                 continue;
@@ -484,7 +484,7 @@ public final class Config {
             Settings.controllerDeadzonePercent = 45;
         }
 
-        for (DuckJoypad.Button button : DuckJoypad.Button.values()) {
+        for (GBButton button : GBButton.values()) {
             ControllerBinding binding = ControllerBinding.FromConfigValue(
                     properties.getProperty(controllerInputPrefix + button.name()));
             if (binding != null) {
@@ -586,7 +586,7 @@ public final class Config {
     }
 
     private static void SyncInputBindings() {
-        for (DuckJoypad.Button button : DuckJoypad.Button.values()) {
+        for (GBButton button : GBButton.values()) {
             properties.setProperty(inputPrefix + button.name(),
                     String.valueOf(Settings.inputBindings.GetKeyCode(button)));
         }
@@ -597,7 +597,7 @@ public final class Config {
         properties.setProperty(controllerPreferredIdKey,
                 Settings.preferredControllerId == null ? "" : Settings.preferredControllerId);
         properties.setProperty(controllerDeadzoneKey, String.valueOf(Settings.controllerDeadzonePercent));
-        for (DuckJoypad.Button button : DuckJoypad.Button.values()) {
+        for (GBButton button : GBButton.values()) {
             ControllerBinding binding = Settings.controllerBindings.GetBinding(button);
             properties.setProperty(controllerInputPrefix + button.name(),
                     binding == null ? "" : binding.ToConfigValue());
@@ -757,3 +757,5 @@ public final class Config {
         }
     }
 }
+
+

@@ -1,12 +1,12 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.Emulation.CPU.DuckCPU;
-import com.blackaby.Backend.Emulation.Graphics.DuckPPU;
-import com.blackaby.Backend.Emulation.Memory.DuckMemory;
-import com.blackaby.Backend.Emulation.Misc.ROM;
-import com.blackaby.Backend.Emulation.Peripherals.DuckAPU;
-import com.blackaby.Backend.Emulation.Peripherals.DuckJoypad;
-import com.blackaby.Backend.Emulation.Peripherals.DuckTimer;
+import com.blackaby.Backend.GB.CPU.DuckCPU;
+import com.blackaby.Backend.GB.Graphics.DuckPPU;
+import com.blackaby.Backend.GB.Memory.DuckMemory;
+import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Peripherals.DuckAPU;
+import com.blackaby.Backend.GB.Peripherals.DuckJoypad;
+import com.blackaby.Backend.GB.Peripherals.DuckTimer;
 import com.blackaby.Frontend.DuckDisplay;
 
 import java.io.BufferedInputStream;
@@ -396,3 +396,4 @@ public final class QuickStateManager {
         }
     }
 }
+

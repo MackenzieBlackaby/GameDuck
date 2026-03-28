@@ -1,7 +1,7 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.Emulation.DuckBackend;
-import com.blackaby.Backend.Emulation.Graphics.GBColor;
+import com.blackaby.Backend.GB.GBBackends;
+import com.blackaby.Backend.GB.Graphics.GBColor;
 import com.blackaby.Backend.Platform.EmulatorButton;
 import com.blackaby.Backend.Platform.EmulatorProfile;
 import com.blackaby.Backend.Helpers.ManagedGameRegistry;
@@ -3625,7 +3625,7 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private EmulatorProfile backendProfile() {
-        return mainWindow == null ? DuckBackend.instance.Profile() : mainWindow.GetBackendProfile();
+        return mainWindow == null ? GBBackends.Current().Profile() : mainWindow.GetBackendProfile();
     }
 
     private JComponent wrapControllerDeadzoneControls() {
@@ -3867,3 +3867,4 @@ public class OptionsWindow extends DuckWindow {
         }
     }
 }
+

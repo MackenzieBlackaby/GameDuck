@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.Emulation.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.ROM;
 import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Frontend.AboutWindow;
 import com.blackaby.Frontend.LibraryWindow;
@@ -275,3 +275,4 @@ public final class GUIActions implements ActionListener {
         }
     }
 }
+

@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.Emulation.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.ROM;
 import com.blackaby.Backend.Platform.EmulatorGame;
 
 import java.io.IOException;
@@ -160,3 +160,4 @@ public final class GameMetadataStore {
         loaded = false;
     }
 }
+

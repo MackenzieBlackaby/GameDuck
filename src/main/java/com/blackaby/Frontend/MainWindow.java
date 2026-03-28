@@ -1,7 +1,7 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.Emulation.DuckBackend;
-import com.blackaby.Backend.Emulation.Misc.ROM;
+import com.blackaby.Backend.GB.GBBackends;
+import com.blackaby.Backend.GB.Misc.ROM;
 import com.blackaby.Backend.Helpers.GameMetadataStore;
 import com.blackaby.Backend.Helpers.GUIActions;
 import com.blackaby.Backend.Helpers.GUIActions.Action;
@@ -143,7 +143,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     public MainWindow() {
         super(UiText.MainWindow.WINDOW_TITLE);
 
-        backend = DuckBackend.instance;
+        backend = GBBackends.Current();
         display = new DuckDisplay(backend.Profile().displaySpec());
         emulation = backend.CreateRuntime(this, display);
         inputRouter = new InputRouter(this, emulation, backend.Profile());
@@ -1211,3 +1211,4 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
                 stats.averageFrameTimeMs()));
     }
 }
+

@@ -1,6 +1,6 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.Emulation.DuckBackend;
+import com.blackaby.Backend.GB.GBBackends;
 import com.blackaby.Backend.Platform.EmulatorDisplaySpec;
 import com.blackaby.Frontend.Borders.DisplayBorderManager;
 import com.blackaby.Frontend.Borders.DisplayBorderRenderer;
@@ -83,7 +83,7 @@ public class DuckDisplay extends JPanel {
      * initialises the image buffer to the standard Game Boy resolution.
      */
     public DuckDisplay() {
-        this(DuckBackend.instance.Profile().displaySpec());
+        this(GBBackends.Current().Profile().displaySpec());
     }
 
     /**
@@ -718,3 +718,4 @@ public class DuckDisplay extends JPanel {
         statsWindowPaintCount = 0;
     }
 }
+

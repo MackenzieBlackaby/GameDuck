@@ -1,6 +1,6 @@
 package com.blackaby.Misc;
 
-import com.blackaby.Backend.Emulation.Graphics.GBColor;
+import com.blackaby.Backend.GB.Graphics.GBColor;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonParseException;
@@ -732,3 +732,4 @@ public final class PaletteStore {
         }
     }
 }
+

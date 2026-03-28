@@ -1,6 +1,6 @@
 package com.blackaby.Misc;
 
-import com.blackaby.Backend.Emulation.Peripherals.DuckJoypad;
+import com.blackaby.Backend.GB.GBButton;
 import com.blackaby.Backend.Platform.EmulatorButton;
 
 import java.awt.event.KeyEvent;
@@ -11,7 +11,7 @@ import java.util.EnumMap;
  */
 public final class InputBindings {
 
-    private final EnumMap<DuckJoypad.Button, Integer> bindings = new EnumMap<>(DuckJoypad.Button.class);
+    private final EnumMap<GBButton, Integer> bindings = new EnumMap<>(GBButton.class);
 
     /**
      * Creates a binding set initialised with the default controls.
@@ -25,14 +25,14 @@ public final class InputBindings {
      */
     public synchronized void ResetToDefaults() {
         bindings.clear();
-        bindings.put(DuckJoypad.Button.UP, KeyEvent.VK_UP);
-        bindings.put(DuckJoypad.Button.DOWN, KeyEvent.VK_DOWN);
-        bindings.put(DuckJoypad.Button.LEFT, KeyEvent.VK_LEFT);
-        bindings.put(DuckJoypad.Button.RIGHT, KeyEvent.VK_RIGHT);
-        bindings.put(DuckJoypad.Button.A, KeyEvent.VK_X);
-        bindings.put(DuckJoypad.Button.B, KeyEvent.VK_Z);
-        bindings.put(DuckJoypad.Button.START, KeyEvent.VK_ENTER);
-        bindings.put(DuckJoypad.Button.SELECT, KeyEvent.VK_BACK_SPACE);
+        bindings.put(GBButton.UP, KeyEvent.VK_UP);
+        bindings.put(GBButton.DOWN, KeyEvent.VK_DOWN);
+        bindings.put(GBButton.LEFT, KeyEvent.VK_LEFT);
+        bindings.put(GBButton.RIGHT, KeyEvent.VK_RIGHT);
+        bindings.put(GBButton.A, KeyEvent.VK_X);
+        bindings.put(GBButton.B, KeyEvent.VK_Z);
+        bindings.put(GBButton.START, KeyEvent.VK_ENTER);
+        bindings.put(GBButton.SELECT, KeyEvent.VK_BACK_SPACE);
     }
 
     /**
@@ -41,12 +41,12 @@ public final class InputBindings {
      * @param button button to inspect
      * @return assigned host key code
      */
-    public synchronized int GetKeyCode(DuckJoypad.Button button) {
+    public synchronized int GetKeyCode(GBButton button) {
         return bindings.getOrDefault(button, KeyEvent.VK_UNDEFINED);
     }
 
     public synchronized int GetKeyCode(EmulatorButton button) {
-        return button instanceof DuckJoypad.Button joypadButton
+        return button instanceof GBButton joypadButton
                 ? GetKeyCode(joypadButton)
                 : KeyEvent.VK_UNDEFINED;
     }
@@ -57,7 +57,7 @@ public final class InputBindings {
      * @param button button to inspect
      * @return display text for the assigned key
      */
-    public synchronized String GetKeyText(DuckJoypad.Button button) {
+    public synchronized String GetKeyText(GBButton button) {
         int keyCode = GetKeyCode(button);
         if (keyCode == KeyEvent.VK_UNDEFINED) {
             return "Unbound";
@@ -76,13 +76,13 @@ public final class InputBindings {
      * @param button button to update
      * @param keyCode replacement host key code
      */
-    public synchronized void SetKeyCode(DuckJoypad.Button button, int keyCode) {
+    public synchronized void SetKeyCode(GBButton button, int keyCode) {
         if (keyCode == KeyEvent.VK_UNDEFINED) {
             return;
         }
 
         int currentKeyCode = GetKeyCode(button);
-        DuckJoypad.Button existingButton = GetButtonForKeyCode(keyCode);
+        GBButton existingButton = GetButtonForKeyCode(keyCode);
         bindings.put(button, keyCode);
 
         if (existingButton != null && existingButton != button) {
@@ -91,7 +91,7 @@ public final class InputBindings {
     }
 
     public synchronized void SetKeyCode(EmulatorButton button, int keyCode) {
-        if (button instanceof DuckJoypad.Button joypadButton) {
+        if (button instanceof GBButton joypadButton) {
             SetKeyCode(joypadButton, keyCode);
         }
     }
@@ -102,8 +102,8 @@ public final class InputBindings {
      * @param keyCode host key code to look up
      * @return matching button, or {@code null} if none is bound
      */
-    public synchronized DuckJoypad.Button GetButtonForKeyCode(int keyCode) {
-        for (DuckJoypad.Button button : DuckJoypad.Button.values()) {
+    public synchronized GBButton GetButtonForKeyCode(int keyCode) {
+        for (GBButton button : GBButton.values()) {
             if (bindings.getOrDefault(button, KeyEvent.VK_UNDEFINED) == keyCode) {
                 return button;
             }
@@ -124,3 +124,5 @@ public final class InputBindings {
     }
 
 }
+
+

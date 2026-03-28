@@ -1,6 +1,6 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.Emulation.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.ROM;
 import com.blackaby.Backend.Helpers.GameArtProvider;
 import com.blackaby.Backend.Helpers.GameLibraryStore;
 import com.blackaby.Backend.Helpers.GameLibraryStore.LibraryEntry;
@@ -411,3 +411,4 @@ public final class LibraryGameInfoWindow extends DuckWindow {
         return WindowUiSupport.createCardBorder(cardBorder, false, 18);
     }
 }
+

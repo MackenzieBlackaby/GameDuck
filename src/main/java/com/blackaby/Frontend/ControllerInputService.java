@@ -1,6 +1,6 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.Emulation.Peripherals.DuckJoypad;
+import com.blackaby.Backend.GB.GBButton;
 import com.blackaby.Misc.ControllerBinding;
 import com.blackaby.Misc.Settings;
 import com.github.strikerx3.jxinput.XInputAxes;
@@ -160,11 +160,11 @@ public final class ControllerInputService {
      *
      * @return pressed emulated buttons
      */
-    public EnumSet<DuckJoypad.Button> PollBoundButtons() {
+    public EnumSet<GBButton> PollBoundButtons() {
         synchronized (pollLock) {
             EnsureRecentScanLocked();
             if (!Settings.controllerInputEnabled) {
-                return EnumSet.noneOf(DuckJoypad.Button.class);
+                return EnumSet.noneOf(GBButton.class);
             }
             return PollBoundButtonsLocked();
         }
@@ -214,16 +214,16 @@ public final class ControllerInputService {
         }
     }
 
-    private EnumSet<DuckJoypad.Button> PollBoundButtonsLocked() {
+    private EnumSet<GBButton> PollBoundButtonsLocked() {
         ControllerHandle handle = PollActiveControllerLocked();
         if (handle == null) {
-            return EnumSet.noneOf(DuckJoypad.Button.class);
+            return EnumSet.noneOf(GBButton.class);
         }
 
         float deadzone = Settings.controllerDeadzonePercent / 100f;
         Map<String, Float> componentValues = PollComponentValues(handle, polledComponentValues);
-        EnumSet<DuckJoypad.Button> pressedButtons = EnumSet.noneOf(DuckJoypad.Button.class);
-        for (DuckJoypad.Button button : DuckJoypad.Button.values()) {
+        EnumSet<GBButton> pressedButtons = EnumSet.noneOf(GBButton.class);
+        for (GBButton button : GBButton.values()) {
             ControllerBinding binding = Settings.controllerBindings.GetBinding(button);
             if (binding != null && binding.Matches(componentValues, deadzone)) {
                 pressedButtons.add(button);
@@ -771,3 +771,5 @@ public final class ControllerInputService {
     private record ComponentHandle(Object component, String id, ComponentKind kind) {
     }
 }
+
+

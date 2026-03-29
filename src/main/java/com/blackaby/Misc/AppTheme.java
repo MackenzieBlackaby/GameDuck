@@ -146,7 +146,7 @@ public final class AppTheme {
      * @return surface border colour
      */
     public Color SurfaceBorderColour() {
-        return Mix(SurfaceColour(), AccentColour(), 0.72);
+        return Mix(SurfaceColour(), AccentColour(), 0.84);
     }
 
     /**
@@ -182,7 +182,7 @@ public final class AppTheme {
      * @return derived status bar colour
      */
     public Color StatusBackgroundColour() {
-        return Mix(AppBackgroundColour(), SurfaceColour(), 0.55);
+        return Mix(AppBackgroundColour(), DisplayFrameColour(), 0.74);
     }
 
     /**
@@ -191,7 +191,7 @@ public final class AppTheme {
      * @return derived button colour
      */
     public Color ButtonSecondaryBackground() {
-        return Mix(SurfaceColour(), AppBackgroundColour(), 0.7);
+        return Mix(SurfaceColour(), AppBackgroundColour(), 0.84);
     }
 
     /**
@@ -200,7 +200,7 @@ public final class AppTheme {
      * @return primary button border colour
      */
     public Color PrimaryButtonBorderColour() {
-        return Darken(AccentColour(), 0.2);
+        return Darken(AccentColour(), 0.14);
     }
 
     /**
@@ -209,7 +209,7 @@ public final class AppTheme {
      * @return display border colour
      */
     public Color DisplayFrameBorderColour() {
-        return Darken(DisplayFrameColour(), 0.22);
+        return Darken(DisplayFrameColour(), 0.14);
     }
 
     /**
@@ -227,7 +227,7 @@ public final class AppTheme {
      * @return highlight border colour
      */
     public Color SectionHighlightBorderColour() {
-        return Mix(SectionHighlightColour(), AccentColour(), 0.75);
+        return Mix(SectionHighlightColour(), AccentColour(), 0.84);
     }
 
     /**
@@ -236,7 +236,7 @@ public final class AppTheme {
      * @return card tint colour
      */
     public Color CardTintColour() {
-        return Mix(SurfaceColour(), AppBackgroundColour(), 0.78);
+        return Mix(SurfaceColour(), AppBackgroundColour(), 0.86);
     }
 
     /**
@@ -245,7 +245,7 @@ public final class AppTheme {
      * @return card tint border colour
      */
     public Color CardTintBorderColour() {
-        return Mix(CardTintColour(), AccentColour(), 0.8);
+        return Mix(CardTintColour(), AccentColour(), 0.9);
     }
 
     /**
@@ -254,7 +254,7 @@ public final class AppTheme {
      * @return list selection colour
      */
     public Color ListSelectionColour() {
-        return Mix(SectionHighlightColour(), SurfaceColour(), 0.58);
+        return Mix(SectionHighlightColour(), SurfaceColour(), 0.72);
     }
 
     private static Color Parse(String hex) {

@@ -42,6 +42,7 @@ import javax.swing.JTextArea;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
 import javax.swing.border.Border;
+import java.awt.CardLayout;
 import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
@@ -75,6 +76,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class MainWindow extends DuckWindow implements EmulatorHost {
 
+    private static final String DISPLAY_STAGE_EMPTY = "empty";
+    private static final String DISPLAY_STAGE_ACTIVE = "active";
     private static final int gameArtPreviewWidth = 280;
     private static final int gameArtPreviewHeight = 220;
     private static final int displayStatsRefreshMillis = 500;
@@ -129,6 +132,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private JPanel headerPanel;
     private JPanel displayWrapper;
     private JPanel displayCard;
+    private JPanel displayStagePanel;
     private JPanel serialCard;
     private JPanel serialSectionPanel;
     private JPanel gameArtPanel;
@@ -207,6 +211,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             }
         });
         setVisible(true);
+        updateDisplayStage();
     }
 
     private JComponent BuildHeader() {
@@ -230,7 +235,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
         JPanel actions = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 10, 0));
         actions.setOpaque(false);
-        actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_OPEN_ROM, Action.LOADROM));
+        actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_OPEN_ROM, Action.LOADROM, true));
         actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_LIBRARY, Action.LIBRARY));
         actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_OPEN_IPS_PATCH, Action.LOADIPS));
         actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_OPTIONS, Action.OPTIONS));
@@ -274,7 +279,12 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         displaySurface.setOpaque(false);
         displaySurface.add(display, BorderLayout.CENTER);
 
-        displayFrame.add(displaySurface, BorderLayout.CENTER);
+        displayStagePanel = new JPanel(new CardLayout());
+        displayStagePanel.setOpaque(false);
+        displayStagePanel.add(BuildDisplayEmptyState(), DISPLAY_STAGE_EMPTY);
+        displayStagePanel.add(displaySurface, DISPLAY_STAGE_ACTIVE);
+
+        displayFrame.add(displayStagePanel, BorderLayout.CENTER);
 
         displayCard.add(labelRow, BorderLayout.NORTH);
         displayCard.add(displayFrame, BorderLayout.CENTER);
@@ -284,6 +294,50 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         content.add(serialCard, BorderLayout.EAST);
         wrapper.add(content, BorderLayout.CENTER);
         return wrapper;
+    }
+
+    private JComponent BuildDisplayEmptyState() {
+        JPanel panel = new JPanel(new java.awt.GridBagLayout());
+        panel.setOpaque(false);
+
+        JPanel content = new JPanel();
+        content.setOpaque(false);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setBorder(BorderFactory.createEmptyBorder(34, 28, 34, 28));
+
+        JLabel logoLabel = new JLabel(AppAssets.HeaderLogoIcon(72));
+        logoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
+        JLabel title = new JLabel(UiText.MainWindow.DISPLAY_EMPTY_TITLE);
+        title.setAlignmentX(Component.CENTER_ALIGNMENT);
+        title.setFont(Styling.titleFont.deriveFont(Font.BOLD, 28f));
+        title.setForeground(Styling.accentColour);
+
+        JLabel helper = new JLabel("<html><div style='text-align:center;width:320px;'>"
+                + WindowUiSupport.escapeHtml(UiText.MainWindow.DISPLAY_EMPTY_HELPER)
+                + "</div></html>");
+        helper.setAlignmentX(Component.CENTER_ALIGNMENT);
+        helper.setHorizontalAlignment(SwingConstants.CENTER);
+        helper.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 14f));
+        helper.setForeground(Styling.mutedTextColour);
+
+        JPanel actions = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.CENTER, 10, 0));
+        actions.setOpaque(false);
+        actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_OPEN_ROM, Action.LOADROM, true));
+        actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_LIBRARY, Action.LIBRARY));
+
+        if (logoLabel.getIcon() != null) {
+            content.add(logoLabel);
+            content.add(javax.swing.Box.createVerticalStrut(16));
+        }
+        content.add(title);
+        content.add(javax.swing.Box.createVerticalStrut(10));
+        content.add(helper);
+        content.add(javax.swing.Box.createVerticalStrut(18));
+        content.add(actions);
+
+        panel.add(content);
+        return panel;
     }
 
     private JComponent BuildSerialOutputPanel() {
@@ -406,8 +460,17 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     }
 
     private JButton CreateHeaderButton(String text, Action action) {
+        return CreateHeaderButton(text, action, false);
+    }
+
+    private JButton CreateHeaderButton(String text, Action action, boolean primary) {
         JButton button = new JButton(text);
-        styleHeaderButton(button);
+        button.putClientProperty("gameduck.header.primary", primary);
+        if (primary) {
+            WindowUiSupport.stylePrimaryButton(button, Styling.accentColour);
+        } else {
+            styleHeaderButton(button);
+        }
         button.addActionListener(new GUIActions(this, action, emulation));
         headerButtons.add(button);
         return button;
@@ -415,9 +478,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
     private void styleHeaderButton(JButton button) {
         WindowUiSupport.styleSecondaryButton(button, Styling.accentColour, Styling.surfaceBorderColour);
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.surfaceBorderColour, 1),
-                BorderFactory.createEmptyBorder(8, 14, 8, 14)));
+        button.setBorder(BorderFactory.createEmptyBorder(10, 17, 10, 17));
     }
 
     private Border createMenuBarBorder() {
@@ -694,6 +755,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
                 displayFrame.setBackground(Styling.displayFrameColour);
                 displayFrame.setBorder(fillWindow ? BorderFactory.createEmptyBorder() : createDisplayFrameBorder());
             }
+            updateDisplayStage();
             revalidate();
             repaint();
         };
@@ -768,7 +830,11 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             }
 
             for (JButton button : headerButtons) {
-                styleHeaderButton(button);
+                if (Boolean.TRUE.equals(button.getClientProperty("gameduck.header.primary"))) {
+                    WindowUiSupport.stylePrimaryButton(button, Styling.accentColour);
+                } else {
+                    styleHeaderButton(button);
+                }
             }
 
             ApplyWindowMode();
@@ -815,6 +881,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
                 romLabel.setText(romText);
             }
             RefreshSaveStateMenus();
+            updateDisplayStage();
         };
 
         if (SwingUtilities.isEventDispatchThread()) {
@@ -1382,6 +1449,16 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             lastDisplayStatsText = nextText;
             displayHintLabel.setText(nextText);
         }
+    }
+
+    private void updateDisplayStage() {
+        if (displayStagePanel == null) {
+            return;
+        }
+
+        CardLayout layout = (CardLayout) displayStagePanel.getLayout();
+        boolean showEmptyState = currentLoadedGame == null && Settings.fillWindowOutput;
+        layout.show(displayStagePanel, showEmptyState ? DISPLAY_STAGE_EMPTY : DISPLAY_STAGE_ACTIVE);
     }
 
     private record CachedGameArt(ImageIcon icon, String sourceLabel) {

@@ -10,6 +10,7 @@ import javax.swing.plaf.BorderUIResource;
 import javax.swing.plaf.ColorUIResource;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.GraphicsEnvironment;
 import java.awt.Window;
 
 /**
@@ -37,8 +38,8 @@ public final class Styling {
     public static Color cardTintBorderColour;
     public static Color listSelectionColour;
 
-    public static final Font menuFont = new Font("Roboto", Font.PLAIN, 12);
-    public static final Font titleFont = new Font("Roboto", Font.BOLD, 36);
+    public static final Font menuFont = resolveFont(12f, Font.PLAIN, "Bahnschrift", "Trebuchet MS", Font.DIALOG);
+    public static final Font titleFont = resolveFont(34f, Font.BOLD, "Bahnschrift", "Trebuchet MS", Font.DIALOG);
     public static final Color menuBackgroundColour = new Color(0, 0, 0, 0);
     public static final Color menuForegroundColour = Color.BLACK;
     public static final Color menuSelectionBackgroundColour = new Color(0, 0, 0, 0);
@@ -128,26 +129,26 @@ public final class Styling {
         putColor("List.selectionBackground", selectionBackground);
         putColor("List.selectionForeground", selectionForeground);
         putColor("MenuBar.background", theme.SurfaceColour());
-        putColor("MenuBar.foreground", theme.AccentColour());
+        putColor("MenuBar.foreground", theme.MutedTextColour());
         putColor("Menu.background", theme.SurfaceColour());
-        putColor("Menu.foreground", theme.AccentColour());
+        putColor("Menu.foreground", theme.MutedTextColour());
         putColor("Menu.selectionBackground", selectionBackground);
         putColor("Menu.selectionForeground", selectionForeground);
         putColor("Menu.disabledForeground", theme.SurfaceBorderColour());
         putColor("Menu.acceleratorForeground", theme.MutedTextColour());
         putColor("MenuItem.background", theme.SurfaceColour());
-        putColor("MenuItem.foreground", theme.AccentColour());
+        putColor("MenuItem.foreground", textForeground);
         putColor("MenuItem.selectionBackground", selectionBackground);
         putColor("MenuItem.selectionForeground", selectionForeground);
         putColor("MenuItem.disabledForeground", theme.SurfaceBorderColour());
         putColor("MenuItem.acceleratorForeground", theme.MutedTextColour());
         putColor("MenuItem.acceleratorSelectionForeground", selectionForeground);
         putColor("CheckBoxMenuItem.background", theme.SurfaceColour());
-        putColor("CheckBoxMenuItem.foreground", theme.AccentColour());
+        putColor("CheckBoxMenuItem.foreground", textForeground);
         putColor("CheckBoxMenuItem.selectionBackground", selectionBackground);
         putColor("CheckBoxMenuItem.selectionForeground", selectionForeground);
         putColor("RadioButtonMenuItem.background", theme.SurfaceColour());
-        putColor("RadioButtonMenuItem.foreground", theme.AccentColour());
+        putColor("RadioButtonMenuItem.foreground", textForeground);
         putColor("RadioButtonMenuItem.selectionBackground", selectionBackground);
         putColor("RadioButtonMenuItem.selectionForeground", selectionForeground);
         putColor("PopupMenu.background", theme.SurfaceColour());
@@ -214,6 +215,24 @@ public final class Styling {
 
     private static void putColor(String key, Color color) {
         UIManager.put(key, new ColorUIResource(color));
+    }
+
+    private static Font resolveFont(float size, int style, String... preferredFamilies) {
+        int roundedSize = Math.max(1, Math.round(size));
+        if (GraphicsEnvironment.isHeadless()) {
+            return new Font(Font.DIALOG, style, roundedSize);
+        }
+
+        String[] availableFamilies = GraphicsEnvironment.getLocalGraphicsEnvironment().getAvailableFontFamilyNames();
+        for (String preferredFamily : preferredFamilies) {
+            for (String availableFamily : availableFamilies) {
+                if (availableFamily.equalsIgnoreCase(preferredFamily)) {
+                    return new Font(availableFamily, style, roundedSize);
+                }
+            }
+        }
+
+        return new Font(Font.DIALOG, style, roundedSize);
     }
 
     private static void refreshOpenWindows() {

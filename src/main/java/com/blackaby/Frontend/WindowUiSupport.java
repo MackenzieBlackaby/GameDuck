@@ -42,6 +42,7 @@ import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.GradientPaint;
 import java.awt.Insets;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
@@ -60,16 +61,14 @@ final class WindowUiSupport {
 
     static void stylePrimaryButton(JButton button, Color accentColour) {
         button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(true);
+        button.setOpaque(false);
+        button.setContentAreaFilled(false);
+        button.setBorderPainted(false);
         button.setRolloverEnabled(true);
         button.setBackground(accentColour);
         button.setForeground(Color.WHITE);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.primaryButtonBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
+        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12.5f));
+        button.setBorder(BorderFactory.createEmptyBorder(10, 19, 10, 19));
         if (!(button.getUI() instanceof ThemedButtonUI)) {
             button.setUI(new ThemedButtonUI());
         }
@@ -83,16 +82,14 @@ final class WindowUiSupport {
 
     static void styleSecondaryButton(JButton button, Color accentColour, Color borderColour) {
         button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(true);
+        button.setOpaque(false);
+        button.setContentAreaFilled(false);
+        button.setBorderPainted(false);
         button.setRolloverEnabled(true);
         button.setBackground(Styling.buttonSecondaryBackground);
         button.setForeground(accentColour);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(borderColour, 1, true),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
+        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12.5f));
+        button.setBorder(BorderFactory.createEmptyBorder(10, 19, 10, 19));
         if (!(button.getUI() instanceof ThemedButtonUI)) {
             button.setUI(new ThemedButtonUI());
         }
@@ -113,10 +110,10 @@ final class WindowUiSupport {
         badge.setOpaque(true);
         badge.setBackground(Styling.sectionHighlightColour);
         badge.setForeground(accentColour);
-        badge.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
+        badge.setFont(Styling.menuFont.deriveFont(Font.BOLD, 10.5f));
         badge.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+                BorderFactory.createEmptyBorder(4, 10, 4, 10)));
         return badge;
     }
 
@@ -151,7 +148,7 @@ final class WindowUiSupport {
         if (component instanceof JMenuBar menuBar) {
             menuBar.setOpaque(true);
             menuBar.setBackground(Styling.surfaceColour);
-            menuBar.setForeground(Styling.accentColour);
+            menuBar.setForeground(Styling.mutedTextColour);
             if (!(menuBar.getUI() instanceof ThemedMenuBarUI)) {
                 menuBar.setUI(new ThemedMenuBarUI());
             }
@@ -202,10 +199,16 @@ final class WindowUiSupport {
             return;
         }
 
+        boolean topLevelMenu = menu.getParent() instanceof JMenuBar;
         menu.setOpaque(true);
         menu.setBackground(Styling.surfaceColour);
-        menu.setForeground(Styling.accentColour);
+        menu.setForeground(Styling.mutedTextColour);
+        menu.setFont(Styling.menuFont.deriveFont(topLevelMenu ? Font.BOLD : Font.PLAIN, topLevelMenu ? 13f : 12f));
         menu.setBorderPainted(false);
+        menu.setBorder(BorderFactory.createEmptyBorder());
+        if (!topLevelMenu) {
+            menu.setMargin(new Insets(6, 12, 6, 12));
+        }
         if (!(menu.getUI() instanceof ThemedMenuUI)) {
             menu.setUI(new ThemedMenuUI());
         }
@@ -234,7 +237,7 @@ final class WindowUiSupport {
 
         menuItem.setOpaque(true);
         menuItem.setBackground(Styling.surfaceColour);
-        menuItem.setForeground(Styling.accentColour);
+        menuItem.setForeground(Styling.mutedTextColour);
         menuItem.setBorderPainted(false);
         if (menuItem instanceof JMenu) {
             return;
@@ -363,8 +366,16 @@ final class WindowUiSupport {
 
             Graphics2D graphics2d = (Graphics2D) graphics.create();
             graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            graphics2d.setColor(resolveBackground(button));
-            graphics2d.fillRoundRect(0, 0, component.getWidth(), component.getHeight(), 12, 12);
+            int width = Math.max(0, component.getWidth() - 1);
+            int height = Math.max(0, component.getHeight() - 1);
+            Color base = resolveBackground(button);
+            Color top = blend(base, Color.WHITE, button.getModel().isRollover() ? 0.12f : 0.07f);
+            Color bottom = blend(base, Styling.appBackgroundColour,
+                    button.getForeground().getRGB() == Color.WHITE.getRGB() ? 0.16f : 0.08f);
+            graphics2d.setPaint(new GradientPaint(0, 0, top, 0, component.getHeight(), bottom));
+            graphics2d.fillRoundRect(0, 0, width, height, 16, 16);
+            graphics2d.setColor(resolveOutline(button, base));
+            graphics2d.drawRoundRect(0, 0, width, height, 16, 16);
             graphics2d.dispose();
             paint(graphics, component);
         }
@@ -388,6 +399,16 @@ final class WindowUiSupport {
                 return blend(base, Color.WHITE, 0.08f);
             }
             return base;
+        }
+
+        private Color resolveOutline(AbstractButton button, Color base) {
+            if (!button.isEnabled()) {
+                return blend(base, Styling.appBackgroundColour, 0.6f);
+            }
+            if (button.getForeground().getRGB() == Color.WHITE.getRGB()) {
+                return blend(base, Styling.primaryButtonBorderColour, 0.55f);
+            }
+            return blend(base, Styling.surfaceBorderColour, 0.5f);
         }
     }
 
@@ -566,8 +587,8 @@ final class WindowUiSupport {
             darkShadow = Styling.displayFrameBorderColour;
             contentBorderInsets = new Insets(1, 1, 1, 1);
             selectedTabPadInsets = new Insets(0, 0, 0, 0);
-            tabAreaInsets = new Insets(6, 0, 0, 0);
-            tabInsets = new Insets(8, 14, 8, 14);
+            tabAreaInsets = new Insets(8, 0, 10, 0);
+            tabInsets = new Insets(10, 18, 10, 18);
         }
 
         @Override
@@ -587,15 +608,28 @@ final class WindowUiSupport {
         @Override
         protected void paintTabBackground(Graphics graphics, int tabPlacement, int tabIndex,
                                           int x, int y, int w, int h, boolean isSelected) {
-            graphics.setColor(isSelected ? Styling.surfaceColour : Styling.buttonSecondaryBackground);
-            graphics.fillRect(x, y, w, h);
+            Graphics2D graphics2d = (Graphics2D) graphics.create();
+            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            int arc = 18;
+            int inset = 2;
+            int width = Math.max(0, w - (inset * 2));
+            int height = Math.max(0, h - (inset * 2));
+            Color fill = isSelected
+                    ? blend(Styling.surfaceColour, Styling.sectionHighlightColour, 0.64f)
+                    : blend(Styling.buttonSecondaryBackground, Styling.appBackgroundColour, 0.82f);
+            graphics2d.setColor(fill);
+            graphics2d.fillRoundRect(x + inset, y + inset, width, height, arc, arc);
+            graphics2d.dispose();
         }
 
         @Override
         protected void paintTabBorder(Graphics graphics, int tabPlacement, int tabIndex,
                                       int x, int y, int w, int h, boolean isSelected) {
-            graphics.setColor(isSelected ? Styling.sectionHighlightBorderColour : Styling.surfaceBorderColour);
-            graphics.drawRect(x, y, w - 1, h - 1);
+            Graphics2D graphics2d = (Graphics2D) graphics.create();
+            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics2d.setColor(isSelected ? Styling.sectionHighlightBorderColour : Styling.surfaceBorderColour);
+            graphics2d.drawRoundRect(x + 2, y + 2, Math.max(0, w - 5), Math.max(0, h - 5), 18, 18);
+            graphics2d.dispose();
         }
 
         @Override

@@ -71,6 +71,8 @@ public final class UiText {
         // Display panel text.
         public static final String DISPLAY_TITLE = "Display";
         public static final String DISPLAY_HINT = "Game Output";
+        public static final String DISPLAY_EMPTY_TITLE = "Ready to Play";
+        public static final String DISPLAY_EMPTY_HELPER = "Open a ROM or browse your library to start a new session";
 
         // Serial panel text.
         public static final String SERIAL_TITLE = "Serial Output";

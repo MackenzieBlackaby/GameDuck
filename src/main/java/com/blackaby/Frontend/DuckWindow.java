@@ -11,6 +11,7 @@ import javax.swing.JMenuBar;
 import javax.swing.JPanel;
 import javax.swing.JRootPane;
 import javax.swing.SwingUtilities;
+import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Container;
@@ -18,9 +19,12 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Point;
 import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.Toolkit;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -35,13 +39,13 @@ import java.util.List;
  */
 public class DuckWindow extends JFrame {
 
-    private static final int TITLE_BAR_HEIGHT = 38;
+    private static final int TITLE_BAR_HEIGHT = 40;
     private static final int RESIZE_MARGIN = 6;
     private static final int DIR_NORTH = 1;
     private static final int DIR_SOUTH = 2;
     private static final int DIR_WEST = 4;
     private static final int DIR_EAST = 8;
-    private static final Dimension TITLE_BUTTON_SIZE = new Dimension(42, 26);
+    private static final Dimension TITLE_BUTTON_SIZE = new Dimension(34, 24);
     private static final int SNAP_MAXIMISE_THRESHOLD = 2;
 
     private final JPanel shellPanel;
@@ -59,6 +63,12 @@ public class DuckWindow extends JFrame {
     private final ResizeHandlePanel westResizeHandle;
     private final ResizeHandlePanel eastResizeHandle;
     private final String baseTitle;
+
+    private enum WindowControl {
+        MINIMISE,
+        MAXIMISE,
+        CLOSE
+    }
 
     private JMenuBar attachedMenuBar;
     private boolean fullscreen;
@@ -168,9 +178,9 @@ public class DuckWindow extends JFrame {
 
         titleIconLabel = new JLabel();
         titleLabel = new JLabel();
-        minimiseButton = createTitleButton("-");
-        maximiseButton = createTitleButton("[]");
-        closeButton = createTitleButton("X");
+        minimiseButton = createTitleButton(WindowControl.MINIMISE);
+        maximiseButton = createTitleButton(WindowControl.MAXIMISE);
+        closeButton = createTitleButton(WindowControl.CLOSE);
         initialiseTitleBar();
 
         applyWindowChromeTheme();
@@ -179,7 +189,7 @@ public class DuckWindow extends JFrame {
         List<Image> windowIcons = AppAssets.WindowIcons();
         if (!windowIcons.isEmpty()) {
             setIconImages(windowIcons);
-            titleIconLabel.setIcon(AppAssets.HeaderLogoIcon(16));
+            titleIconLabel.setIcon(AppAssets.HeaderLogoIcon(18));
         } else {
             titleIconLabel.setVisible(false);
         }
@@ -357,7 +367,7 @@ public class DuckWindow extends JFrame {
         JPanel panel = new JPanel(new BorderLayout(12, 0));
         panel.setPreferredSize(new Dimension(0, TITLE_BAR_HEIGHT));
         panel.setMinimumSize(new Dimension(0, TITLE_BAR_HEIGHT));
-        panel.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 8));
+        panel.setBorder(BorderFactory.createEmptyBorder(7, 12, 7, 10));
         return panel;
     }
 
@@ -382,8 +392,8 @@ public class DuckWindow extends JFrame {
         closeButton.addActionListener(event -> dispatchEvent(new WindowEvent(this, WindowEvent.WINDOW_CLOSING)));
     }
 
-    private JButton createTitleButton(String text) {
-        JButton button = new JButton(text);
+    private JButton createTitleButton(WindowControl control) {
+        JButton button = new WindowControlButton(control);
         button.setFocusable(false);
         button.setAlignmentY(CENTER_ALIGNMENT);
         button.setMaximumSize(TITLE_BUTTON_SIZE);
@@ -394,10 +404,8 @@ public class DuckWindow extends JFrame {
 
     private void styleTitleButton(JButton button) {
         WindowUiSupport.styleSecondaryButton(button, Styling.accentColour, Styling.surfaceBorderColour);
-        button.setFont(Styling.menuFont.deriveFont(java.awt.Font.BOLD, 12f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.surfaceBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+        button.setFont(Styling.menuFont.deriveFont(java.awt.Font.BOLD, 11.5f));
+        button.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
         button.setMaximumSize(TITLE_BUTTON_SIZE);
         button.setMinimumSize(TITLE_BUTTON_SIZE);
         button.setPreferredSize(TITLE_BUTTON_SIZE);
@@ -418,11 +426,11 @@ public class DuckWindow extends JFrame {
         titleBarPanel.setBackground(Styling.surfaceColour);
         titleBarPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createMatteBorder(0, 0, 1, 0, Styling.surfaceBorderColour),
-                BorderFactory.createEmptyBorder(6, 10, 6, 8)));
+                BorderFactory.createEmptyBorder(7, 12, 7, 10)));
 
         bodyPanel.setBackground(Styling.appBackgroundColour);
         titleLabel.setForeground(Styling.accentColour);
-        titleLabel.setFont(Styling.menuFont.deriveFont(java.awt.Font.BOLD, 13f));
+        titleLabel.setFont(Styling.menuFont.deriveFont(java.awt.Font.BOLD, 12.5f));
         titleIconLabel.setOpaque(false);
 
         styleTitleButton(minimiseButton);
@@ -432,7 +440,7 @@ public class DuckWindow extends JFrame {
         if (attachedMenuBar != null) {
             attachedMenuBar.setOpaque(true);
             attachedMenuBar.setBackground(Styling.surfaceColour);
-            attachedMenuBar.setForeground(Styling.accentColour);
+            attachedMenuBar.setForeground(Styling.mutedTextColour);
             WindowUiSupport.applyComponentTheme(attachedMenuBar);
         }
 
@@ -460,8 +468,10 @@ public class DuckWindow extends JFrame {
         boolean canMaximise = isResizable() && !fullscreen;
         maximiseButton.setVisible(canMaximise);
         maximiseButton.setEnabled(canMaximise);
-        maximiseButton.setText(maximised ? "=" : "[]");
         maximiseButton.setToolTipText(maximised ? "Restore" : "Maximise");
+        if (maximiseButton instanceof WindowControlButton maximiseControlButton) {
+            maximiseControlButton.setRestoreGlyph(maximised);
+        }
         minimiseButton.setVisible(!fullscreen);
         closeButton.setVisible(!fullscreen);
         menuBarHost.setVisible(!fullscreen && attachedMenuBar != null);
@@ -609,6 +619,52 @@ public class DuckWindow extends JFrame {
 
         setBounds(nextBounds);
         revalidate();
+    }
+
+    private static final class WindowControlButton extends JButton {
+        private final WindowControl control;
+        private boolean restoreGlyph;
+
+        private WindowControlButton(WindowControl control) {
+            this.control = control;
+            setText("");
+            setOpaque(true);
+        }
+
+        private void setRestoreGlyph(boolean restoreGlyph) {
+            if (this.restoreGlyph != restoreGlyph) {
+                this.restoreGlyph = restoreGlyph;
+                repaint();
+            }
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            Graphics2D graphics2d = (Graphics2D) graphics.create();
+            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics2d.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            graphics2d.setColor(getForeground());
+
+            int centreX = getWidth() / 2;
+            int centreY = getHeight() / 2;
+            switch (control) {
+                case MINIMISE -> graphics2d.drawLine(centreX - 5, centreY + 4, centreX + 5, centreY + 4);
+                case MAXIMISE -> {
+                    if (restoreGlyph) {
+                        graphics2d.drawRect(centreX - 4, centreY - 3, 8, 7);
+                        graphics2d.drawRect(centreX - 2, centreY - 5, 8, 7);
+                    } else {
+                        graphics2d.drawRect(centreX - 5, centreY - 4, 10, 8);
+                    }
+                }
+                case CLOSE -> {
+                    graphics2d.drawLine(centreX - 4, centreY - 4, centreX + 4, centreY + 4);
+                    graphics2d.drawLine(centreX + 4, centreY - 4, centreX - 4, centreY + 4);
+                }
+            }
+            graphics2d.dispose();
+        }
     }
 
     private final class ResizeHandlePanel extends JPanel {

@@ -6,6 +6,9 @@ import javax.sound.sampled.AudioFormat;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.LineUnavailableException;
 import javax.sound.sampled.SourceDataLine;
+import java.util.Arrays;
+import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.LinkedBlockingDeque;
 
 /**
  * Wraps the host PCM output line used by the emulator.
@@ -16,15 +19,19 @@ public class DuckAudioOutput {
     private static final int bytesPerSample = 2;
     private static final int frameBytes = channels * bytesPerSample;
     private static final int bufferFrames = 1024;
+    private static final int queuedBatchCount = 8;
 
     private final byte[] buffer = new byte[bufferFrames * frameBytes];
+    private final BlockingDeque<byte[]> pendingBatches = new LinkedBlockingDeque<>(queuedBatchCount);
     private final float sampleRate;
     private final AudioEnhancementChain enhancementChain;
 
-    private SourceDataLine line;
-    private boolean available;
+    private volatile SourceDataLine line;
+    private volatile boolean available;
+    private volatile boolean closed;
     private int writeIndex;
     private long appliedEnhancementChainVersion = Long.MIN_VALUE;
+    private Thread writerThread;
 
     /**
      * Creates an audio output wrapper for the requested sample rate.
@@ -44,9 +51,12 @@ public class DuckAudioOutput {
             line.open(format, buffer.length * 8);
             line.start();
             available = true;
+            closed = false;
+            StartWriterThread();
         } catch (LineUnavailableException | IllegalArgumentException exception) {
             available = false;
             line = null;
+            closed = true;
         }
     }
 
@@ -90,47 +100,46 @@ public class DuckAudioOutput {
             enhancementChain.ResetState();
             return;
         }
-
-        int writableBytes = line.available();
-        writableBytes -= writableBytes % frameBytes;
-
-        if (writableBytes <= 0) {
-            // Drop queued audio rather than stalling the emulation thread.
-            writeIndex = 0;
-            enhancementChain.ResetState();
-            return;
-        }
-
-        int bytesToWrite = Math.min(writeIndex, writableBytes);
-        bytesToWrite -= bytesToWrite % frameBytes;
+        int bytesToWrite = writeIndex - (writeIndex % frameBytes);
         if (bytesToWrite <= 0) {
             writeIndex = 0;
-            enhancementChain.ResetState();
             return;
         }
 
-        line.write(buffer, 0, bytesToWrite);
-        if (bytesToWrite < writeIndex) {
-            System.arraycopy(buffer, bytesToWrite, buffer, 0, writeIndex - bytesToWrite);
-        }
+        EnqueueBatch(Arrays.copyOf(buffer, bytesToWrite));
         writeIndex -= bytesToWrite;
+        if (writeIndex > 0) {
+            System.arraycopy(buffer, bytesToWrite, buffer, 0, writeIndex);
+        }
     }
 
     /**
      * Flushes and closes the host audio line.
      */
     public synchronized void Close() {
-        if (!available) {
-            return;
+        closed = true;
+        available = false;
+        writeIndex = 0;
+        pendingBatches.clear();
+        Thread activeWriterThread = writerThread;
+        writerThread = null;
+        if (activeWriterThread != null) {
+            activeWriterThread.interrupt();
         }
-
-        DiscardBufferedAudio();
         if (line != null) {
             line.stop();
+            line.flush();
             line.close();
         }
         available = false;
         line = null;
+        if (activeWriterThread != null && activeWriterThread != Thread.currentThread()) {
+            try {
+                activeWriterThread.join(250);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+            }
+        }
     }
 
     /**
@@ -138,10 +147,67 @@ public class DuckAudioOutput {
      */
     public synchronized void DiscardBufferedAudio() {
         writeIndex = 0;
+        pendingBatches.clear();
         if (line != null) {
+            line.stop();
             line.flush();
+            line.start();
         }
         enhancementChain.ResetState();
+    }
+
+    private void StartWriterThread() {
+        if (writerThread != null) {
+            return;
+        }
+
+        writerThread = new Thread(this::WriterLoop, "DuckAudioOutput");
+        writerThread.setDaemon(true);
+        writerThread.start();
+    }
+
+    private void WriterLoop() {
+        while (!closed) {
+            byte[] nextBatch;
+            try {
+                nextBatch = pendingBatches.takeFirst();
+            } catch (InterruptedException exception) {
+                if (closed) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+                continue;
+            }
+
+            SourceDataLine activeLine = line;
+            if (!available || activeLine == null || nextBatch.length == 0) {
+                continue;
+            }
+
+            try {
+                if (!activeLine.isRunning()) {
+                    activeLine.start();
+                }
+                activeLine.write(nextBatch, 0, nextBatch.length);
+            } catch (IllegalArgumentException | IllegalStateException exception) {
+                if (closed) {
+                    break;
+                }
+            }
+        }
+    }
+
+    private void EnqueueBatch(byte[] batch) {
+        if (closed || batch == null || batch.length == 0) {
+            return;
+        }
+
+        while (!pendingBatches.offerLast(batch)) {
+            pendingBatches.pollFirst();
+            if (closed) {
+                return;
+            }
+        }
     }
 
     private short ToPcm16(double sample) {

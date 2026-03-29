@@ -7,6 +7,8 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Centralises loading of packaged desktop UI artwork.
@@ -17,6 +19,9 @@ public final class AppAssets {
     private static final String LOGO_NO_BG_128_PATH = "/Images/LogoNoBG128.png";
     private static final String LOGO_CROPPED_NO_BG_128_PATH = "/Images/LogoCroppedNoBG128.png";
     private static final String LOGO_BG_PATH = "/Images/LogoBG.png";
+    private static final Map<String, BufferedImage> imageCache = new ConcurrentHashMap<>();
+    private static final Map<String, ImageIcon> scaledIconCache = new ConcurrentHashMap<>();
+    private static volatile List<Image> windowIconsCache;
 
     private AppAssets() {
     }
@@ -27,6 +32,11 @@ public final class AppAssets {
      * @return ordered icon images for the frame chrome
      */
     public static List<Image> WindowIcons() {
+        List<Image> cachedWindowIcons = windowIconsCache;
+        if (cachedWindowIcons != null) {
+            return cachedWindowIcons;
+        }
+
         BufferedImage baseIcon = LoadBufferedImage(LOGO_CROPPED_NO_BG_128_PATH);
         if (baseIcon == null) {
             baseIcon = LoadBufferedImage(LOGO_NO_BG_PATH);
@@ -37,7 +47,7 @@ public final class AppAssets {
         if (baseIcon == null) {
             return List.of();
         }
-        return List.of(
+        cachedWindowIcons = List.of(
                 GameArtScaler.ScaleToSize(baseIcon, 16, 16),
                 GameArtScaler.ScaleToSize(baseIcon, 24, 24),
                 GameArtScaler.ScaleToSize(baseIcon, 32, 32),
@@ -45,6 +55,8 @@ public final class AppAssets {
                 GameArtScaler.ScaleToSize(baseIcon, 64, 64),
                 GameArtScaler.ScaleToSize(baseIcon, 128, 128),
                 GameArtScaler.ScaleToSize(baseIcon, 256, 256));
+        windowIconsCache = cachedWindowIcons;
+        return cachedWindowIcons;
     }
 
     /**
@@ -68,19 +80,32 @@ public final class AppAssets {
     }
 
     private static ImageIcon CreateScaledIcon(String resourcePath, int width, int height) {
-        BufferedImage image = LoadBufferedImage(resourcePath);
-        if (image == null) {
-            return null;
-        }
-        return new ImageIcon(GameArtScaler.ScaleToSize(image, width, height));
+        return scaledIconCache.computeIfAbsent(
+                resourcePath + "|" + width + "x" + height,
+                key -> {
+                    BufferedImage image = LoadBufferedImage(resourcePath);
+                    if (image == null) {
+                        return null;
+                    }
+                    return new ImageIcon(GameArtScaler.ScaleToSize(image, width, height));
+                });
     }
 
     private static BufferedImage LoadBufferedImage(String resourcePath) {
+        BufferedImage cachedImage = imageCache.get(resourcePath);
+        if (cachedImage != null) {
+            return cachedImage;
+        }
+
         try (InputStream stream = AppAssets.class.getResourceAsStream(resourcePath)) {
             if (stream == null) {
                 return null;
             }
-            return ImageIO.read(stream);
+            BufferedImage loadedImage = ImageIO.read(stream);
+            if (loadedImage != null) {
+                imageCache.put(resourcePath, loadedImage);
+            }
+            return loadedImage;
         } catch (IOException exception) {
             return null;
         }

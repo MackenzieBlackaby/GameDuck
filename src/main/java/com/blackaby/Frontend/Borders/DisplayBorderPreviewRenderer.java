@@ -10,11 +10,13 @@ import java.awt.image.BufferedImage;
  */
 public final class DisplayBorderPreviewRenderer {
 
+    private static final BufferedImage sourcePreviewImage = ShaderPreviewRenderer.render(null).sourceImage();
+
     private DisplayBorderPreviewRenderer() {
     }
 
     public static PreviewImages render(LoadedDisplayBorder border) {
-        BufferedImage sourceImage = ShaderPreviewRenderer.render(null).sourceImage();
+        BufferedImage sourceImage = sourcePreviewImage;
         if (border == null || border.isNone() || border.image() == null || border.screenRect() == null) {
             return new PreviewImages(sourceImage, sourceImage);
         }

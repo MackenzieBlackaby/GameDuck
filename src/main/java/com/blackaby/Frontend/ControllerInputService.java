@@ -1,6 +1,7 @@
 package com.blackaby.Frontend;
 
 import com.blackaby.Backend.GB.GBButton;
+import com.blackaby.Misc.AppShortcut;
 import com.blackaby.Misc.ControllerBinding;
 import com.blackaby.Misc.Settings;
 import com.github.strikerx3.jxinput.XInputAxes;
@@ -37,6 +38,9 @@ public final class ControllerInputService {
      * @param displayName display name shown to the user
      */
     public record ControllerDevice(String id, String displayName) {
+    }
+
+    public record ControllerPollSnapshot(EnumSet<GBButton> boundButtons, EnumSet<AppShortcut> pressedShortcuts) {
     }
 
     private enum ComponentKind {
@@ -170,6 +174,29 @@ public final class ControllerInputService {
         }
     }
 
+    public ControllerPollSnapshot PollInputSnapshot() {
+        synchronized (pollLock) {
+            if (!Settings.controllerInputEnabled) {
+                return new ControllerPollSnapshot(
+                        EnumSet.noneOf(GBButton.class),
+                        EnumSet.noneOf(AppShortcut.class));
+            }
+
+            EnsureInitialScanLocked();
+            ControllerHandle handle = PollHotPathControllerLocked();
+            if (handle == null) {
+                return new ControllerPollSnapshot(
+                        EnumSet.noneOf(GBButton.class),
+                        EnumSet.noneOf(AppShortcut.class));
+            }
+
+            Map<String, Float> componentValues = PollComponentValues(handle, polledComponentValues);
+            return new ControllerPollSnapshot(
+                    ResolvePressedButtons(componentValues),
+                    ResolvePressedShortcuts(componentValues));
+        }
+    }
+
     /**
      * Polls the active controller and returns the currently active raw bindings.
      *
@@ -220,16 +247,8 @@ public final class ControllerInputService {
             return EnumSet.noneOf(GBButton.class);
         }
 
-        float deadzone = Settings.controllerDeadzonePercent / 100f;
         Map<String, Float> componentValues = PollComponentValues(handle, polledComponentValues);
-        EnumSet<GBButton> pressedButtons = EnumSet.noneOf(GBButton.class);
-        for (GBButton button : GBButton.values()) {
-            ControllerBinding binding = Settings.controllerBindings.GetBinding(button);
-            if (binding != null && binding.Matches(componentValues, deadzone)) {
-                pressedButtons.add(button);
-            }
-        }
-        return pressedButtons;
+        return ResolvePressedButtons(componentValues);
     }
 
     private ControllerHandle PollActiveControllerLocked() {
@@ -250,10 +269,61 @@ public final class ControllerInputService {
         return handle;
     }
 
+    private ControllerHandle PollHotPathControllerLocked() {
+        ControllerHandle handle = SelectActiveControllerLocked();
+        if (handle == null) {
+            return null;
+        }
+
+        if (PollController(handle)) {
+            return handle;
+        }
+
+        List<ControllerHandle> remainingControllers = new ArrayList<>(controllerHandles);
+        remainingControllers.remove(handle);
+        controllerHandles = List.copyOf(remainingControllers);
+        if (activeController == handle) {
+            activeController = null;
+        }
+
+        handle = SelectActiveControllerLocked();
+        return handle != null && PollController(handle) ? handle : null;
+    }
+
+    private void EnsureInitialScanLocked() {
+        if (lastScanTimestamp == 0L) {
+            ScanControllersLocked();
+        }
+    }
+
     private void EnsureRecentScanLocked() {
         if ((System.currentTimeMillis() - lastScanTimestamp) >= rescanIntervalMillis) {
             ScanControllersLocked();
         }
+    }
+
+    private EnumSet<GBButton> ResolvePressedButtons(Map<String, Float> componentValues) {
+        float deadzone = Settings.controllerDeadzonePercent / 100f;
+        EnumSet<GBButton> pressedButtons = EnumSet.noneOf(GBButton.class);
+        for (GBButton button : GBButton.values()) {
+            ControllerBinding binding = Settings.controllerBindings.GetBinding(button);
+            if (binding != null && binding.Matches(componentValues, deadzone)) {
+                pressedButtons.add(button);
+            }
+        }
+        return pressedButtons;
+    }
+
+    private EnumSet<AppShortcut> ResolvePressedShortcuts(Map<String, Float> componentValues) {
+        float deadzone = Math.max(Settings.controllerDeadzonePercent / 100f, 0.35f);
+        EnumSet<AppShortcut> pressedShortcuts = EnumSet.noneOf(AppShortcut.class);
+        for (AppShortcut shortcut : AppShortcut.values()) {
+            ControllerBinding binding = Settings.appShortcutControllerBindings.GetBinding(shortcut);
+            if (binding != null && binding.Matches(componentValues, deadzone)) {
+                pressedShortcuts.add(shortcut);
+            }
+        }
+        return pressedShortcuts;
     }
 
     private void ScanControllersLocked() {

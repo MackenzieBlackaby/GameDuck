@@ -29,6 +29,7 @@ import javax.swing.ListSelectionModel;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.BorderLayout;
@@ -121,6 +122,7 @@ public final class LibraryWindow extends DuckWindow {
     private static final int largeTileMaxWidth = 320;
     private static final int detailPreviewWidth = 232;
     private static final int detailPreviewHeight = 174;
+    private static final int searchRefreshDelayMillis = 160;
 
     private final MainWindow mainWindow;
     private final EmulatorRuntime emulation;
@@ -134,12 +136,17 @@ public final class LibraryWindow extends DuckWindow {
     private final JLabel detailPreviewLabel = new JLabel("", SwingConstants.CENTER);
     private final JLabel variantValueLabel = new JLabel();
     private final Map<String, BufferedImage> artCache = new ConcurrentHashMap<>();
+    private final Map<String, ImageIcon> scaledArtIconCache = new ConcurrentHashMap<>();
     private final Set<String> artLoadingKeys = ConcurrentHashMap.newKeySet();
     private final Map<String, BufferedImage> titleScreenCache = new ConcurrentHashMap<>();
+    private final Map<String, ImageIcon> titleScreenPreviewIconCache = new ConcurrentHashMap<>();
     private final Set<String> titleScreenLoadingKeys = ConcurrentHashMap.newKeySet();
     private final LibraryEntryRenderer entryRenderer;
     private final JPanel largeIconWrapperPanel = new JPanel(new BorderLayout());
     private final JPanel largeIconGridPanel = new JPanel();
+    private final Timer searchRefreshTimer;
+    private final Font detailPreviewPlaceholderFont = Styling.menuFont.deriveFont(Font.PLAIN, 12f);
+    private final Font largePlaceholderFont = Styling.menuFont.deriveFont(Font.BOLD, 11f);
 
     private JList<LibraryEntry> entryList;
     private JScrollPane listScrollPane;
@@ -168,6 +175,8 @@ public final class LibraryWindow extends DuckWindow {
         accentColour = Styling.accentColour;
         mutedTextColour = Styling.mutedTextColour;
         entryRenderer = new LibraryEntryRenderer();
+        searchRefreshTimer = new Timer(searchRefreshDelayMillis, event -> refreshEntryList());
+        searchRefreshTimer.setRepeats(false);
         largeIconWrapperPanel.setBackground(Styling.cardTintColour);
         largeIconWrapperPanel.add(largeIconGridPanel, BorderLayout.NORTH);
         largeIconGridPanel.setBackground(Styling.cardTintColour);
@@ -281,17 +290,17 @@ public final class LibraryWindow extends DuckWindow {
         searchField.getDocument().addDocumentListener(new DocumentListener() {
             @Override
             public void insertUpdate(DocumentEvent event) {
-                applySearchQuery(searchField.getText());
+                scheduleSearchQuery(searchField.getText());
             }
 
             @Override
             public void removeUpdate(DocumentEvent event) {
-                applySearchQuery(searchField.getText());
+                scheduleSearchQuery(searchField.getText());
             }
 
             @Override
             public void changedUpdate(DocumentEvent event) {
-                applySearchQuery(searchField.getText());
+                scheduleSearchQuery(searchField.getText());
             }
         });
         viewControls.add(searchField);
@@ -448,6 +457,7 @@ public final class LibraryWindow extends DuckWindow {
     }
 
     private void refreshEntryList() {
+        searchRefreshTimer.stop();
         String previousSelectedKey = selectedEntryKey;
         entryListModel.clear();
 
@@ -635,6 +645,12 @@ public final class LibraryWindow extends DuckWindow {
         refreshEntryList();
     }
 
+    private void scheduleSearchQuery(String nextSearchQuery) {
+        searchQuery = nextSearchQuery == null ? "" : nextSearchQuery.trim();
+        rememberLibraryBrowserState(false);
+        searchRefreshTimer.restart();
+    }
+
     private void applySearchQuery(String nextSearchQuery) {
         searchQuery = nextSearchQuery == null ? "" : nextSearchQuery.trim();
         rememberLibraryBrowserState(false);
@@ -701,7 +717,9 @@ public final class LibraryWindow extends DuckWindow {
         }
 
         artCache.remove(entry.key());
+        invalidateScaledArt(entry.key());
         titleScreenCache.remove(entry.key());
+        titleScreenPreviewIconCache.remove(entry.key());
         artLoadingKeys.remove(entry.key());
         titleScreenLoadingKeys.remove(entry.key());
         requestArt(entry);
@@ -728,13 +746,14 @@ public final class LibraryWindow extends DuckWindow {
                             GameMetadataStore.RememberLibretroTitle(entry.SaveIdentity(), gameArtResult.matchedGameName());
                         }
                         artCache.put(entry.key(), gameArtResult.image());
+                        invalidateScaledArt(entry.key());
                     });
                     artLoadingKeys.remove(entry.key());
                     SwingUtilities.invokeLater(() -> {
                         if (viewMode == ViewMode.LARGE_ICONS) {
                             rebuildLargeIconGrid();
                         } else if (entryList != null) {
-                            entryList.repaint();
+                            repaintEntryCell(entry.key());
                         }
                     });
                 })
@@ -744,7 +763,7 @@ public final class LibraryWindow extends DuckWindow {
                         if (viewMode == ViewMode.LARGE_ICONS) {
                             rebuildLargeIconGrid();
                         } else if (entryList != null) {
-                            entryList.repaint();
+                            repaintEntryCell(entry.key());
                         }
                     });
                     return null;
@@ -759,7 +778,7 @@ public final class LibraryWindow extends DuckWindow {
 
         BufferedImage cachedImage = titleScreenCache.get(entry.key());
         if (cachedImage != null) {
-            setDetailPreviewImage(cachedImage);
+            setDetailPreviewImage(entry, cachedImage);
             return;
         }
 
@@ -785,6 +804,7 @@ public final class LibraryWindow extends DuckWindow {
                             GameMetadataStore.RememberLibretroTitle(entry.SaveIdentity(), gameArtResult.matchedGameName());
                         }
                         titleScreenCache.put(entry.key(), gameArtResult.image());
+                        titleScreenPreviewIconCache.remove(entry.key());
                     });
                     titleScreenLoadingKeys.remove(entry.key());
                     SwingUtilities.invokeLater(() -> refreshDetailPreview(entry));
@@ -810,14 +830,14 @@ public final class LibraryWindow extends DuckWindow {
     private void setDetailPreviewPlaceholder(String text) {
         detailPreviewLabel.setIcon(null);
         detailPreviewLabel.setText(text);
-        detailPreviewLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+        detailPreviewLabel.setFont(detailPreviewPlaceholderFont);
         detailPreviewLabel.setForeground(mutedTextColour);
     }
 
-    private void setDetailPreviewImage(BufferedImage image) {
-        BufferedImage scaled = GameArtScaler.ScaleToFit(image, detailPreviewWidth, detailPreviewHeight, true);
-        detailPreviewLabel.setIcon(scaled == null ? null : new ImageIcon(scaled));
-        detailPreviewLabel.setText(scaled == null ? UiText.LibraryWindow.TITLE_SCREEN_MISSING : "");
+    private void setDetailPreviewImage(LibraryEntry entry, BufferedImage image) {
+        ImageIcon previewIcon = detailPreviewIcon(entry, image);
+        detailPreviewLabel.setIcon(previewIcon);
+        detailPreviewLabel.setText(previewIcon == null ? UiText.LibraryWindow.TITLE_SCREEN_MISSING : "");
         detailPreviewLabel.setForeground(mutedTextColour);
     }
 
@@ -826,12 +846,22 @@ public final class LibraryWindow extends DuckWindow {
     }
 
     private ImageIcon iconFor(LibraryEntry entry, int maxWidth, int maxHeight) {
-        BufferedImage source = artCache.get(entry.key());
+        if (entry == null) {
+            return null;
+        }
+
+        String entryKey = entry.key();
+        BufferedImage source = artCache.get(entryKey);
         if (source == null) {
             return null;
         }
-        BufferedImage scaled = GameArtScaler.ScaleToFit(source, maxWidth, maxHeight, true);
-        return scaled == null ? null : new ImageIcon(scaled);
+
+        return scaledArtIconCache.computeIfAbsent(
+                entryKey + "|" + maxWidth + "x" + maxHeight,
+                cacheKey -> {
+                    BufferedImage scaled = GameArtScaler.ScaleToFit(source, maxWidth, maxHeight, true);
+                    return scaled == null ? null : new ImageIcon(scaled);
+                });
     }
 
     private void rebuildLargeIconGrid() {
@@ -866,7 +896,7 @@ public final class LibraryWindow extends DuckWindow {
 
         for (int index = 0; index < entryListModel.size(); index++) {
             LibraryEntry entry = entryListModel.get(index);
-            largeIconGridPanel.add(createLargeIconTile(entry, tileSize, isSelectedEntry(entry)));
+            largeIconGridPanel.add(createLargeIconTile(entry, tileSize));
         }
 
         largeIconGridPanel.revalidate();
@@ -879,7 +909,7 @@ public final class LibraryWindow extends DuckWindow {
         }
     }
 
-    private JPanel createLargeIconTile(LibraryEntry entry, int tileSize, boolean selected) {
+    private JPanel createLargeIconTile(LibraryEntry entry, int tileSize) {
         final boolean[] hovered = { false };
         JPanel tile = new JPanel(new BorderLayout());
         tile.setOpaque(false);
@@ -894,14 +924,15 @@ public final class LibraryWindow extends DuckWindow {
             public void paint(Graphics graphics) {
                 super.paint(graphics);
                 Graphics2D graphics2d = (Graphics2D) graphics.create();
+                boolean selectedState = isSelectedEntry(entry);
                 if (hovered[0]) {
                     graphics2d.setColor(new Color(0, 0, 0, 70));
                     graphics2d.fillRect(0, 0, getWidth(), getHeight());
                 }
-                if (selected || hovered[0]) {
-                    graphics2d.setColor(selected ? Styling.sectionHighlightBorderColour : new Color(255, 255, 255, 90));
-                    graphics2d.setStroke(new BasicStroke(selected ? 3f : 1.5f));
-                    int inset = selected ? 2 : 1;
+                if (selectedState || hovered[0]) {
+                    graphics2d.setColor(selectedState ? Styling.sectionHighlightBorderColour : new Color(255, 255, 255, 90));
+                    graphics2d.setStroke(new BasicStroke(selectedState ? 3f : 1.5f));
+                    int inset = selectedState ? 2 : 1;
                     int width = Math.max(0, getWidth() - (inset * 2) - 1);
                     int height = Math.max(0, getHeight() - (inset * 2) - 1);
                     graphics2d.drawRect(inset, inset, width, height);
@@ -934,11 +965,10 @@ public final class LibraryWindow extends DuckWindow {
             placeholderLabel.setHorizontalAlignment(SwingConstants.CENTER);
             placeholderLabel.setVerticalAlignment(SwingConstants.CENTER);
             placeholderLabel.setForeground(mutedTextColour);
-            Font placeholderFont = Styling.menuFont.deriveFont(Font.BOLD, 11f);
-            placeholderLabel.setFont(placeholderFont);
+            placeholderLabel.setFont(largePlaceholderFont);
             String placeholderTitle = truncateToWidth(
                     resolveDisplayName(entry),
-                    placeholderLabel.getFontMetrics(placeholderFont),
+                    placeholderLabel.getFontMetrics(largePlaceholderFont),
                     Math.max(60, contentSize - 28));
             placeholderLabel.setText(artLoadingKeys.contains(entry.key())
                     ? UiText.LibraryWindow.ART_LOADING
@@ -994,8 +1024,47 @@ public final class LibraryWindow extends DuckWindow {
                 }
             }
         } else {
-            rebuildLargeIconGrid();
+            largeIconGridPanel.repaint();
             updateSelectionDetails(entry);
+        }
+    }
+
+    private ImageIcon detailPreviewIcon(LibraryEntry entry, BufferedImage image) {
+        if (entry == null || image == null) {
+            return null;
+        }
+
+        return titleScreenPreviewIconCache.computeIfAbsent(
+                entry.key(),
+                key -> {
+                    BufferedImage scaled = GameArtScaler.ScaleToFit(image, detailPreviewWidth, detailPreviewHeight, true);
+                    return scaled == null ? null : new ImageIcon(scaled);
+                });
+    }
+
+    private void invalidateScaledArt(String entryKey) {
+        if (entryKey == null || entryKey.isBlank()) {
+            return;
+        }
+        scaledArtIconCache.keySet().removeIf(cacheKey -> cacheKey.startsWith(entryKey + "|"));
+    }
+
+    private void repaintEntryCell(String entryKey) {
+        if (entryList == null || entryKey == null || entryKey.isBlank()) {
+            return;
+        }
+
+        for (int index = 0; index < entryListModel.size(); index++) {
+            if (!entryKey.equals(entryListModel.get(index).key())) {
+                continue;
+            }
+            Rectangle cellBounds = entryList.getCellBounds(index, index);
+            if (cellBounds != null) {
+                entryList.repaint(cellBounds);
+            } else {
+                entryList.repaint();
+            }
+            return;
         }
     }
 
@@ -1238,6 +1307,7 @@ public final class LibraryWindow extends DuckWindow {
 
     @Override
     public void dispose() {
+        searchRefreshTimer.stop();
         rememberLibraryBrowserState(true);
         super.dispose();
     }
@@ -1272,6 +1342,10 @@ public final class LibraryWindow extends DuckWindow {
         private final JLabel artLabel = new JLabel("", SwingConstants.CENTER);
         private final JLabel titleLabel = new JLabel();
         private final JLabel helperLabel = new JLabel();
+        private final Font listTitleFont = Styling.menuFont.deriveFont(Font.BOLD, 13f);
+        private final Font listHelperFont = Styling.menuFont.deriveFont(Font.PLAIN, 11f);
+        private final Font smallIconArtFallbackFont = Styling.menuFont.deriveFont(Font.PLAIN, 10f);
+        private final Font largeIconArtFallbackFont = Styling.menuFont.deriveFont(Font.PLAIN, 12f);
 
         private LibraryEntryRenderer() {
             setOpaque(true);
@@ -1304,17 +1378,15 @@ public final class LibraryWindow extends DuckWindow {
 
             int availableTextWidth = Math.max(120, list.getWidth()
                     - (viewMode == ViewMode.SMALL_ICONS ? smallArtSize + 72 : 52));
-            Font titleFont = Styling.menuFont.deriveFont(Font.BOLD, 13f);
-            Font helperFont = Styling.menuFont.deriveFont(Font.PLAIN, 11f);
-            titleLabel.setText(truncateToWidth(gameTitle, list.getFontMetrics(titleFont), availableTextWidth));
-            helperLabel.setText(truncateToWidth(helperText, list.getFontMetrics(helperFont), availableTextWidth));
+            titleLabel.setText(truncateToWidth(gameTitle, list.getFontMetrics(listTitleFont), availableTextWidth));
+            helperLabel.setText(truncateToWidth(helperText, list.getFontMetrics(listHelperFont), availableTextWidth));
             titleLabel.setForeground(accentColour);
             helperLabel.setForeground(mutedTextColour);
 
             if (viewMode == ViewMode.LIST) {
                 setLayout(new BorderLayout(12, 0));
-                titleLabel.setFont(titleFont);
-                helperLabel.setFont(helperFont);
+                titleLabel.setFont(listTitleFont);
+                helperLabel.setFont(listHelperFont);
 
                 JPanel textStack = new JPanel();
                 textStack.setOpaque(false);
@@ -1340,15 +1412,17 @@ public final class LibraryWindow extends DuckWindow {
                         ? UiText.LibraryWindow.ART_LOADING
                         : UiText.LibraryWindow.ART_MISSING);
                 artLabel.setForeground(mutedTextColour);
-                artLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, viewMode == ViewMode.SMALL_ICONS ? 10f : 12f));
+                artLabel.setFont(viewMode == ViewMode.SMALL_ICONS
+                        ? smallIconArtFallbackFont
+                        : largeIconArtFallbackFont);
             }
 
             if (viewMode == ViewMode.SMALL_ICONS) {
                 setLayout(new BorderLayout(12, 0));
                 titleLabel.setHorizontalAlignment(SwingConstants.LEFT);
                 helperLabel.setHorizontalAlignment(SwingConstants.LEFT);
-                titleLabel.setFont(titleFont);
-                helperLabel.setFont(helperFont);
+                titleLabel.setFont(listTitleFont);
+                helperLabel.setFont(listHelperFont);
 
                 JPanel textStack = new JPanel();
                 textStack.setOpaque(false);

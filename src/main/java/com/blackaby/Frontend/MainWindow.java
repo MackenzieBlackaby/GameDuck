@@ -60,8 +60,10 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -75,6 +77,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
     private static final int gameArtPreviewWidth = 280;
     private static final int gameArtPreviewHeight = 220;
+    private static final int displayStatsRefreshMillis = 500;
     private static final DateTimeFormatter saveStateTimestampFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
 
     private final EmulatorBackend backend;
@@ -85,6 +88,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private final EnumMap<Action, JMenuItem> menuItemsByAction = new EnumMap<>(Action.class);
     private final AtomicInteger gameArtRequestVersion = new AtomicInteger();
     private final AtomicBoolean serialAppendQueued = new AtomicBoolean();
+    private final Map<String, CachedGameArt> cachedGameArt = new ConcurrentHashMap<>();
     private final StringBuilder pendingSerialAppend = new StringBuilder();
     private final DebugLogger.SerialListener serialOutputListener = new DebugLogger.SerialListener() {
         @Override
@@ -105,6 +109,10 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private final JMenuItem[] saveStateSlotItems = new JMenuItem[QuickStateManager.maxSlot + 1];
     private final JMenuItem[] loadStateSlotItems = new JMenuItem[QuickStateManager.maxSlot + 1];
     private final Timer displayStatsTimer;
+    private volatile String displayedGameArtCacheKey;
+    private volatile String lastDisplayStatsText = UiText.MainWindow.DISPLAY_HINT;
+    private volatile boolean recentGamesMenuDirty = true;
+    private volatile int cachedRecentGamesMenuLimit = -1;
 
     private JMenuBar menuBar;
     private JLabel romLabel;
@@ -184,7 +192,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         setJMenuBar(menuBar);
         DebugLogger.AddSerialListener(serialOutputListener);
         SetSerialOutput(DebugLogger.GetSerialOutput());
-        displayStatsTimer = new Timer(250, event -> RefreshDisplayStats());
+        displayStatsTimer = new Timer(displayStatsRefreshMillis, event -> RefreshDisplayStats());
         displayStatsTimer.start();
         RefreshAppShortcuts();
         ApplyWindowMode();
@@ -799,6 +807,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     @Override
     public void SetLoadedGame(EmulatorGame game, boolean allowFallback) {
         currentLoadedGame = game;
+        recentGamesMenuDirty = true;
         romNameLookupPending = game != null && !allowFallback && GameMetadataStore.GetLibretroTitle(game).isEmpty();
         String romText = ResolveDisplayedRomName(game, allowFallback);
         Runnable update = () -> {
@@ -988,6 +997,12 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             return;
         }
 
+        if (!recentGamesMenuDirty && cachedRecentGamesMenuLimit == Settings.loadRecentMenuLimit) {
+            return;
+        }
+
+        recentGamesMenuDirty = false;
+        cachedRecentGamesMenuLimit = Settings.loadRecentMenuLimit;
         menu.removeAll();
         List<GameLibraryStore.LibraryEntry> recentEntries = GameLibraryStore.GetRecentEntries(Settings.loadRecentMenuLimit);
         if (recentEntries.isEmpty()) {
@@ -1010,6 +1025,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         clearRecentItem.setEnabled(!recentEntries.isEmpty());
         clearRecentItem.addActionListener(event -> {
             GameLibraryStore.ClearRecentHistory();
+            recentGamesMenuDirty = true;
             RefreshRecentGamesMenu();
         });
         menu.add(clearRecentItem);
@@ -1142,20 +1158,28 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
      */
     @Override
     public void LoadGameArt(EmulatorGame game) {
-        if (game == null || Settings.gameArtDisplayMode == GameArtDisplayMode.NONE) {
+        GameArtDisplayMode displayMode = Settings.gameArtDisplayMode;
+        if (game == null || displayMode == GameArtDisplayMode.NONE) {
             ClearGameArt();
             return;
         }
 
         int requestVersion = gameArtRequestVersion.incrementAndGet();
+        String cacheKey = BuildGameArtCacheKey(game, displayMode);
+        CachedGameArt cachedPreview = cacheKey == null ? null : cachedGameArt.get(cacheKey);
+        if (cachedPreview != null) {
+            ApplyCachedGameArt(requestVersion, cacheKey, cachedPreview);
+            return;
+        }
+
         SetGameArtPlaceholder(UiText.MainWindow.FETCHING_ARTWORK,
-                UiText.MainWindow.LookingUpArtwork(Settings.gameArtDisplayMode.Label(), game.displayName()));
+                UiText.MainWindow.LookingUpArtwork(displayMode.Label(), game.displayName()));
 
         CompletableFuture
-                .supplyAsync(() -> GameArtProvider.FindGameArt(game, Settings.gameArtDisplayMode))
-                .thenAccept(result -> ApplyGameArtResult(game, requestVersion, result))
+                .supplyAsync(() -> GameArtProvider.FindGameArt(game, displayMode))
+                .thenAccept(result -> ApplyGameArtResult(game, cacheKey, requestVersion, result))
                 .exceptionally(exception -> {
-                    ApplyGameArtResult(game, requestVersion, Optional.empty());
+                    ApplyGameArtResult(game, cacheKey, requestVersion, Optional.empty());
                     return null;
                 });
     }
@@ -1212,23 +1236,28 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         return ResolveDisplayedRomName(currentLoadedGame, !romNameLookupPending);
     }
 
-    private void ApplyGameArtResult(EmulatorGame game, int requestVersion, Optional<GameArtResult> result) {
+    private void ApplyGameArtResult(EmulatorGame game, String cacheKey, int requestVersion, Optional<GameArtResult> result) {
         Runnable apply = () -> {
             if (gameArtRequestVersion.get() != requestVersion) {
                 return;
             }
 
             if (result.isPresent()) {
-                if (result.get().matchedGameName() != null && !result.get().matchedGameName().isBlank()) {
-                    GameMetadataStore.RememberLibretroTitle(game, result.get().matchedGameName());
+                GameArtResult gameArtResult = result.get();
+                if (gameArtResult.matchedGameName() != null && !gameArtResult.matchedGameName().isBlank()) {
+                    GameMetadataStore.RememberLibretroTitle(game, gameArtResult.matchedGameName());
                     SetLoadedGame(game);
                 }
-                BufferedImage scaledImage = GameArtScaler.ScaleToFit(result.get().image(), gameArtPreviewWidth - 24,
-                        gameArtPreviewHeight - 24, true);
-                gameArtLabel.setIcon(new ImageIcon(scaledImage));
-                gameArtLabel.setText("");
-                gameArtLabel.setForeground(Styling.fpsForegroundColour);
-                gameArtHintLabel.setText(result.get().sourceLabel());
+                BufferedImage scaledImage = GameArtScaler.ScaleToFit(
+                        gameArtResult.image(),
+                        gameArtPreviewWidth - 24,
+                        gameArtPreviewHeight - 24,
+                        true);
+                CachedGameArt preview = new CachedGameArt(new ImageIcon(scaledImage), gameArtResult.sourceLabel());
+                if (cacheKey != null) {
+                    cachedGameArt.put(cacheKey, preview);
+                }
+                ShowGameArt(cacheKey, preview);
                 return;
             }
 
@@ -1249,6 +1278,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             if (gameArtLabel == null || gameArtHintLabel == null) {
                 return;
             }
+            displayedGameArtCacheKey = null;
             gameArtLabel.setIcon(null);
             gameArtLabel.setText(text);
             gameArtLabel.setForeground(Styling.mutedTextColour);
@@ -1260,6 +1290,46 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         } else {
             SwingUtilities.invokeLater(update);
         }
+    }
+
+    private void ApplyCachedGameArt(int requestVersion, String cacheKey, CachedGameArt preview) {
+        Runnable apply = () -> {
+            if (gameArtRequestVersion.get() == requestVersion) {
+                ShowGameArt(cacheKey, preview);
+            }
+        };
+
+        if (SwingUtilities.isEventDispatchThread()) {
+            apply.run();
+        } else {
+            SwingUtilities.invokeLater(apply);
+        }
+    }
+
+    private void ShowGameArt(String cacheKey, CachedGameArt preview) {
+        if (gameArtLabel == null || gameArtHintLabel == null || preview == null) {
+            return;
+        }
+        if (cacheKey != null && cacheKey.equals(displayedGameArtCacheKey)) {
+            return;
+        }
+
+        displayedGameArtCacheKey = cacheKey;
+        gameArtLabel.setIcon(preview.icon());
+        gameArtLabel.setText("");
+        gameArtLabel.setForeground(Styling.fpsForegroundColour);
+        gameArtHintLabel.setText(preview.sourceLabel());
+    }
+
+    private String BuildGameArtCacheKey(EmulatorGame game, GameArtDisplayMode displayMode) {
+        if (game == null || displayMode == null || displayMode == GameArtDisplayMode.NONE) {
+            return null;
+        }
+        return displayMode.name() + "|" +
+                String.valueOf(game.sourcePath()) + "|" +
+                String.valueOf(game.sourceName()) + "|" +
+                String.valueOf(game.displayName()) + "|" +
+                String.valueOf(game.headerTitle());
     }
 
     /**
@@ -1298,15 +1368,23 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         }
 
         DuckDisplay.PresentationStats stats = display.SnapshotPresentationStats();
+        String nextText;
         if (stats == null || stats.paintedFps() <= 0.0) {
-            displayHintLabel.setText(UiText.MainWindow.DISPLAY_HINT);
-            return;
+            nextText = UiText.MainWindow.DISPLAY_HINT;
+        } else {
+            nextText = String.format("%s  %.1f fps  %.2f ms",
+                    UiText.MainWindow.DISPLAY_HINT,
+                    stats.paintedFps(),
+                    stats.averageFrameTimeMs());
         }
 
-        displayHintLabel.setText(String.format("%s  %.1f fps  %.2f ms",
-                UiText.MainWindow.DISPLAY_HINT,
-                stats.paintedFps(),
-                stats.averageFrameTimeMs()));
+        if (!nextText.equals(lastDisplayStatsText)) {
+            lastDisplayStatsText = nextText;
+            displayHintLabel.setText(nextText);
+        }
+    }
+
+    private record CachedGameArt(ImageIcon icon, String sourceLabel) {
     }
 }
 

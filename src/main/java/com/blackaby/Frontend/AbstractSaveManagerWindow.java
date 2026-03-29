@@ -22,6 +22,7 @@ import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.JTextField;
+import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.border.Border;
@@ -48,6 +49,7 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
     protected static final int LIST_ART_SIZE = 56;
     protected static final int DETAIL_ART_WIDTH = 176;
     protected static final int DETAIL_ART_HEIGHT = 176;
+    private static final int SEARCH_REFRESH_DELAY_MILLIS = 160;
 
     protected final MainWindow mainWindow;
     protected final Color panelBackground = Styling.appBackgroundColour;
@@ -58,7 +60,9 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
 
     private final DefaultListModel<T> gameListModel = new DefaultListModel<>();
     private final Map<String, BufferedImage> artCache = new ConcurrentHashMap<>();
+    private final Map<String, ImageIcon> scaledArtIconCache = new ConcurrentHashMap<>();
     private final Set<String> artLoadingKeys = ConcurrentHashMap.newKeySet();
+    private final Timer searchRefreshTimer;
 
     private JList<T> gameList;
     private JLabel trackedGamesBadgeLabel;
@@ -71,6 +75,8 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout());
         getContentPane().setBackground(panelBackground);
+        searchRefreshTimer = new Timer(SEARCH_REFRESH_DELAY_MILLIS, event -> refreshGameList());
+        searchRefreshTimer.setRepeats(false);
     }
 
     protected final void initialiseWindow(String headerTitle, String headerSubtitle, JComponent body) {
@@ -125,6 +131,7 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
     }
 
     protected final void refreshGameList() {
+        searchRefreshTimer.stop();
         T selected = selectedEntry();
         gameListModel.clear();
 
@@ -227,8 +234,7 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
     protected final void updateArtLabel(JLabel label, T entry, int width, int height, float fallbackFontSize) {
         BufferedImage art = cachedArt(entry);
         if (art != null) {
-            BufferedImage scaled = GameArtScaler.ScaleToFit(art, width, height, true);
-            label.setIcon(scaled == null ? null : new ImageIcon(scaled));
+            label.setIcon(scaledArtIcon(entry, width, height));
             label.setText("");
             label.setForeground(Styling.fpsForegroundColour);
             return;
@@ -288,6 +294,12 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
 
     protected final Border createCardBorder() {
         return WindowUiSupport.createCardBorder(cardBorder, false, 18);
+    }
+
+    @Override
+    public void dispose() {
+        searchRefreshTimer.stop();
+        super.dispose();
     }
 
     protected final String asHtml(String value, int width, String fallback) {
@@ -500,7 +512,7 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
 
             private void updateSearch() {
                 searchQuery = searchField.getText() == null ? "" : searchField.getText().trim();
-                refreshGameList();
+                searchRefreshTimer.restart();
             }
         });
         filterRow.add(searchField);
@@ -548,6 +560,7 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
                             rememberMatchedGameName(entry, gameArtResult.matchedGameName());
                         }
                         artCache.put(key, gameArtResult.image());
+                        invalidateScaledArt(key);
                     });
                     finishArtLoad(entry, key);
                 })
@@ -560,11 +573,58 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
     private void finishArtLoad(T entry, String key) {
         artLoadingKeys.remove(key);
         SwingUtilities.invokeLater(() -> {
-            repaintGameList();
+            repaintGameListCell(key);
             if (entry != null && Objects.equals(entry, selectedEntry())) {
                 updateSelectionDetails(entry);
             }
         });
+    }
+
+    private ImageIcon scaledArtIcon(T entry, int width, int height) {
+        String key = entryKey(entry);
+        if (key == null) {
+            return null;
+        }
+
+        return scaledArtIconCache.computeIfAbsent(
+                key + "|" + width + "x" + height,
+                cacheKey -> {
+                    BufferedImage art = artCache.get(key);
+                    if (art == null) {
+                        return null;
+                    }
+                    BufferedImage scaled = GameArtScaler.ScaleToFit(art, width, height, true);
+                    return scaled == null ? null : new ImageIcon(scaled);
+                });
+    }
+
+    private void invalidateScaledArt(String key) {
+        if (key == null || key.isBlank()) {
+            return;
+        }
+        scaledArtIconCache.keySet().removeIf(cacheKey -> cacheKey.startsWith(key + "|"));
+    }
+
+    private void repaintGameListCell(String key) {
+        if (gameList == null || key == null || key.isBlank()) {
+            repaintGameList();
+            return;
+        }
+
+        for (int index = 0; index < gameListModel.size(); index++) {
+            if (!Objects.equals(key, entryKey(gameListModel.get(index)))) {
+                continue;
+            }
+            java.awt.Rectangle cellBounds = gameList.getCellBounds(index, index);
+            if (cellBounds != null) {
+                gameList.repaint(cellBounds);
+            } else {
+                gameList.repaint();
+            }
+            return;
+        }
+
+        gameList.repaint();
     }
 
     private String escapeHtml(String value) {

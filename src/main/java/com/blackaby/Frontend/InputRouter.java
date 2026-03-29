@@ -157,8 +157,9 @@ public final class InputRouter implements KeyEventDispatcher {
         }
 
         routedInputActive = true;
-        ApplyControllerState(profile.controlButtons(), PollControllerButtonIds());
-        ApplyControllerShortcutState(PollControllerShortcuts());
+        ControllerInputService.ControllerPollSnapshot controllerPollSnapshot = controllerInputService.PollInputSnapshot();
+        ApplyControllerState(profile.controlButtons(), PollControllerButtonIds(controllerPollSnapshot));
+        ApplyControllerShortcutState(controllerPollSnapshot.pressedShortcuts());
     }
 
     private void SetKeyboardButtonState(EmulatorButton button, boolean pressed) {
@@ -210,28 +211,15 @@ public final class InputRouter implements KeyEventDispatcher {
         }
     }
 
-    private Set<String> PollControllerButtonIds() {
+    private Set<String> PollControllerButtonIds(ControllerInputService.ControllerPollSnapshot controllerPollSnapshot) {
         polledControllerButtonIds.clear();
-        for (EmulatorButton button : controllerInputService.PollBoundButtons()) {
+        if (controllerPollSnapshot == null) {
+            return polledControllerButtonIds;
+        }
+        for (EmulatorButton button : controllerPollSnapshot.boundButtons()) {
             polledControllerButtonIds.add(button.id());
         }
         return polledControllerButtonIds;
-    }
-
-    private EnumSet<AppShortcut> PollControllerShortcuts() {
-        EnumSet<AppShortcut> pressedShortcuts = EnumSet.noneOf(AppShortcut.class);
-        if (!Settings.controllerInputEnabled) {
-            return pressedShortcuts;
-        }
-
-        Set<ControllerBinding> activeInputs = Set.copyOf(controllerInputService.PollActiveInputs());
-        for (AppShortcut shortcut : AppShortcut.values()) {
-            ControllerBinding binding = Settings.appShortcutControllerBindings.GetBinding(shortcut);
-            if (binding != null && activeInputs.contains(binding)) {
-                pressedShortcuts.add(shortcut);
-            }
-        }
-        return pressedShortcuts;
     }
 
     private void ApplyControllerShortcutState(EnumSet<AppShortcut> pressedShortcuts) {

@@ -26,6 +26,8 @@ import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.BorderLayout;
@@ -52,6 +54,8 @@ import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * GUI editor and preset manager for JSON display shaders.
@@ -74,8 +78,16 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     private final JComboBox<ShaderPassType> addPassSelector = new JComboBox<>(ShaderPassType.values());
     private final JLabel addPassDescriptionLabel = new JLabel();
     private final JPanel passParameterPanel = new JPanel(new GridBagLayout());
-    private final PreviewSurface sourcePreviewSurface = new PreviewSurface();
-    private final PreviewSurface outputPreviewSurface = new PreviewSurface();
+    private final ImagePreviewSurface sourcePreviewSurface = new ImagePreviewSurface(
+            UiText.ShaderEditorWindow.PREVIEW_UNAVAILABLE,
+            280,
+            210);
+    private final ImagePreviewSurface outputPreviewSurface = new ImagePreviewSurface(
+            UiText.ShaderEditorWindow.PREVIEW_UNAVAILABLE,
+            280,
+            210);
+    private final AtomicInteger previewRequestVersion = new AtomicInteger();
+    private final Timer previewRefreshTimer;
     private boolean updatingSelection;
     private boolean updatingEditor;
 
@@ -86,6 +98,8 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout());
         getContentPane().setBackground(Styling.appBackgroundColour);
+        previewRefreshTimer = new Timer(140, event -> refreshPreviewAsync());
+        previewRefreshTimer.setRepeats(false);
 
         add(buildHeader(), BorderLayout.NORTH);
         add(buildBody(), BorderLayout.CENTER);
@@ -453,7 +467,7 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         return card;
     }
 
-    private JComponent createPreviewPane(String titleText, PreviewSurface surface) {
+    private JComponent createPreviewPane(String titleText, ImagePreviewSurface surface) {
         JPanel panel = new JPanel(new BorderLayout(0, 6));
         panel.setOpaque(false);
 
@@ -697,7 +711,7 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         }
 
         rebuildPassParameterPanel();
-        refreshPreview();
+        refreshPreviewAsync();
     }
 
     private void saveCurrentPreset() {
@@ -823,7 +837,7 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
             return;
         }
         setStatus(UiText.ShaderEditorWindow.UNSAVED_STATUS);
-        refreshPreview();
+        schedulePreviewRefresh();
     }
 
     private void updateAddPassDescription() {
@@ -987,20 +1001,55 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         return spinner;
     }
 
-    private void refreshPreview() {
+    private void schedulePreviewRefresh() {
+        previewRefreshTimer.restart();
+    }
+
+    private void refreshPreviewAsync() {
+        previewRefreshTimer.stop();
+        int requestVersion = previewRequestVersion.incrementAndGet();
+        ShaderPresetDocument previewDocument;
         try {
-            ShaderPresetDocument previewDocument = buildDocumentForPreview();
-            ShaderPreviewRenderer.PreviewImages previewImages = ShaderPreviewRenderer.render(previewDocument);
-            sourcePreviewSurface.setImage(previewImages.sourceImage());
-            outputPreviewSurface.setImage(previewImages.previewImage());
-            previewStatusLabel.setText(UiText.ShaderEditorWindow.PreviewStatus(
-                    previewDocument.renderScale(),
-                    passChainModel.size()));
+            previewDocument = buildDocumentForPreview();
         } catch (Exception exception) {
+            applyPreviewResult(requestVersion, new PreviewRenderResult(null, null, exception.getMessage()));
+            return;
+        }
+
+        CompletableFuture
+                .supplyAsync(() -> renderPreview(previewDocument))
+                .thenAccept(result -> SwingUtilities.invokeLater(() -> applyPreviewResult(requestVersion, result)));
+    }
+
+    private PreviewRenderResult renderPreview(ShaderPresetDocument previewDocument) {
+        try {
+            return new PreviewRenderResult(
+                    previewDocument,
+                    ShaderPreviewRenderer.render(previewDocument),
+                    null);
+        } catch (Exception exception) {
+            return new PreviewRenderResult(previewDocument, null, exception.getMessage());
+        }
+    }
+
+    private void applyPreviewResult(int requestVersion, PreviewRenderResult result) {
+        if (previewRequestVersion.get() != requestVersion) {
+            return;
+        }
+
+        if (result == null || result.errorText() != null) {
             sourcePreviewSurface.setImage(null);
             outputPreviewSurface.setImage(null);
-            previewStatusLabel.setText(exception.getMessage());
+            previewStatusLabel.setText(result == null || result.errorText() == null ? "" : result.errorText());
+            return;
         }
+
+        ShaderPreviewRenderer.PreviewImages previewImages = result.previewImages();
+        sourcePreviewSurface.setImage(previewImages.sourceImage());
+        outputPreviewSurface.setImage(previewImages.previewImage());
+        previewStatusLabel.setText(UiText.ShaderEditorWindow.PreviewStatus(
+                result.document().renderScale(),
+                passChainModel.size()));
     }
 
     private ShaderPresetDocument buildDocumentForPreview() {
@@ -1094,6 +1143,13 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         throw new IllegalArgumentException("Unable to find a free filename for the imported preset.");
     }
 
+    @Override
+    public void dispose() {
+        previewRefreshTimer.stop();
+        previewRequestVersion.incrementAndGet();
+        super.dispose();
+    }
+
     private record PresetFileEntry(String relativePath, Path absolutePath) {
         @Override
         public String toString() {
@@ -1101,43 +1157,8 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         }
     }
 
-    private static final class PreviewSurface extends JPanel {
-        private BufferedImage image;
-
-        PreviewSurface() {
-            setOpaque(true);
-            setBackground(new Color(234, 241, 248));
-            setPreferredSize(new Dimension(280, 210));
-        }
-
-        void setImage(BufferedImage image) {
-            this.image = image;
-            repaint();
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
-            Graphics2D graphics = (Graphics2D) g.create();
-            graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
-            graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
-
-            if (image == null) {
-                graphics.setColor(Styling.mutedTextColour);
-                String placeholder = UiText.ShaderEditorWindow.PREVIEW_UNAVAILABLE;
-                int textWidth = graphics.getFontMetrics().stringWidth(placeholder);
-                graphics.drawString(placeholder, Math.max(8, (getWidth() - textWidth) / 2), getHeight() / 2);
-                graphics.dispose();
-                return;
-            }
-
-            double scale = Math.min(getWidth() / (double) image.getWidth(), getHeight() / (double) image.getHeight());
-            int scaledWidth = Math.max(1, (int) Math.round(image.getWidth() * scale));
-            int scaledHeight = Math.max(1, (int) Math.round(image.getHeight() * scale));
-            int x = (getWidth() - scaledWidth) / 2;
-            int y = (getHeight() - scaledHeight) / 2;
-            graphics.drawImage(image, x, y, scaledWidth, scaledHeight, null);
-            graphics.dispose();
-        }
+    private record PreviewRenderResult(ShaderPresetDocument document,
+                                       ShaderPreviewRenderer.PreviewImages previewImages,
+                                       String errorText) {
     }
 }

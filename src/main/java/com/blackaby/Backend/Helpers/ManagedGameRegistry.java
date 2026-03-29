@@ -5,8 +5,11 @@ import com.blackaby.Backend.Platform.EmulatorGame;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -52,11 +55,17 @@ public final class ManagedGameRegistry {
     private static final String cgbOnlySuffix = ".cgb_only";
     private static final String expectedSaveSizeSuffix = ".expected_save_size";
     private static final String lastSeenSuffix = ".last_seen";
+    private static final String contentHashSuffix = ".content_hash";
 
     private static final Comparator<StoredGame> gameSortOrder = Comparator
             .comparingLong(StoredGame::lastSeenMillis)
             .reversed()
             .thenComparing(game -> SaveFileManager.BuildFallbackBaseName(game.saveIdentity()));
+    private static final Comparator<GameSnapshot> duplicatePreference = Comparator
+            .comparing((GameSnapshot snapshot) -> IsManagedLibraryPath(snapshot.game().saveIdentity().sourcePath()))
+            .thenComparingLong(snapshot -> -snapshot.game().lastSeenMillis())
+            .thenComparing(game -> SaveFileManager.BuildFallbackBaseName(game.game().saveIdentity()),
+                    String.CASE_INSENSITIVE_ORDER);
 
     private static final Store store = new Store();
 
@@ -74,12 +83,33 @@ public final class ManagedGameRegistry {
         }
 
         store.EnsureLoaded();
+        CleanupDuplicateGamesInternal();
+        String contentHash = KeyedPropertiesStore.Hash(rom.ToByteArray());
+        long now = System.currentTimeMillis();
+        StoredGame existingGame = FindGameByContentHash(contentHash);
+        if (existingGame != null) {
+            EntryProperties existingEntry = new EntryProperties(existingGame.key());
+            existingEntry.TouchFromExistingRom(rom, SaveFileManager.SaveIdentity.FromRom(rom), contentHash, now);
+            store.Persist();
+            return;
+        }
+
         String key = BuildGameKey(rom);
         EntryProperties entry = new EntryProperties(key);
         SaveFileManager.SaveIdentity saveIdentity = SaveFileManager.SaveIdentity.FromRom(rom);
 
-        entry.WriteMetadata(rom, saveIdentity);
+        entry.WriteMetadata(rom, saveIdentity, contentHash, now);
         store.Persist();
+    }
+
+    /**
+     * Removes tracked-game duplicates that resolve to identical ROM bytes.
+     *
+     * @return number of duplicate entries removed
+     */
+    public static synchronized int CleanupDuplicateGames() {
+        store.EnsureLoaded();
+        return CleanupDuplicateGamesInternal();
     }
 
     /**
@@ -89,6 +119,7 @@ public final class ManagedGameRegistry {
      */
     public static synchronized List<StoredGame> GetKnownGames() {
         store.EnsureLoaded();
+        CleanupDuplicateGamesInternal();
         return store.StoredKeys().stream()
                 .map(ManagedGameRegistry::ReadStoredGame)
                 .filter(game -> game != null)
@@ -130,8 +161,118 @@ public final class ManagedGameRegistry {
         return KeyedPropertiesStore.Hash(builder.toString());
     }
 
+    private static int CleanupDuplicateGamesInternal() {
+        List<GameSnapshot> snapshots = BuildSnapshots();
+        Map<String, List<GameSnapshot>> snapshotsByHash = new HashMap<>();
+        for (GameSnapshot snapshot : snapshots) {
+            if (snapshot.contentHash().isBlank()) {
+                continue;
+            }
+            snapshotsByHash.computeIfAbsent(snapshot.contentHash(), ignored -> new ArrayList<>()).add(snapshot);
+        }
+
+        int removedCount = 0;
+        boolean changed = false;
+        for (List<GameSnapshot> group : snapshotsByHash.values()) {
+            if (group.size() < 2) {
+                continue;
+            }
+
+            group.sort(duplicatePreference);
+            GameSnapshot canonical = group.get(0);
+            MergeDuplicateMetadata(canonical, group);
+            for (int index = 1; index < group.size(); index++) {
+                new EntryProperties(group.get(index).game().key()).RemoveAll();
+                removedCount++;
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            store.Persist();
+        }
+        return removedCount;
+    }
+
+    private static void MergeDuplicateMetadata(GameSnapshot canonical, List<GameSnapshot> group) {
+        EntryProperties canonicalProperties = new EntryProperties(canonical.game().key());
+        GameSnapshot preferredSource = group.stream().min(duplicatePreference).orElse(canonical);
+        long latestSeen = group.stream()
+                .mapToLong(snapshot -> snapshot.game().lastSeenMillis())
+                .max()
+                .orElse(canonical.game().lastSeenMillis());
+        int expectedSaveSize = group.stream()
+                .mapToInt(snapshot -> snapshot.game().expectedSaveSizeBytes())
+                .max()
+                .orElse(canonical.game().expectedSaveSizeBytes());
+
+        canonicalProperties.SetString(sourcePathSuffix, preferredSource.game().saveIdentity().sourcePath());
+        canonicalProperties.SetString(sourceNameSuffix, preferredSource.game().saveIdentity().sourceName());
+        canonicalProperties.SetString(displayNameSuffix, preferredSource.game().saveIdentity().displayName());
+        canonicalProperties.SetString(headerTitleSuffix, preferredSource.game().headerTitle());
+        canonicalProperties.SetBoolean(cgbCompatibleSuffix, preferredSource.game().cgbCompatible());
+        canonicalProperties.SetBoolean(cgbOnlySuffix, preferredSource.game().cgbOnly());
+        canonicalProperties.SetInt(expectedSaveSizeSuffix, expectedSaveSize);
+        canonicalProperties.SetLong(lastSeenSuffix, latestSeen);
+        canonicalProperties.SetString(contentHashSuffix, canonical.contentHash());
+        canonicalProperties.WriteIndexedList(patchNamePrefix, patchNameCountSuffix, preferredSource.game().saveIdentity().patchNames());
+        canonicalProperties.WriteIndexedList(patchSourcePrefix, patchSourceCountSuffix, preferredSource.game().patchSourcePaths());
+    }
+
+    private static StoredGame FindGameByContentHash(String contentHash) {
+        if (contentHash == null || contentHash.isBlank()) {
+            return null;
+        }
+
+        return BuildSnapshots().stream()
+                .filter(snapshot -> contentHash.equals(snapshot.contentHash()))
+                .min(duplicatePreference)
+                .map(GameSnapshot::game)
+                .orElse(null);
+    }
+
+    private static List<GameSnapshot> BuildSnapshots() {
+        List<GameSnapshot> snapshots = new ArrayList<>();
+        for (String key : store.StoredKeys()) {
+            EntryProperties properties = new EntryProperties(key);
+            StoredGame storedGame = properties.Read();
+            if (storedGame == null) {
+                continue;
+            }
+            snapshots.add(new GameSnapshot(storedGame, properties.ResolveContentHash()));
+        }
+        return snapshots;
+    }
+
+    private static boolean IsManagedLibraryPath(String sourcePath) {
+        if (sourcePath == null || sourcePath.isBlank()) {
+            return false;
+        }
+
+        try {
+            Path candidatePath = Path.of(sourcePath).toAbsolutePath().normalize();
+            Path libraryPath = Path.of("library", "roms").toAbsolutePath().normalize();
+            return candidatePath.startsWith(libraryPath);
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private static boolean ShouldPreferSourcePath(String currentSourcePath, String candidateSourcePath) {
+        if (candidateSourcePath == null || candidateSourcePath.isBlank()) {
+            return false;
+        }
+        if (currentSourcePath == null || currentSourcePath.isBlank()) {
+            return true;
+        }
+        return IsManagedLibraryPath(currentSourcePath) && !IsManagedLibraryPath(candidateSourcePath);
+    }
+
     private static StoredGame ReadStoredGame(String key) {
         return new EntryProperties(key).Read();
+    }
+
+    private record GameSnapshot(StoredGame game, String contentHash) {
     }
 
     private static boolean ResolveCgbCompatible(String prefix, String sourcePath, SaveFileManager.SaveIdentity saveIdentity,
@@ -207,7 +348,7 @@ public final class ManagedGameRegistry {
             this.entry = store.Entry(key);
         }
 
-        private void WriteMetadata(ROM rom, SaveFileManager.SaveIdentity saveIdentity) {
+        private void WriteMetadata(ROM rom, SaveFileManager.SaveIdentity saveIdentity, String contentHash, long now) {
             entry.Set(sourcePathSuffix, saveIdentity.sourcePath());
             entry.Set(sourceNameSuffix, saveIdentity.sourceName());
             entry.Set(displayNameSuffix, saveIdentity.displayName());
@@ -215,9 +356,50 @@ public final class ManagedGameRegistry {
             entry.Set(cgbCompatibleSuffix, RomConsoleSupport.IsGbc(rom));
             entry.Set(cgbOnlySuffix, RomConsoleSupport.IsCgbOnly(rom));
             entry.Set(expectedSaveSizeSuffix, rom.GetExternalRamSizeBytes());
-            entry.Set(lastSeenSuffix, System.currentTimeMillis());
+            entry.Set(contentHashSuffix, contentHash);
+            entry.Set(lastSeenSuffix, now);
             entry.WriteIndexedList(patchNamePrefix, patchNameCountSuffix, saveIdentity.patchNames());
             entry.WriteIndexedList(patchSourcePrefix, patchSourceCountSuffix, rom.GetPatchSourcePaths());
+        }
+
+        private void TouchFromExistingRom(ROM rom, SaveFileManager.SaveIdentity saveIdentity, String contentHash, long now) {
+            entry.Set(lastSeenSuffix, Math.max(entry.GetLong(lastSeenSuffix, 0L), now));
+            entry.Set(contentHashSuffix, contentHash);
+            entry.Set(cgbCompatibleSuffix, RomConsoleSupport.IsGbc(rom));
+            entry.Set(cgbOnlySuffix, RomConsoleSupport.IsCgbOnly(rom));
+            entry.Set(expectedSaveSizeSuffix, rom.GetExternalRamSizeBytes());
+            if (ShouldPreferSourcePath(entry.Get(sourcePathSuffix), saveIdentity.sourcePath())) {
+                entry.Set(sourcePathSuffix, saveIdentity.sourcePath());
+                entry.Set(sourceNameSuffix, saveIdentity.sourceName());
+                entry.Set(displayNameSuffix, saveIdentity.displayName());
+                entry.Set(headerTitleSuffix, rom.GetHeaderTitle());
+                entry.WriteIndexedList(patchNamePrefix, patchNameCountSuffix, saveIdentity.patchNames());
+                entry.WriteIndexedList(patchSourcePrefix, patchSourceCountSuffix, rom.GetPatchSourcePaths());
+            }
+        }
+
+        private String ResolveContentHash() {
+            String storedHash = entry.Get(contentHashSuffix);
+            if (!storedHash.isBlank()) {
+                return storedHash;
+            }
+
+            String sourcePath = entry.Get(sourcePathSuffix);
+            if (sourcePath.isBlank()) {
+                return "";
+            }
+
+            try {
+                ROM rom = LoadTrackedRom(
+                        sourcePath,
+                        entry.ReadIndexedList(patchNamePrefix, patchNameCountSuffix),
+                        entry.ReadIndexedList(patchSourcePrefix, patchSourceCountSuffix));
+                String resolvedHash = KeyedPropertiesStore.Hash(rom.ToByteArray());
+                entry.Set(contentHashSuffix, resolvedHash);
+                return resolvedHash;
+            } catch (IOException | IllegalArgumentException exception) {
+                return "";
+            }
         }
 
         private StoredGame Read() {
@@ -246,6 +428,30 @@ public final class ManagedGameRegistry {
                     ResolveCgbOnly(entry.Prefix(), sourcePath, saveIdentity, patchSourcePaths),
                     entry.GetInt(expectedSaveSizeSuffix, 0),
                     entry.GetLong(lastSeenSuffix, 0L));
+        }
+
+        private void RemoveAll() {
+            entry.RemoveAll();
+        }
+
+        private void SetString(String suffix, String value) {
+            entry.Set(suffix, value);
+        }
+
+        private void SetBoolean(String suffix, boolean value) {
+            entry.Set(suffix, value);
+        }
+
+        private void SetInt(String suffix, int value) {
+            entry.Set(suffix, value);
+        }
+
+        private void SetLong(String suffix, long value) {
+            entry.Set(suffix, value);
+        }
+
+        private void WriteIndexedList(String itemPrefix, String countSuffix, List<String> values) {
+            entry.WriteIndexedList(itemPrefix, countSuffix, values);
         }
     }
 }

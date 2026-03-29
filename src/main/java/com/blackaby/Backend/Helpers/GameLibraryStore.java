@@ -6,8 +6,13 @@ import com.blackaby.Backend.Platform.EmulatorGame;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Stores playable ROM images inside GameDuck's managed library.
@@ -51,11 +56,19 @@ public final class GameLibraryStore {
     private static final String addedAtSuffix = ".added_at";
     private static final String lastPlayedSuffix = ".last_played";
     private static final String favouriteSuffix = ".favourite";
+    private static final String contentHashSuffix = ".content_hash";
 
     private static final Comparator<LibraryEntry> entrySortOrder = Comparator
             .comparingLong(LibraryEntry::lastPlayedMillis)
             .reversed()
             .thenComparing(entry -> SaveFileManager.BuildFallbackBaseName(entry.SaveIdentity()));
+    private static final Comparator<EntrySnapshot> duplicatePreference = Comparator
+            .comparing((EntrySnapshot snapshot) -> IsManagedLibraryPath(snapshot.entry().sourcePath()))
+            .thenComparing((EntrySnapshot snapshot) -> snapshot.entry().favourite(), Comparator.reverseOrder())
+            .thenComparingLong(snapshot -> -snapshot.entry().lastPlayedMillis())
+            .thenComparingLong(snapshot -> PositiveOrMax(snapshot.entry().addedAtMillis()))
+            .thenComparing(snapshot -> SaveFileManager.BuildFallbackBaseName(snapshot.entry().SaveIdentity()),
+                    String.CASE_INSENSITIVE_ORDER);
 
     private static final Store store = new Store();
 
@@ -74,21 +87,53 @@ public final class GameLibraryStore {
         }
 
         store.EnsureLoaded();
+        CleanupDuplicateEntriesInternal();
+
+        byte[] romBytes = rom.ToByteArray();
+        String contentHash = KeyedPropertiesStore.Hash(romBytes);
+        long now = System.currentTimeMillis();
+        LibraryEntry existingEntry = FindEntryByContentHash(contentHash);
+        if (existingEntry != null) {
+            EntryProperties existingProperties = new EntryProperties(existingEntry.key());
+            if (!Files.isRegularFile(existingEntry.romPath())) {
+                Path restoredPath = RomStorageDirectory().resolve(BuildStoredFilename(rom, existingEntry.key()));
+                try {
+                    Files.createDirectories(restoredPath.getParent());
+                    Files.write(restoredPath, romBytes);
+                } catch (IOException exception) {
+                    throw new IllegalStateException("Unable to restore the ROM in the managed library.", exception);
+                }
+                existingProperties.SetString(romPathSuffix, restoredPath.toString());
+            }
+            existingProperties.TouchFromExistingRom(rom, now, contentHash);
+            store.Persist();
+            return existingProperties.Read();
+        }
+
         String key = BuildEntryKey(rom);
         EntryProperties entry = new EntryProperties(key);
         Path storedPath = RomStorageDirectory().resolve(BuildStoredFilename(rom, key));
 
         try {
             Files.createDirectories(storedPath.getParent());
-            Files.write(storedPath, rom.ToByteArray());
+            Files.write(storedPath, romBytes);
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to store the ROM in the managed library.", exception);
         }
 
-        long now = System.currentTimeMillis();
-        entry.WriteMetadata(rom, storedPath, now);
+        entry.WriteMetadata(rom, storedPath, now, contentHash);
         store.Persist();
         return entry.Read();
+    }
+
+    /**
+     * Removes duplicate library entries that resolve to identical ROM bytes.
+     *
+     * @return number of duplicate entries removed
+     */
+    public static synchronized int CleanupDuplicateEntries() {
+        store.EnsureLoaded();
+        return CleanupDuplicateEntriesInternal();
     }
 
     /**
@@ -98,6 +143,7 @@ public final class GameLibraryStore {
      */
     public static synchronized List<LibraryEntry> GetEntries() {
         store.EnsureLoaded();
+        CleanupDuplicateEntriesInternal();
         return store.StoredKeys().stream()
                 .map(GameLibraryStore::ReadEntry)
                 .filter(entry -> entry != null && Files.isRegularFile(entry.romPath()))
@@ -134,12 +180,13 @@ public final class GameLibraryStore {
         }
 
         store.EnsureLoaded();
+        CleanupDuplicateEntriesInternal();
         EntryProperties entry = new EntryProperties(key);
         if (!entry.Exists()) {
             return;
         }
 
-        entry.Set(favouriteSuffix, favourite);
+        entry.SetBoolean(favouriteSuffix, favourite);
         store.Persist();
     }
 
@@ -155,6 +202,7 @@ public final class GameLibraryStore {
         }
 
         store.EnsureLoaded();
+        CleanupDuplicateEntriesInternal();
         LibraryEntry entry = ReadEntry(key);
         if (entry == null) {
             return;
@@ -177,6 +225,7 @@ public final class GameLibraryStore {
         }
 
         store.EnsureLoaded();
+        CleanupDuplicateEntriesInternal();
         return new EntryProperties(key).GetBoolean(favouriteSuffix, false);
     }
 
@@ -185,17 +234,237 @@ public final class GameLibraryStore {
      */
     public static synchronized void ClearRecentHistory() {
         store.EnsureLoaded();
+        CleanupDuplicateEntriesInternal();
         for (String key : store.StoredKeys()) {
             EntryProperties entry = new EntryProperties(key);
             if (entry.Exists()) {
-                entry.Set(lastPlayedSuffix, 0L);
+                entry.SetLong(lastPlayedSuffix, 0L);
             }
         }
         store.Persist();
     }
 
+    private static int CleanupDuplicateEntriesInternal() {
+        List<EntrySnapshot> snapshots = BuildSnapshots();
+        Map<String, List<EntrySnapshot>> snapshotsByHash = new HashMap<>();
+        for (EntrySnapshot snapshot : snapshots) {
+            if (snapshot.contentHash().isBlank()) {
+                continue;
+            }
+            snapshotsByHash.computeIfAbsent(snapshot.contentHash(), ignored -> new ArrayList<>()).add(snapshot);
+        }
+
+        int removedCount = 0;
+        boolean changed = false;
+        for (List<EntrySnapshot> group : snapshotsByHash.values()) {
+            if (group.size() < 2) {
+                continue;
+            }
+
+            group.sort(duplicatePreference);
+            EntrySnapshot canonical = group.get(0);
+            MergeDuplicateMetadata(canonical, group);
+            MigrateNewestSaveBundle(group, canonical.entry().SaveIdentity());
+            for (int index = 1; index < group.size(); index++) {
+                EntrySnapshot duplicate = group.get(index);
+                DeleteDuplicateRomFile(canonical, duplicate);
+                new EntryProperties(duplicate.entry().key()).RemoveAll();
+                removedCount++;
+                changed = true;
+            }
+        }
+
+        if (DeleteOrphanedStoredRoms()) {
+            changed = true;
+        }
+
+        if (changed) {
+            store.Persist();
+        }
+        return removedCount;
+    }
+
+    private static void MergeDuplicateMetadata(EntrySnapshot canonical, List<EntrySnapshot> group) {
+        EntryProperties canonicalProperties = new EntryProperties(canonical.entry().key());
+        long earliestAdded = PositiveMin(group.stream()
+                .mapToLong(snapshot -> snapshot.entry().addedAtMillis())
+                .toArray());
+        long latestPlayed = group.stream()
+                .mapToLong(snapshot -> snapshot.entry().lastPlayedMillis())
+                .max()
+                .orElse(canonical.entry().lastPlayedMillis());
+        boolean favourite = group.stream().anyMatch(snapshot -> snapshot.entry().favourite());
+        EntrySnapshot preferredSource = group.stream().min(duplicatePreference).orElse(canonical);
+
+        canonicalProperties.SetString(sourcePathSuffix, preferredSource.entry().sourcePath());
+        canonicalProperties.SetString(sourceNameSuffix, preferredSource.entry().sourceName());
+        canonicalProperties.SetString(displayNameSuffix, preferredSource.entry().displayName());
+        canonicalProperties.SetString(headerTitleSuffix, preferredSource.entry().headerTitle());
+        canonicalProperties.SetBoolean(cgbCompatibleSuffix, preferredSource.entry().cgbCompatible());
+        canonicalProperties.SetBoolean(cgbOnlySuffix, preferredSource.entry().cgbOnly());
+        canonicalProperties.WriteIndexedList(patchNamePrefix, patchNameCountSuffix, preferredSource.entry().patchNames());
+        canonicalProperties.WriteIndexedList(patchSourcePrefix, patchSourceCountSuffix, preferredSource.entry().patchSourcePaths());
+        canonicalProperties.SetString(contentHashSuffix, canonical.contentHash());
+        canonicalProperties.SetLong(addedAtSuffix, earliestAdded == Long.MAX_VALUE ? canonical.entry().addedAtMillis() : earliestAdded);
+        canonicalProperties.SetLong(lastPlayedSuffix, latestPlayed);
+        canonicalProperties.SetBoolean(favouriteSuffix, favourite);
+    }
+
+    private static void MigrateNewestSaveBundle(List<EntrySnapshot> group, SaveFileManager.SaveIdentity canonicalIdentity) {
+        SaveFileManager.SaveIdentity newestIdentity = null;
+        long newestSaveMillis = Long.MIN_VALUE;
+        for (EntrySnapshot snapshot : group) {
+            long candidateMillis = LatestSaveMillis(snapshot.entry().SaveIdentity());
+            if (candidateMillis > newestSaveMillis) {
+                newestSaveMillis = candidateMillis;
+                newestIdentity = snapshot.entry().SaveIdentity();
+            }
+        }
+
+        if (newestIdentity != null && newestSaveMillis > Long.MIN_VALUE && !sameIdentity(newestIdentity, canonicalIdentity)) {
+            SaveFileManager.LoadSaveBundle(newestIdentity)
+                    .filter(SaveFileManager.SaveDataBundle::HasAnyData)
+                    .ifPresent(bundle -> SaveFileManager.Save(canonicalIdentity, bundle.primaryData(), bundle.supplementalData()));
+        }
+    }
+
+    private static long LatestSaveMillis(SaveFileManager.SaveIdentity saveIdentity) {
+        return SaveFileManager.DescribeSaveFiles(saveIdentity).existingFiles().stream()
+                .mapToLong(file -> file.lastModified().toMillis())
+                .max()
+                .orElse(Long.MIN_VALUE);
+    }
+
+    private static void DeleteDuplicateRomFile(EntrySnapshot canonical, EntrySnapshot duplicate) {
+        if (duplicate.entry().romPath() == null
+                || canonical.entry().romPath() == null
+                || duplicate.entry().romPath().equals(canonical.entry().romPath())) {
+            return;
+        }
+
+        try {
+            Files.deleteIfExists(duplicate.entry().romPath());
+        } catch (IOException exception) {
+            // Keep the duplicate ROM file when deletion fails.
+        }
+    }
+
+    private static boolean DeleteOrphanedStoredRoms() {
+        Path storageDirectory = RomStorageDirectory();
+        if (!Files.isDirectory(storageDirectory)) {
+            return false;
+        }
+
+        Set<Path> referencedPaths = new HashSet<>();
+        for (String key : store.StoredKeys()) {
+            LibraryEntry entry = ReadEntry(key);
+            if (entry != null && entry.romPath() != null) {
+                referencedPaths.add(entry.romPath().toAbsolutePath().normalize());
+            }
+        }
+
+        boolean deletedAny = false;
+        try (var paths = Files.list(storageDirectory)) {
+            for (Path path : paths.toList()) {
+                if (!Files.isRegularFile(path)) {
+                    continue;
+                }
+                if (".gitkeep".equalsIgnoreCase(path.getFileName().toString())) {
+                    continue;
+                }
+                if (referencedPaths.contains(path.toAbsolutePath().normalize())) {
+                    continue;
+                }
+                Files.deleteIfExists(path);
+                deletedAny = true;
+            }
+        } catch (IOException exception) {
+            // Keep orphaned files when cleanup fails.
+        }
+        return deletedAny;
+    }
+
+    private static LibraryEntry FindEntryByContentHash(String contentHash) {
+        if (contentHash == null || contentHash.isBlank()) {
+            return null;
+        }
+
+        return BuildSnapshots().stream()
+                .filter(snapshot -> contentHash.equals(snapshot.contentHash()))
+                .min(duplicatePreference)
+                .map(EntrySnapshot::entry)
+                .orElse(null);
+    }
+
+    private static List<EntrySnapshot> BuildSnapshots() {
+        List<EntrySnapshot> snapshots = new ArrayList<>();
+        for (String key : store.StoredKeys()) {
+            EntryProperties properties = new EntryProperties(key);
+            LibraryEntry entry = properties.Read();
+            if (entry == null) {
+                continue;
+            }
+            snapshots.add(new EntrySnapshot(entry, properties.ResolveContentHash(entry.romPath())));
+        }
+        return snapshots;
+    }
+
+    private static boolean IsManagedLibraryPath(String sourcePath) {
+        if (sourcePath == null || sourcePath.isBlank()) {
+            return false;
+        }
+
+        try {
+            Path candidatePath = Path.of(sourcePath).toAbsolutePath().normalize();
+            Path libraryPath = RomStorageDirectory().toAbsolutePath().normalize();
+            return candidatePath.startsWith(libraryPath);
+        } catch (RuntimeException exception) {
+            return false;
+        }
+    }
+
+    private static boolean ShouldPreferSourcePath(String currentSourcePath, String candidateSourcePath) {
+        if (candidateSourcePath == null || candidateSourcePath.isBlank()) {
+            return false;
+        }
+        if (currentSourcePath == null || currentSourcePath.isBlank()) {
+            return true;
+        }
+        return IsManagedLibraryPath(currentSourcePath) && !IsManagedLibraryPath(candidateSourcePath);
+    }
+
+    private static long PositiveOrMax(long value) {
+        return value > 0L ? value : Long.MAX_VALUE;
+    }
+
+    private static long PositiveMin(long[] values) {
+        long result = Long.MAX_VALUE;
+        for (long value : values) {
+            if (value > 0L && value < result) {
+                result = value;
+            }
+        }
+        return result;
+    }
+
+    private static boolean sameIdentity(SaveFileManager.SaveIdentity left, SaveFileManager.SaveIdentity right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null) {
+            return false;
+        }
+        return KeyedPropertiesStore.NullToEmpty(left.sourcePath()).equals(KeyedPropertiesStore.NullToEmpty(right.sourcePath()))
+                && KeyedPropertiesStore.NullToEmpty(left.sourceName()).equals(KeyedPropertiesStore.NullToEmpty(right.sourceName()))
+                && KeyedPropertiesStore.NullToEmpty(left.displayName()).equals(KeyedPropertiesStore.NullToEmpty(right.displayName()))
+                && left.patchNames().equals(right.patchNames());
+    }
+
     private static LibraryEntry ReadEntry(String key) {
         return new EntryProperties(key).Read();
+    }
+
+    private record EntrySnapshot(LibraryEntry entry, String contentHash) {
     }
 
     private static String BuildEntryKey(ROM rom) {
@@ -298,7 +567,7 @@ public final class GameLibraryStore {
             return entry.Has(sourceNameSuffix);
         }
 
-        private void WriteMetadata(ROM rom, Path storedPath, long now) {
+        private void WriteMetadata(ROM rom, Path storedPath, long now, String contentHash) {
             entry.Set(romPathSuffix, storedPath.toString());
             entry.Set(sourcePathSuffix, rom.GetSourcePath());
             entry.Set(sourceNameSuffix, rom.GetSourceName());
@@ -306,10 +575,47 @@ public final class GameLibraryStore {
             entry.Set(headerTitleSuffix, rom.GetHeaderTitle());
             entry.Set(cgbCompatibleSuffix, RomConsoleSupport.IsGbc(rom));
             entry.Set(cgbOnlySuffix, RomConsoleSupport.IsCgbOnly(rom));
+            entry.Set(contentHashSuffix, contentHash);
             entry.Set(addedAtSuffix, entry.GetLong(addedAtSuffix, now));
             entry.Set(lastPlayedSuffix, now);
             entry.WriteIndexedList(patchNamePrefix, patchNameCountSuffix, rom.GetPatchNames());
             entry.WriteIndexedList(patchSourcePrefix, patchSourceCountSuffix, rom.GetPatchSourcePaths());
+        }
+
+        private void TouchFromExistingRom(ROM rom, long now, String contentHash) {
+            entry.Set(lastPlayedSuffix, Math.max(entry.GetLong(lastPlayedSuffix, 0L), now));
+            if (entry.GetLong(addedAtSuffix, 0L) <= 0L) {
+                entry.Set(addedAtSuffix, now);
+            }
+            entry.Set(contentHashSuffix, contentHash);
+            entry.Set(cgbCompatibleSuffix, RomConsoleSupport.IsGbc(rom));
+            entry.Set(cgbOnlySuffix, RomConsoleSupport.IsCgbOnly(rom));
+            if (ShouldPreferSourcePath(entry.Get(sourcePathSuffix), rom.GetSourcePath())) {
+                entry.Set(sourcePathSuffix, rom.GetSourcePath());
+                entry.Set(sourceNameSuffix, rom.GetSourceName());
+                entry.Set(displayNameSuffix, rom.GetName());
+                entry.Set(headerTitleSuffix, rom.GetHeaderTitle());
+                entry.WriteIndexedList(patchNamePrefix, patchNameCountSuffix, rom.GetPatchNames());
+                entry.WriteIndexedList(patchSourcePrefix, patchSourceCountSuffix, rom.GetPatchSourcePaths());
+            }
+        }
+
+        private String ResolveContentHash(Path romPath) {
+            String storedHash = entry.Get(contentHashSuffix);
+            if (!storedHash.isBlank()) {
+                return storedHash;
+            }
+            if (romPath == null || !Files.isRegularFile(romPath)) {
+                return "";
+            }
+
+            try {
+                String resolvedHash = KeyedPropertiesStore.Hash(Files.readAllBytes(romPath));
+                entry.Set(contentHashSuffix, resolvedHash);
+                return resolvedHash;
+            } catch (IOException exception) {
+                return "";
+            }
         }
 
         private LibraryEntry Read() {
@@ -342,12 +648,20 @@ public final class GameLibraryStore {
             entry.RemoveAll();
         }
 
-        private void Set(String suffix, boolean value) {
+        private void SetBoolean(String suffix, boolean value) {
             entry.Set(suffix, value);
         }
 
-        private void Set(String suffix, long value) {
+        private void SetLong(String suffix, long value) {
             entry.Set(suffix, value);
+        }
+
+        private void SetString(String suffix, String value) {
+            entry.Set(suffix, value);
+        }
+
+        private void WriteIndexedList(String itemPrefix, String countSuffix, List<String> values) {
+            entry.WriteIndexedList(itemPrefix, countSuffix, values);
         }
 
         private boolean GetBoolean(String suffix, boolean fallback) {

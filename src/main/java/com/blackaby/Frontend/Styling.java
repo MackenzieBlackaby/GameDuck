@@ -152,6 +152,8 @@ public final class Styling {
         putColor("RadioButtonMenuItem.selectionForeground", selectionForeground);
         putColor("PopupMenu.background", theme.SurfaceColour());
         putColor("PopupMenu.foreground", theme.AccentColour());
+        putColor("PopupMenuSeparator.background", theme.SurfaceColour());
+        putColor("PopupMenuSeparator.foreground", theme.SurfaceBorderColour());
         putColor("Separator.background", theme.SurfaceBorderColour());
         putColor("Separator.foreground", theme.SurfaceBorderColour());
         putColor("TextField.background", theme.SurfaceColour());
@@ -194,6 +196,14 @@ public final class Styling {
 
         UIManager.put("MenuBar.border",
                 new BorderUIResource(BorderFactory.createLineBorder(theme.SurfaceBorderColour(), 1)));
+        UIManager.put("Menu.border",
+                new BorderUIResource(BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+        UIManager.put("MenuItem.border",
+                new BorderUIResource(BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+        UIManager.put("CheckBoxMenuItem.border",
+                new BorderUIResource(BorderFactory.createEmptyBorder(6, 12, 6, 12)));
+        UIManager.put("RadioButtonMenuItem.border",
+                new BorderUIResource(BorderFactory.createEmptyBorder(6, 12, 6, 12)));
         UIManager.put("RootPane.frameBorder",
                 new BorderUIResource(BorderFactory.createLineBorder(theme.SurfaceBorderColour(), 1)));
         UIManager.put("PopupMenu.border",

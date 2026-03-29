@@ -32,7 +32,9 @@ import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
+import javax.swing.JSeparator;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
@@ -44,6 +46,10 @@ import java.awt.BorderLayout;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Insets;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -451,13 +457,14 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
         for (int index = 0, actionIndex = 0; index < menuEntries.length; index++) {
             if (menuEntries[index].isEmpty()) {
-                menu.addSeparator();
+                AddMenuDivider(menu);
             } else {
                 AddMenuItem(menu, menuEntries[index], actions[actionIndex]);
                 actionIndex++;
             }
         }
 
+        ConfigureMenuTree(menu);
         currentMenuBar.add(menu);
     }
 
@@ -470,7 +477,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_OPEN_IPS_PATCH, Action.LOADIPS);
         recentGamesMenu = CreateRecentGamesMenu();
         menu.add(recentGamesMenu);
-        menu.addSeparator();
+        AddMenuDivider(menu);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_PAUSE_GAME, Action.PAUSEGAME);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_RESET_GAME, Action.RESETGAME);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_CLOSE_GAME, Action.CLOSEGAME);
@@ -480,14 +487,14 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             cheatManagerMenuItem.addActionListener(event -> new CheatManagerWindow(this, emulation));
             menu.add(cheatManagerMenuItem);
         }
-        menu.addSeparator();
+        AddMenuDivider(menu);
 
         JMenuItem saveStateManagerItem = new JMenuItem(UiText.MainWindow.GAME_MENU_SAVE_STATE_MANAGER);
         ConfigureMenuItem(saveStateManagerItem);
         saveStateManagerItem.addActionListener(event -> new SaveStateManagerWindow(this));
         menu.add(saveStateManagerItem);
 
-        menu.addSeparator();
+        AddMenuDivider(menu);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_QUICK_SAVE, Action.SAVESTATE);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_QUICK_LOAD, Action.LOADSTATE);
         menu.add(CreateStateSlotMenu(UiText.MainWindow.GAME_MENU_SAVE_STATE, true));
@@ -508,6 +515,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             public void menuCanceled(MenuEvent event) {
             }
         });
+        ConfigureMenuTree(menu);
         return menu;
     }
 
@@ -531,7 +539,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
             if (slot == QuickStateManager.quickSlot) {
                 menu.add(menuItem);
-                menu.addSeparator();
+                AddMenuDivider(menu);
             } else {
                 menu.add(menuItem);
             }
@@ -557,6 +565,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         } else {
             loadStateMenu = menu;
         }
+        ConfigureMenuTree(menu);
         return menu;
     }
 
@@ -564,6 +573,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         JMenu menu = new JMenu(UiText.MainWindow.GAME_MENU_LOAD_RECENT);
         ConfigureMenu(menu);
         RefreshRecentGamesMenu(menu);
+        ConfigureMenuTree(menu);
         return menu;
     }
 
@@ -712,12 +722,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
                 for (int index = 0; index < menuBar.getMenuCount(); index++) {
                     JMenu menu = menuBar.getMenu(index);
                     if (menu != null) {
-                        ConfigureMenu(menu);
-                        for (Component item : menu.getMenuComponents()) {
-                            if (item instanceof JMenuItem menuItem) {
-                                ConfigureMenuItem(menuItem);
-                            }
-                        }
+                        ConfigureMenuTree(menu);
                     }
                 }
             }
@@ -999,7 +1004,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             }
         }
 
-        menu.addSeparator();
+        AddMenuDivider(menu);
         JMenuItem clearRecentItem = new JMenuItem(UiText.MainWindow.GAME_MENU_CLEAR_RECENT);
         ConfigureMenuItem(clearRecentItem);
         clearRecentItem.setEnabled(!recentEntries.isEmpty());
@@ -1008,6 +1013,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             RefreshRecentGamesMenu();
         });
         menu.add(clearRecentItem);
+        ConfigureMenuTree(menu);
     }
 
     private void ConfigureMenuItem(JMenuItem menuItem) {
@@ -1018,6 +1024,18 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         menuItem.setForeground(Styling.accentColour);
         menuItem.setBackground(Styling.surfaceColour);
         menuItem.setOpaque(true);
+        menuItem.setContentAreaFilled(true);
+        menuItem.setMargin(new Insets(6, 12, 6, 12));
+        menuItem.setBorder(BorderFactory.createEmptyBorder());
+        menuItem.setBorderPainted(false);
+        WindowUiSupport.styleMenuItem(menuItem);
+    }
+
+    private void AddMenuDivider(JMenu menu) {
+        if (menu == null) {
+            return;
+        }
+        menu.add(new MenuDivider());
     }
 
     private void ConfigureMenu(JMenu menu) {
@@ -1029,8 +1047,78 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         menu.setBackground(Styling.surfaceColour);
         menu.setOpaque(true);
         if (menu.getPopupMenu() != null) {
-            menu.getPopupMenu().setBackground(Styling.surfaceColour);
-            menu.getPopupMenu().setBorder(WindowUiSupport.createLineBorder(Styling.surfaceBorderColour));
+            WindowUiSupport.stylePopupMenu(menu.getPopupMenu());
+        }
+        WindowUiSupport.styleMenu(menu);
+    }
+
+    private void ConfigureMenuTree(JMenu menu) {
+        if (menu == null) {
+            return;
+        }
+
+        ConfigureMenu(menu);
+        JPopupMenu popupMenu = menu.getPopupMenu();
+        if (popupMenu != null) {
+            WindowUiSupport.stylePopupMenu(popupMenu);
+        }
+
+        for (Component item : menu.getMenuComponents()) {
+            ConfigureMenuComponent(item);
+        }
+    }
+
+    private void ConfigureMenuComponent(Component component) {
+        if (component == null) {
+            return;
+        }
+
+        if (component instanceof JMenu submenu) {
+            ConfigureMenuTree(submenu);
+            return;
+        }
+
+        if (component instanceof JMenuItem menuItem) {
+            ConfigureMenuItem(menuItem);
+            return;
+        }
+
+        if (component instanceof JPopupMenu.Separator popupSeparator) {
+            WindowUiSupport.styleMenuSeparator(popupSeparator);
+            return;
+        }
+
+        if (component instanceof JSeparator separator) {
+            separator.setOpaque(false);
+            separator.setBackground(Styling.surfaceColour);
+            separator.setForeground(Styling.surfaceBorderColour);
+        }
+    }
+
+    private static final class MenuDivider extends JComponent {
+        private static final int dividerHeight = 11;
+        private static final int horizontalInset = 12;
+
+        private MenuDivider() {
+            setOpaque(true);
+            setBackground(Styling.surfaceColour);
+            setPreferredSize(new Dimension(0, dividerHeight));
+            setMinimumSize(new Dimension(0, dividerHeight));
+        }
+
+        @Override
+        protected void paintComponent(Graphics graphics) {
+            super.paintComponent(graphics);
+            Graphics2D graphics2d = (Graphics2D) graphics.create();
+            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics2d.setColor(Styling.surfaceColour);
+            graphics2d.fillRect(0, 0, getWidth(), getHeight());
+            graphics2d.setColor(Styling.surfaceBorderColour);
+            int y = getHeight() / 2;
+            int startX = Math.min(horizontalInset, Math.max(0, getWidth() / 2));
+            int endX = Math.max(startX, getWidth() - horizontalInset - 1);
+            graphics2d.drawLine(startX, y, endX, y);
+            graphics2d.dispose();
         }
     }
 

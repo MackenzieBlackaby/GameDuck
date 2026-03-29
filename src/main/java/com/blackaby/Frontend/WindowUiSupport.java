@@ -13,6 +13,7 @@ import javax.swing.JMenu;
 import javax.swing.JMenuBar;
 import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JRootPane;
 import javax.swing.JScrollBar;
 import javax.swing.JScrollPane;
@@ -26,6 +27,9 @@ import javax.swing.plaf.basic.BasicComboBoxUI;
 import javax.swing.plaf.basic.BasicComboPopup;
 import javax.swing.plaf.basic.ComboPopup;
 import javax.swing.plaf.basic.BasicMenuBarUI;
+import javax.swing.plaf.basic.BasicMenuItemUI;
+import javax.swing.plaf.basic.BasicMenuUI;
+import javax.swing.plaf.basic.BasicPopupMenuUI;
 import javax.swing.plaf.basic.BasicScrollBarUI;
 import javax.swing.plaf.basic.BasicSpinnerUI;
 import javax.swing.plaf.basic.BasicTabbedPaneUI;
@@ -153,18 +157,16 @@ final class WindowUiSupport {
             }
         }
         if (component instanceof JMenu menu) {
-            menu.setOpaque(true);
-            menu.setBackground(Styling.surfaceColour);
-            menu.setForeground(Styling.accentColour);
-            if (menu.getPopupMenu() != null) {
-                menu.getPopupMenu().setBackground(Styling.surfaceColour);
-                menu.getPopupMenu().setBorder(createLineBorder(Styling.surfaceBorderColour));
-            }
+            styleMenu(menu);
+        }
+        if (component instanceof JPopupMenu popupMenu) {
+            stylePopupMenu(popupMenu);
         }
         if (component instanceof JMenuItem menuItem) {
-            menuItem.setOpaque(true);
-            menuItem.setBackground(Styling.surfaceColour);
-            menuItem.setForeground(Styling.accentColour);
+            styleMenuItem(menuItem);
+        }
+        if (component instanceof JPopupMenu.Separator separator) {
+            styleMenuSeparator(separator);
         }
         if (component instanceof JScrollPane scrollPane) {
             styleScrollPane(scrollPane);
@@ -193,6 +195,65 @@ final class WindowUiSupport {
                 applyComponentTheme(child);
             }
         }
+    }
+
+    static void styleMenu(JMenu menu) {
+        if (menu == null) {
+            return;
+        }
+
+        menu.setOpaque(true);
+        menu.setBackground(Styling.surfaceColour);
+        menu.setForeground(Styling.accentColour);
+        menu.setBorderPainted(false);
+        if (!(menu.getUI() instanceof ThemedMenuUI)) {
+            menu.setUI(new ThemedMenuUI());
+        }
+        if (menu.getPopupMenu() != null) {
+            stylePopupMenu(menu.getPopupMenu());
+        }
+    }
+
+    static void stylePopupMenu(JPopupMenu popupMenu) {
+        if (popupMenu == null) {
+            return;
+        }
+
+        popupMenu.setOpaque(true);
+        popupMenu.setBackground(Styling.surfaceColour);
+        popupMenu.setBorder(createLineBorder(Styling.surfaceBorderColour));
+        if (!(popupMenu.getUI() instanceof ThemedPopupMenuUI)) {
+            popupMenu.setUI(new ThemedPopupMenuUI());
+        }
+    }
+
+    static void styleMenuItem(JMenuItem menuItem) {
+        if (menuItem == null) {
+            return;
+        }
+
+        menuItem.setOpaque(true);
+        menuItem.setBackground(Styling.surfaceColour);
+        menuItem.setForeground(Styling.accentColour);
+        menuItem.setBorderPainted(false);
+        if (menuItem instanceof JMenu) {
+            return;
+        }
+        if (!(menuItem.getUI() instanceof ThemedMenuItemUI)) {
+            menuItem.setUI(new ThemedMenuItemUI());
+        }
+    }
+
+    static void styleMenuSeparator(JPopupMenu.Separator separator) {
+        if (separator == null) {
+            return;
+        }
+
+        separator.setOpaque(false);
+        separator.setBackground(Styling.surfaceColour);
+        separator.setForeground(Styling.surfaceBorderColour);
+        separator.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
+        separator.setPreferredSize(new Dimension(0, 9));
     }
 
     private static void styleScrollPane(JScrollPane scrollPane) {
@@ -596,6 +657,36 @@ final class WindowUiSupport {
         }
     }
 
+    private static final class ThemedPopupMenuUI extends BasicPopupMenuUI {
+        @Override
+        public void paint(Graphics graphics, JComponent component) {
+            Graphics2D graphics2d = (Graphics2D) graphics.create();
+            graphics2d.setColor(Styling.surfaceColour);
+            graphics2d.fillRect(0, 0, component.getWidth(), component.getHeight());
+            graphics2d.dispose();
+        }
+    }
+
+    private static final class ThemedMenuItemUI extends BasicMenuItemUI {
+        @Override
+        protected void paintBackground(Graphics graphics, JMenuItem menuItem, Color backgroundColor) {
+            Graphics2D graphics2d = (Graphics2D) graphics.create();
+            graphics2d.setColor(resolveMenuRowBackground(menuItem));
+            graphics2d.fillRect(0, 0, menuItem.getWidth(), menuItem.getHeight());
+            graphics2d.dispose();
+        }
+    }
+
+    private static final class ThemedMenuUI extends BasicMenuUI {
+        @Override
+        protected void paintBackground(Graphics graphics, JMenuItem menuItem, Color backgroundColor) {
+            Graphics2D graphics2d = (Graphics2D) graphics.create();
+            graphics2d.setColor(resolveMenuRowBackground(menuItem));
+            graphics2d.fillRect(0, 0, menuItem.getWidth(), menuItem.getHeight());
+            graphics2d.dispose();
+        }
+    }
+
     static boolean containsIgnoreCase(String query, String... candidates) {
         String normalisedQuery = query == null ? "" : query.trim().toLowerCase();
         if (normalisedQuery.isBlank()) {
@@ -624,5 +715,21 @@ final class WindowUiSupport {
         int green = Math.round((base.getGreen() * baseWeight) + (overlay.getGreen() * clampedWeight));
         int blue = Math.round((base.getBlue() * baseWeight) + (overlay.getBlue() * clampedWeight));
         return new Color(red, green, blue);
+    }
+
+    private static Color resolveMenuRowBackground(JMenuItem menuItem) {
+        if (menuItem == null || !menuItem.isEnabled()) {
+            return Styling.surfaceColour;
+        }
+
+        ButtonModel model = menuItem.getModel();
+        boolean selected = model.isArmed() || model.isSelected();
+        if (menuItem instanceof JMenu menu && menu.getParent() instanceof JMenuBar) {
+            if (selected || model.isRollover()) {
+                return blend(Styling.surfaceColour, Styling.sectionHighlightColour, 0.65f);
+            }
+            return Styling.surfaceColour;
+        }
+        return selected ? Styling.listSelectionColour : Styling.surfaceColour;
     }
 }

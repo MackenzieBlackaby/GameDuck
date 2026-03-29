@@ -2,15 +2,29 @@ package com.blackaby.Frontend;
 
 import com.blackaby.Misc.UiText;
 
+import javax.swing.BorderFactory;
+import javax.swing.BoxLayout;
+import javax.swing.JButton;
 import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JMenuBar;
+import javax.swing.JPanel;
+import javax.swing.JRootPane;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
+import java.awt.Color;
+import java.awt.Container;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.Image;
 import java.awt.Point;
+import java.awt.Rectangle;
 import java.awt.Toolkit;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowEvent;
 import java.util.List;
 
 /**
@@ -21,13 +35,42 @@ import java.util.List;
  */
 public class DuckWindow extends JFrame {
 
+    private static final int TITLE_BAR_HEIGHT = 38;
+    private static final int RESIZE_MARGIN = 6;
+    private static final int DIR_NORTH = 1;
+    private static final int DIR_SOUTH = 2;
+    private static final int DIR_WEST = 4;
+    private static final int DIR_EAST = 8;
+    private static final Dimension TITLE_BUTTON_SIZE = new Dimension(42, 26);
+
+    private final JPanel shellPanel;
+    private final JPanel windowChromePanel;
+    private final JPanel menuBarHost;
+    private final JPanel titleBarPanel;
+    private final JPanel bodyPanel;
+    private final JLabel titleIconLabel;
+    private final JLabel titleLabel;
+    private final JButton minimiseButton;
+    private final JButton maximiseButton;
+    private final JButton closeButton;
+    private final ResizeHandlePanel northResizeHandle;
+    private final ResizeHandlePanel southResizeHandle;
+    private final ResizeHandlePanel westResizeHandle;
+    private final ResizeHandlePanel eastResizeHandle;
+    private final String baseTitle;
+
+    private JMenuBar attachedMenuBar;
     private boolean fullscreen;
     private boolean maximised;
+    private boolean maximisedBeforeFullscreen;
     private Dimension windowedSize;
     private Point windowedLocation;
     private Dimension sizeBeforeMaximise;
     private Point locationBeforeMaximise;
-    private final String baseTitle;
+    private Point titleDragAnchorOnScreen;
+    private Point titleDragWindowLocation;
+    private Rectangle resizeStartBounds;
+    private Point resizeStartOnScreen;
 
     /**
      * Creates a window with explicit dimensions and resize behaviour.
@@ -39,22 +82,75 @@ public class DuckWindow extends JFrame {
      */
     public DuckWindow(String title, int width, int height, boolean resizable) {
         super();
+        setUndecorated(true);
+
+        titleBarPanel = buildTitleBar();
+        menuBarHost = new JPanel(new BorderLayout());
+        menuBarHost.setOpaque(true);
+        menuBarHost.setVisible(false);
+
+        windowChromePanel = new JPanel();
+        windowChromePanel.setLayout(new BoxLayout(windowChromePanel, BoxLayout.Y_AXIS));
+        windowChromePanel.setOpaque(true);
+        windowChromePanel.add(titleBarPanel);
+        windowChromePanel.add(menuBarHost);
+
+        bodyPanel = new JPanel(new BorderLayout());
+        bodyPanel.setOpaque(true);
+
+        JPanel windowSurface = new JPanel(new BorderLayout());
+        windowSurface.setOpaque(true);
+        windowSurface.add(windowChromePanel, BorderLayout.NORTH);
+        windowSurface.add(bodyPanel, BorderLayout.CENTER);
+
+        northResizeHandle = new ResizeHandlePanel(DIR_NORTH);
+        southResizeHandle = new ResizeHandlePanel(DIR_SOUTH);
+        westResizeHandle = new ResizeHandlePanel(DIR_WEST);
+        eastResizeHandle = new ResizeHandlePanel(DIR_EAST);
+
+        shellPanel = new JPanel(new BorderLayout());
+        shellPanel.setOpaque(true);
+        shellPanel.add(northResizeHandle, BorderLayout.NORTH);
+        shellPanel.add(southResizeHandle, BorderLayout.SOUTH);
+        shellPanel.add(westResizeHandle, BorderLayout.WEST);
+        shellPanel.add(eastResizeHandle, BorderLayout.EAST);
+        shellPanel.add(windowSurface, BorderLayout.CENTER);
+        super.setContentPane(shellPanel);
+
         setSize(width, height);
         setResizable(resizable);
-        getContentPane().setBackground(Styling.backgroundColour);
         setLayout(new BorderLayout());
         setDefaultCloseOperation(EXIT_ON_CLOSE);
-        setTitle(title);
         baseTitle = title;
+
+        titleIconLabel = new JLabel();
+        titleLabel = new JLabel();
+        minimiseButton = createTitleButton("-");
+        maximiseButton = createTitleButton("[]");
+        closeButton = createTitleButton("X");
+        initialiseTitleBar();
+
+        applyWindowChromeTheme();
+        setTitle(title);
         setLocationRelativeTo(null);
         List<Image> windowIcons = AppAssets.WindowIcons();
         if (!windowIcons.isEmpty()) {
             setIconImages(windowIcons);
+            titleIconLabel.setIcon(AppAssets.HeaderLogoIcon(16));
+        } else {
+            titleIconLabel.setVisible(false);
         }
-        windowedSize = Toolkit.getDefaultToolkit().getScreenSize();
-        sizeBeforeMaximise = Toolkit.getDefaultToolkit().getScreenSize();
+        windowedSize = getSize();
+        sizeBeforeMaximise = getSize();
         locationBeforeMaximise = getLocation();
         windowedLocation = getLocation();
+
+        installTitleBarInteractions();
+        addWindowStateListener(event -> {
+            maximised = isFrameMaximised();
+            updateWindowChromeState();
+        });
+        updateWindowChromeState();
     }
 
     /**
@@ -84,20 +180,81 @@ public class DuckWindow extends JFrame {
         this(title, width, height, true);
     }
 
+    @Override
+    public Container getContentPane() {
+        return bodyPanel == null ? super.getContentPane() : bodyPanel;
+    }
+
+    @Override
+    public void setJMenuBar(JMenuBar menuBar) {
+        if (menuBarHost == null) {
+            super.setJMenuBar(menuBar);
+            return;
+        }
+
+        menuBarHost.removeAll();
+        attachedMenuBar = menuBar;
+        if (menuBar != null) {
+            menuBarHost.add(menuBar, BorderLayout.CENTER);
+        }
+        updateWindowChromeState();
+        menuBarHost.revalidate();
+        menuBarHost.repaint();
+    }
+
+    @Override
+    public JMenuBar getJMenuBar() {
+        return attachedMenuBar != null ? attachedMenuBar : super.getJMenuBar();
+    }
+
+    @Override
+    public void setResizable(boolean resizable) {
+        super.setResizable(resizable);
+        updateWindowChromeState();
+    }
+
+    @Override
+    public void setTitle(String title) {
+        super.setTitle(title);
+        if (titleLabel != null) {
+            String nextTitle = title == null ? "" : title;
+            titleLabel.setText(nextTitle);
+            titleLabel.setToolTipText(nextTitle);
+        }
+    }
+
+    @Override
+    public void setVisible(boolean visible) {
+        super.setVisible(visible);
+        if (visible) {
+            WindowUiSupport.applyComponentTheme(this);
+            applyWindowChromeTheme();
+        }
+    }
+
     /**
      * Toggles the maximised state of the frame.
      */
     public void ToggleMaximise() {
+        if (!isResizable() || fullscreen) {
+            return;
+        }
+
         if (maximised) {
             setExtendedState(JFrame.NORMAL);
-            setSize(sizeBeforeMaximise);
-            setLocation(locationBeforeMaximise);
+            if (sizeBeforeMaximise != null) {
+                setSize(sizeBeforeMaximise);
+            }
+            if (locationBeforeMaximise != null) {
+                setLocation(locationBeforeMaximise);
+            }
         } else {
             sizeBeforeMaximise = getSize();
             locationBeforeMaximise = getLocation();
             setExtendedState(JFrame.MAXIMIZED_BOTH);
         }
         maximised = !maximised;
+        updateWindowChromeState();
     }
 
     /**
@@ -108,21 +265,35 @@ public class DuckWindow extends JFrame {
 
         if (fullscreen) {
             graphicsDevice.setFullScreenWindow(null);
-            dispose();
-            setUndecorated(false);
-            setSize(windowedSize);
-            setLocation(windowedLocation);
-            setVisible(true);
+            fullscreen = false;
+            windowChromePanel.setVisible(true);
+            if (windowedSize != null) {
+                setSize(windowedSize);
+            }
+            if (windowedLocation != null) {
+                setLocation(windowedLocation);
+            }
+            if (maximisedBeforeFullscreen) {
+                setExtendedState(JFrame.MAXIMIZED_BOTH);
+                maximised = true;
+            }
         } else {
-            windowedSize = getSize();
-            windowedLocation = getLocation();
-            dispose();
-            setUndecorated(true);
-            setVisible(true);
+            maximisedBeforeFullscreen = maximised;
+            windowedSize = maximised && sizeBeforeMaximise != null ? sizeBeforeMaximise : getSize();
+            windowedLocation = maximised && locationBeforeMaximise != null ? locationBeforeMaximise : getLocation();
+            if (maximised) {
+                setExtendedState(JFrame.NORMAL);
+                maximised = false;
+            }
+            fullscreen = true;
+            windowChromePanel.setVisible(false);
             graphicsDevice.setFullScreenWindow(this);
         }
 
-        fullscreen = !fullscreen;
+        applyWindowChromeTheme();
+        updateWindowChromeState();
+        revalidate();
+        repaint();
     }
 
     /**
@@ -140,6 +311,315 @@ public class DuckWindow extends JFrame {
             setTitle(nextTitle);
         } else {
             SwingUtilities.invokeLater(() -> setTitle(nextTitle));
+        }
+    }
+
+    void ApplyWindowChromeTheme() {
+        applyWindowChromeTheme();
+    }
+
+    private JPanel buildTitleBar() {
+        JPanel panel = new JPanel(new BorderLayout(12, 0));
+        panel.setPreferredSize(new Dimension(0, TITLE_BAR_HEIGHT));
+        panel.setMinimumSize(new Dimension(0, TITLE_BAR_HEIGHT));
+        panel.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 8));
+        return panel;
+    }
+
+    private void initialiseTitleBar() {
+        JPanel titleArea = new JPanel(new BorderLayout(8, 0));
+        titleArea.setOpaque(false);
+        titleArea.add(titleIconLabel, BorderLayout.WEST);
+        titleArea.add(titleLabel, BorderLayout.CENTER);
+
+        JPanel controlArea = new JPanel();
+        controlArea.setLayout(new BoxLayout(controlArea, BoxLayout.X_AXIS));
+        controlArea.setOpaque(false);
+        controlArea.add(minimiseButton);
+        controlArea.add(maximiseButton);
+        controlArea.add(closeButton);
+
+        titleBarPanel.add(titleArea, BorderLayout.CENTER);
+        titleBarPanel.add(controlArea, BorderLayout.EAST);
+
+        minimiseButton.addActionListener(event -> setState(JFrame.ICONIFIED));
+        maximiseButton.addActionListener(event -> ToggleMaximise());
+        closeButton.addActionListener(event -> dispatchEvent(new WindowEvent(this, WindowEvent.WINDOW_CLOSING)));
+    }
+
+    private JButton createTitleButton(String text) {
+        JButton button = new JButton(text);
+        button.setFocusable(false);
+        button.setAlignmentY(CENTER_ALIGNMENT);
+        button.setMaximumSize(TITLE_BUTTON_SIZE);
+        button.setMinimumSize(TITLE_BUTTON_SIZE);
+        button.setPreferredSize(TITLE_BUTTON_SIZE);
+        return button;
+    }
+
+    private void styleTitleButton(JButton button) {
+        WindowUiSupport.styleSecondaryButton(button, Styling.accentColour, Styling.surfaceBorderColour);
+        button.setFont(Styling.menuFont.deriveFont(java.awt.Font.BOLD, 12f));
+        button.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Styling.surfaceBorderColour, 1, true),
+                BorderFactory.createEmptyBorder(4, 8, 4, 8)));
+        button.setMaximumSize(TITLE_BUTTON_SIZE);
+        button.setMinimumSize(TITLE_BUTTON_SIZE);
+        button.setPreferredSize(TITLE_BUTTON_SIZE);
+    }
+
+    private void installTitleBarInteractions() {
+        MouseAdapter dragAdapter = new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent event) {
+                if (!SwingUtilities.isLeftMouseButton(event) || fullscreen) {
+                    return;
+                }
+                titleDragAnchorOnScreen = event.getLocationOnScreen();
+                titleDragWindowLocation = getLocation();
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent event) {
+                if (!SwingUtilities.isLeftMouseButton(event) || titleDragAnchorOnScreen == null
+                        || titleDragWindowLocation == null || fullscreen || maximised) {
+                    return;
+                }
+                Point currentOnScreen = event.getLocationOnScreen();
+                int deltaX = currentOnScreen.x - titleDragAnchorOnScreen.x;
+                int deltaY = currentOnScreen.y - titleDragAnchorOnScreen.y;
+                setLocation(titleDragWindowLocation.x + deltaX, titleDragWindowLocation.y + deltaY);
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent event) {
+                titleDragAnchorOnScreen = null;
+                titleDragWindowLocation = null;
+            }
+
+            @Override
+            public void mouseClicked(MouseEvent event) {
+                if (event.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(event) && isResizable()) {
+                    ToggleMaximise();
+                }
+            }
+        };
+
+        titleBarPanel.addMouseListener(dragAdapter);
+        titleBarPanel.addMouseMotionListener(dragAdapter);
+        titleLabel.addMouseListener(dragAdapter);
+        titleLabel.addMouseMotionListener(dragAdapter);
+        titleIconLabel.addMouseListener(dragAdapter);
+        titleIconLabel.addMouseMotionListener(dragAdapter);
+    }
+
+    private void applyWindowChromeTheme() {
+        shellPanel.setBackground(Styling.appBackgroundColour);
+        windowChromePanel.setBackground(Styling.surfaceColour);
+        menuBarHost.setBackground(Styling.surfaceColour);
+        titleBarPanel.setOpaque(true);
+        titleBarPanel.setBackground(Styling.surfaceColour);
+        titleBarPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, Styling.surfaceBorderColour),
+                BorderFactory.createEmptyBorder(6, 10, 6, 8)));
+
+        bodyPanel.setBackground(Styling.appBackgroundColour);
+        titleLabel.setForeground(Styling.accentColour);
+        titleLabel.setFont(Styling.menuFont.deriveFont(java.awt.Font.BOLD, 13f));
+        titleIconLabel.setOpaque(false);
+
+        styleTitleButton(minimiseButton);
+        styleTitleButton(maximiseButton);
+        styleTitleButton(closeButton);
+
+        if (attachedMenuBar != null) {
+            attachedMenuBar.setOpaque(true);
+            attachedMenuBar.setBackground(Styling.surfaceColour);
+            attachedMenuBar.setForeground(Styling.accentColour);
+            WindowUiSupport.applyComponentTheme(attachedMenuBar);
+        }
+
+        JRootPane rootPane = getRootPane();
+        if (rootPane != null) {
+            rootPane.setOpaque(true);
+            rootPane.setBackground(Styling.appBackgroundColour);
+            rootPane.setBorder(fullscreen
+                    ? BorderFactory.createEmptyBorder()
+                    : WindowUiSupport.createLineBorder(Styling.surfaceBorderColour));
+            if (rootPane.getLayeredPane() != null) {
+                rootPane.getLayeredPane().setOpaque(true);
+                rootPane.getLayeredPane().setBackground(Styling.appBackgroundColour);
+            }
+        }
+
+        updateWindowChromeState();
+    }
+
+    private void updateWindowChromeState() {
+        if (maximiseButton == null) {
+            return;
+        }
+
+        boolean canMaximise = isResizable() && !fullscreen;
+        maximiseButton.setVisible(canMaximise);
+        maximiseButton.setEnabled(canMaximise);
+        maximiseButton.setText(maximised ? "=" : "[]");
+        maximiseButton.setToolTipText(maximised ? "Restore" : "Maximise");
+        minimiseButton.setVisible(!fullscreen);
+        closeButton.setVisible(!fullscreen);
+        menuBarHost.setVisible(!fullscreen && attachedMenuBar != null);
+        windowChromePanel.setVisible(!fullscreen);
+        updateResizeHandleState();
+    }
+
+    private void updateResizeHandleState() {
+        boolean allowResize = canResizeWindow();
+        northResizeHandle.setPreferredSize(new Dimension(0, allowResize ? RESIZE_MARGIN : 0));
+        southResizeHandle.setPreferredSize(new Dimension(0, allowResize ? RESIZE_MARGIN : 0));
+        westResizeHandle.setPreferredSize(new Dimension(allowResize ? RESIZE_MARGIN : 0, 0));
+        eastResizeHandle.setPreferredSize(new Dimension(allowResize ? RESIZE_MARGIN : 0, 0));
+        northResizeHandle.setCursor(Cursor.getDefaultCursor());
+        southResizeHandle.setCursor(Cursor.getDefaultCursor());
+        westResizeHandle.setCursor(Cursor.getDefaultCursor());
+        eastResizeHandle.setCursor(Cursor.getDefaultCursor());
+        northResizeHandle.revalidate();
+        southResizeHandle.revalidate();
+        westResizeHandle.revalidate();
+        eastResizeHandle.revalidate();
+    }
+
+    private boolean canResizeWindow() {
+        return isResizable() && !fullscreen && !maximised;
+    }
+
+    private boolean isFrameMaximised() {
+        return (getExtendedState() & JFrame.MAXIMIZED_BOTH) == JFrame.MAXIMIZED_BOTH;
+    }
+
+    private int cursorForDirection(int directionMask) {
+        return switch (directionMask) {
+            case DIR_NORTH -> Cursor.N_RESIZE_CURSOR;
+            case DIR_SOUTH -> Cursor.S_RESIZE_CURSOR;
+            case DIR_WEST -> Cursor.W_RESIZE_CURSOR;
+            case DIR_EAST -> Cursor.E_RESIZE_CURSOR;
+            case DIR_NORTH | DIR_WEST -> Cursor.NW_RESIZE_CURSOR;
+            case DIR_NORTH | DIR_EAST -> Cursor.NE_RESIZE_CURSOR;
+            case DIR_SOUTH | DIR_WEST -> Cursor.SW_RESIZE_CURSOR;
+            case DIR_SOUTH | DIR_EAST -> Cursor.SE_RESIZE_CURSOR;
+            default -> Cursor.DEFAULT_CURSOR;
+        };
+    }
+
+    private void startResize(int directionMask, MouseEvent event) {
+        if (!canResizeWindow()) {
+            return;
+        }
+        resizeStartBounds = getBounds();
+        resizeStartOnScreen = event.getLocationOnScreen();
+    }
+
+    private void performResize(int directionMask, MouseEvent event) {
+        if (!canResizeWindow() || resizeStartBounds == null || resizeStartOnScreen == null) {
+            return;
+        }
+
+        Point currentOnScreen = event.getLocationOnScreen();
+        int deltaX = currentOnScreen.x - resizeStartOnScreen.x;
+        int deltaY = currentOnScreen.y - resizeStartOnScreen.y;
+        Rectangle nextBounds = new Rectangle(resizeStartBounds);
+
+        if ((directionMask & DIR_WEST) != 0) {
+            nextBounds.x += deltaX;
+            nextBounds.width -= deltaX;
+        }
+        if ((directionMask & DIR_EAST) != 0) {
+            nextBounds.width += deltaX;
+        }
+        if ((directionMask & DIR_NORTH) != 0) {
+            nextBounds.y += deltaY;
+            nextBounds.height -= deltaY;
+        }
+        if ((directionMask & DIR_SOUTH) != 0) {
+            nextBounds.height += deltaY;
+        }
+
+        Dimension minimumSize = getMinimumSize();
+        if (minimumSize != null) {
+            if (nextBounds.width < minimumSize.width) {
+                if ((directionMask & DIR_WEST) != 0) {
+                    nextBounds.x = resizeStartBounds.x + resizeStartBounds.width - minimumSize.width;
+                }
+                nextBounds.width = minimumSize.width;
+            }
+            if (nextBounds.height < minimumSize.height) {
+                if ((directionMask & DIR_NORTH) != 0) {
+                    nextBounds.y = resizeStartBounds.y + resizeStartBounds.height - minimumSize.height;
+                }
+                nextBounds.height = minimumSize.height;
+            }
+        }
+
+        setBounds(nextBounds);
+        revalidate();
+    }
+
+    private final class ResizeHandlePanel extends JPanel {
+
+        private final int baseDirection;
+        private int activeDirection;
+
+        private ResizeHandlePanel(int baseDirection) {
+            this.baseDirection = baseDirection;
+            setOpaque(false);
+            MouseAdapter adapter = new MouseAdapter() {
+                @Override
+                public void mouseMoved(MouseEvent event) {
+                    setCursor(Cursor.getPredefinedCursor(cursorForDirection(resolveDirection(event))));
+                }
+
+                @Override
+                public void mousePressed(MouseEvent event) {
+                    if (!SwingUtilities.isLeftMouseButton(event)) {
+                        return;
+                    }
+                    activeDirection = resolveDirection(event);
+                    startResize(activeDirection, event);
+                }
+
+                @Override
+                public void mouseDragged(MouseEvent event) {
+                    performResize(activeDirection, event);
+                }
+
+                @Override
+                public void mouseReleased(MouseEvent event) {
+                    activeDirection = 0;
+                    resizeStartBounds = null;
+                    resizeStartOnScreen = null;
+                    setCursor(Cursor.getDefaultCursor());
+                }
+
+                @Override
+                public void mouseExited(MouseEvent event) {
+                    if (activeDirection == 0) {
+                        setCursor(Cursor.getDefaultCursor());
+                    }
+                }
+            };
+            addMouseListener(adapter);
+            addMouseMotionListener(adapter);
+        }
+
+        private int resolveDirection(MouseEvent event) {
+            int direction = baseDirection;
+            if (baseDirection == DIR_NORTH || baseDirection == DIR_SOUTH) {
+                if (event.getX() <= RESIZE_MARGIN) {
+                    direction |= DIR_WEST;
+                } else if (event.getX() >= getWidth() - RESIZE_MARGIN) {
+                    direction |= DIR_EAST;
+                }
+            }
+            return direction;
         }
     }
 }

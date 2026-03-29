@@ -276,6 +276,7 @@ public class OptionsWindow extends DuckWindow {
         if (initialTabIndex >= 0 && initialTabIndex < tabs.getTabCount()) {
             tabs.setSelectedIndex(initialTabIndex);
         }
+        WindowUiSupport.applyComponentTheme(tabs);
         SwingUtilities.invokeLater(() -> SwingUtilities.invokeLater(this::resetSelectedTabScrollPosition));
         return tabs;
     }
@@ -678,7 +679,7 @@ public class OptionsWindow extends DuckWindow {
         toggleWrap.setOpaque(false);
         selector.setPreferredSize(new Dimension(220, 34));
         selector.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
-        selector.setBackground(Color.WHITE);
+        selector.setBackground(Styling.surfaceColour);
         selector.setForeground(accentColour);
         toggleWrap.add(selector);
 

@@ -399,12 +399,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     }
 
     private void styleHeaderButton(JButton button) {
-        button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBackground(Styling.buttonSecondaryBackground);
-        button.setForeground(Styling.accentColour);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+        WindowUiSupport.styleSecondaryButton(button, Styling.accentColour, Styling.surfaceBorderColour);
         button.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Styling.surfaceBorderColour, 1),
                 BorderFactory.createEmptyBorder(8, 14, 8, 14)));
@@ -441,8 +436,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private void AddMenuItem(JMenu menu, String item, Action action) {
         JMenuItem menuItem = new JMenuItem(item);
         menuItem.addActionListener(new GUIActions(this, action, emulation));
-        menuItem.setFont(Styling.menuFont);
-        menuItem.setForeground(Styling.accentColour);
+        ConfigureMenuItem(menuItem);
         menuItemsByAction.put(action, menuItem);
         menu.add(menuItem);
     }
@@ -452,9 +446,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         String[] menuEntries = new String[items.length - 1];
         System.arraycopy(items, 1, menuEntries, 0, menuEntries.length);
 
-        menu.setBackground(Styling.surfaceColour);
-        menu.setForeground(Styling.accentColour);
-        menu.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+        ConfigureMenu(menu);
 
         for (int index = 0, actionIndex = 0; index < menuEntries.length; index++) {
             if (menuEntries[index].isEmpty()) {
@@ -470,9 +462,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
     private JMenu BuildGameMenu() {
         JMenu menu = new JMenu(UiText.MainWindow.GAME_MENU_TITLE);
-        menu.setBackground(Styling.surfaceColour);
-        menu.setForeground(Styling.accentColour);
-        menu.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+        ConfigureMenu(menu);
 
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_LIBRARY, Action.LIBRARY);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_OPEN_ROM, Action.LOADROM);
@@ -486,8 +476,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         menu.addSeparator();
 
         JMenuItem saveStateManagerItem = new JMenuItem(UiText.MainWindow.GAME_MENU_SAVE_STATE_MANAGER);
-        saveStateManagerItem.setFont(Styling.menuFont);
-        saveStateManagerItem.setForeground(Styling.accentColour);
+        ConfigureMenuItem(saveStateManagerItem);
         saveStateManagerItem.addActionListener(event -> new SaveStateManagerWindow(this));
         menu.add(saveStateManagerItem);
 
@@ -517,13 +506,11 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
     private JMenu CreateStateSlotMenu(String title, boolean saveMenu) {
         JMenu menu = new JMenu(title);
-        menu.setFont(Styling.menuFont);
-        menu.setForeground(Styling.accentColour);
+        ConfigureMenu(menu);
 
         for (int slot = QuickStateManager.quickSlot; slot <= QuickStateManager.maxSlot; slot++) {
             JMenuItem menuItem = new JMenuItem();
-            menuItem.setFont(Styling.menuFont);
-            menuItem.setForeground(Styling.accentColour);
+            ConfigureMenuItem(menuItem);
             menuItem.addActionListener(new GUIActions(this,
                     saveMenu ? Action.SAVESTATE : Action.LOADSTATE,
                     emulation,
@@ -568,8 +555,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
     private JMenu CreateRecentGamesMenu() {
         JMenu menu = new JMenu(UiText.MainWindow.GAME_MENU_LOAD_RECENT);
-        menu.setFont(Styling.menuFont);
-        menu.setForeground(Styling.accentColour);
+        ConfigureMenu(menu);
         RefreshRecentGamesMenu(menu);
         return menu;
     }
@@ -719,12 +705,10 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
                 for (int index = 0; index < menuBar.getMenuCount(); index++) {
                     JMenu menu = menuBar.getMenu(index);
                     if (menu != null) {
-                        menu.setBackground(Styling.surfaceColour);
-                        menu.setForeground(Styling.accentColour);
+                        ConfigureMenu(menu);
                         for (Component item : menu.getMenuComponents()) {
                             if (item instanceof JMenuItem menuItem) {
-                                menuItem.setForeground(Styling.accentColour);
-                                menuItem.setBackground(Styling.surfaceColour);
+                                ConfigureMenuItem(menuItem);
                             }
                         }
                     }
@@ -1022,6 +1006,22 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         }
         menuItem.setFont(Styling.menuFont);
         menuItem.setForeground(Styling.accentColour);
+        menuItem.setBackground(Styling.surfaceColour);
+        menuItem.setOpaque(true);
+    }
+
+    private void ConfigureMenu(JMenu menu) {
+        if (menu == null) {
+            return;
+        }
+        menu.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+        menu.setForeground(Styling.accentColour);
+        menu.setBackground(Styling.surfaceColour);
+        menu.setOpaque(true);
+        if (menu.getPopupMenu() != null) {
+            menu.getPopupMenu().setBackground(Styling.surfaceColour);
+            menu.getPopupMenu().setBorder(WindowUiSupport.createLineBorder(Styling.surfaceBorderColour));
+        }
     }
 
     private void LoadLibraryEntry(GameLibraryStore.LibraryEntry entry) {

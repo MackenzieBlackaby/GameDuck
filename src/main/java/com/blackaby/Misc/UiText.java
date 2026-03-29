@@ -639,12 +639,14 @@ public final class UiText {
         public static final String HARBOR_LABEL = "Harbour";
         public static final String MINT_DMG_LABEL = "Mint DMG";
         public static final String GRAPHITE_LABEL = "Graphite";
+        public static final String MIDNIGHT_LABEL = "Midnight";
         public static final String SUNSET_LABEL = "Sunset";
 
         // Built-in preset descriptions.
         public static final String HARBOR_DESCRIPTION = "Cool blue default with crisp contrast";
         public static final String MINT_DMG_DESCRIPTION = "A soft green inspired by the DMG screen";
         public static final String GRAPHITE_DESCRIPTION = "More neutral default than harbour";
+        public static final String MIDNIGHT_DESCRIPTION = "Deep slate surfaces with crisp blue highlights";
         public static final String SUNSET_DESCRIPTION = "Warm copper accents and soft paper";
 
         private ThemePresets() {

@@ -10,6 +10,8 @@ public enum AppThemePreset {
             new AppTheme(UiText.ThemePresets.MINT_DMG_LABEL, "#E8F1EA", "#F7FBF8", "#355C4A", "#6B7E73", "#18251F", "#E4F0E7")),
     GRAPHITE(UiText.ThemePresets.GRAPHITE_LABEL, UiText.ThemePresets.GRAPHITE_DESCRIPTION,
             new AppTheme(UiText.ThemePresets.GRAPHITE_LABEL, "#EEF1F5", "#FAFBFD", "#3C495C", "#6B7280", "#202A38", "#E6ECF4")),
+    MIDNIGHT(UiText.ThemePresets.MIDNIGHT_LABEL, UiText.ThemePresets.MIDNIGHT_DESCRIPTION,
+            new AppTheme(UiText.ThemePresets.MIDNIGHT_LABEL, "#10151D", "#18202B", "#5B86D6", "#A6B2C6", "#0A0F15", "#202938")),
     SUNSET(UiText.ThemePresets.SUNSET_LABEL, UiText.ThemePresets.SUNSET_DESCRIPTION,
             new AppTheme(UiText.ThemePresets.SUNSET_LABEL, "#F9EFE6", "#FFF8F1", "#8F5446", "#9B786C", "#3C2A25", "#F8E5D8"));
 

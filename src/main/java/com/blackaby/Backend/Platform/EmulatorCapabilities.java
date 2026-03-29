@@ -8,11 +8,13 @@ package com.blackaby.Backend.Platform;
  * @param supportsSaveDataManagement whether battery save management is available
  * @param supportsSaveStates whether save-state management is available
  * @param supportsPatchLoading whether external patch loading is available
+ * @param supportsCheats whether runtime cheat management is available
  */
 public record EmulatorCapabilities(
         boolean supportsPaletteConfiguration,
         boolean supportsBootRomConfiguration,
         boolean supportsSaveDataManagement,
         boolean supportsSaveStates,
-        boolean supportsPatchLoading) {
+        boolean supportsPatchLoading,
+        boolean supportsCheats) {
 }

@@ -59,6 +59,7 @@ public class DuckMemory {
     private DuckCPU cpu;
     private DuckJoypad joypad;
     private DuckAPU apu;
+    private CheatEngine cheatEngine;
 
     private final int[][] vramBanks = new int[2][vramBankSize];
     private final int[][] wramBanks = new int[8][wramBankSize];
@@ -130,6 +131,15 @@ public class DuckMemory {
         if (apu != null) {
             WriteDirect(DuckAddresses.NR52, apu.Read(DuckAddresses.NR52));
         }
+    }
+
+    /**
+     * Attaches the current cheat engine used for read overrides.
+     *
+     * @param cheatEngine compiled cheat engine
+     */
+    public void SetCheatEngine(CheatEngine cheatEngine) {
+        this.cheatEngine = cheatEngine;
     }
 
     /**
@@ -430,6 +440,20 @@ public class DuckMemory {
      * @return byte value visible to the CPU
      */
     public int Read(int address) {
+        int resolvedAddress = address & 0xFFFF;
+        int value = ReadInternal(resolvedAddress);
+        CheatEngine currentCheatEngine = cheatEngine;
+        if (currentCheatEngine == null || !currentCheatEngine.HasReadOverrides()) {
+            return value;
+        }
+        return currentCheatEngine.ApplyReadOverride(NormaliseCheatAddress(resolvedAddress), value);
+    }
+
+    int ReadWithoutCheats(int address) {
+        return ReadInternal(address & 0xFFFF);
+    }
+
+    private int ReadInternal(int address) {
         address &= 0xFFFF;
 
         if (bootRomMapped && bootRom != null && IsBootRomAddress(address)) {
@@ -457,7 +481,7 @@ public class DuckMemory {
         }
 
         if (address >= DuckAddresses.ECHO_RAM_START && address <= DuckAddresses.ECHO_RAM_END) {
-            return Read(address - 0x2000);
+            return ReadInternal(address - 0x2000);
         }
 
         if (address >= DuckAddresses.NOT_USABLE_START && address <= DuckAddresses.NOT_USABLE_END) {
@@ -520,6 +544,13 @@ public class DuckMemory {
         }
 
         return ram[address] & 0xFF;
+    }
+
+    private int NormaliseCheatAddress(int address) {
+        if (address >= DuckAddresses.ECHO_RAM_START && address <= DuckAddresses.ECHO_RAM_END) {
+            return address - 0x2000;
+        }
+        return address & 0xFFFF;
     }
 
     /**

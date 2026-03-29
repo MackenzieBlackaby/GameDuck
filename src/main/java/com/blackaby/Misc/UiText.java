@@ -100,6 +100,7 @@ public final class UiText {
         public static final String GAME_MENU_PAUSE_GAME = "Pause Game";
         public static final String GAME_MENU_RESET_GAME = "Reset Game";
         public static final String GAME_MENU_CLOSE_GAME = "Close Game";
+        public static final String GAME_MENU_CHEATS = "Cheats...";
         public static final String GAME_MENU_SAVE_STATE_MANAGER = "Save State Manager";
         public static final String GAME_MENU_QUICK_SAVE = "Quick Save";
         public static final String GAME_MENU_QUICK_LOAD = "Quick Load";
@@ -582,6 +583,59 @@ public final class UiText {
         public static final String NONE_DESCRIPTION = "Hide the game art panel in the main window";
 
         private GameArt() {
+        }
+    }
+
+    public static final class CheatManagerWindow {
+        public static final String WINDOW_TITLE = "Cheat Manager";
+        public static final String TITLE = "Cheats";
+        public static final String SUBTITLE = "Add per-game memory cheats. Address, compare, and value fields use hexadecimal.";
+        public static final String LIST_TITLE = "Current Cheats";
+        public static final String LIST_HELPER = "Cheats are saved for the loaded game and re-applied automatically next time.";
+        public static final String EDITOR_TITLE = "Cheat Editor";
+        public static final String EDITOR_HELPER = "ROM addresses act as read overrides. RAM and register addresses are forced live while enabled.";
+        public static final String LOADED_GAME_TITLE = "Loaded Game";
+        public static final String NAME_LABEL = "Name";
+        public static final String ADDRESS_LABEL = "Address";
+        public static final String VALUE_LABEL = "Value";
+        public static final String COMPARE_LABEL = "Compare";
+        public static final String COMPARE_HINT = "Optional. Leave blank to always apply.";
+        public static final String ENABLED_LABEL = "Enabled";
+        public static final String ADDRESS_HELPER = "Hex 0000 to FFFF";
+        public static final String VALUE_HELPER = "Hex 00 to FF";
+        public static final String NEW_BUTTON = "New Cheat";
+        public static final String SAVE_BUTTON = "Save Cheat";
+        public static final String DELETE_BUTTON = "Delete Cheat";
+        public static final String EMPTY_EDITOR = "Select a cheat or create a new one";
+        public static final String STATUS_READY = "Ready";
+        public static final String STATUS_NEW = "Enter a cheat and save to apply it immediately.";
+        public static final String STATUS_SAVED = "Cheat saved";
+        public static final String STATUS_DELETED = "Cheat deleted";
+        public static final String DELETE_CONFIRM_TITLE = "Delete Cheat";
+        public static final String NO_GAME_LOADED = "Load a game before opening the cheat manager.";
+        public static final String VALIDATION_ERROR_TITLE = "Invalid Cheat";
+
+        private CheatManagerWindow() {
+        }
+
+        public static String CheatCountBadge(int cheatCount) {
+            return cheatCount == 1 ? "1 Cheat" : cheatCount + " Cheats";
+        }
+
+        public static String DeleteConfirmMessage(String cheatName) {
+            return "Delete cheat \"" + cheatName + "\"?";
+        }
+
+        public static String MissingHexMessage(String fieldName, String expectedFormat) {
+            return fieldName + " is required.\nExpected format: " + expectedFormat;
+        }
+
+        public static String InvalidHexMessage(String fieldName, String expectedFormat) {
+            return fieldName + " must be hexadecimal.\nExpected format: " + expectedFormat;
+        }
+
+        public static String DefaultCheatName(int address, int value) {
+            return String.format("Cheat %04X=%02X", address & 0xFFFF, value & 0xFF);
         }
     }
 

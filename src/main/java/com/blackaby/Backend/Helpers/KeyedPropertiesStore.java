@@ -91,6 +91,11 @@ abstract class KeyedPropertiesStore {
         return List.copyOf(keys);
     }
 
+    protected final void ResetForTests() {
+        properties.clear();
+        loaded = false;
+    }
+
     protected static int ParseInt(String value, int fallback) {
         try {
             return Integer.parseInt(value);

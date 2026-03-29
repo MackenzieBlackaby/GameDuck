@@ -4,6 +4,7 @@ import com.blackaby.Backend.GB.CPU.DuckCPU;
 import com.blackaby.Backend.GB.CPU.InstructionLogic;
 import com.blackaby.Backend.GB.Graphics.DuckPPU;
 import com.blackaby.Backend.GB.Memory.DuckAddresses;
+import com.blackaby.Backend.GB.Memory.CheatEngine;
 import com.blackaby.Backend.GB.Memory.DuckMemory;
 import com.blackaby.Backend.GB.Misc.ROM;
 import com.blackaby.Backend.GB.Misc.Specifics;
@@ -12,6 +13,7 @@ import com.blackaby.Backend.GB.GBButton;
 import com.blackaby.Backend.GB.Peripherals.DuckJoypad;
 import com.blackaby.Backend.GB.Peripherals.DuckTimer;
 import com.blackaby.Backend.Platform.EmulatorGame;
+import com.blackaby.Backend.Platform.EmulatorCheat;
 import com.blackaby.Backend.Platform.EmulatorHost;
 import com.blackaby.Backend.Platform.EmulatorMedia;
 import com.blackaby.Backend.Platform.EmulatorProfile;
@@ -21,6 +23,7 @@ import com.blackaby.Frontend.DebugLogger;
 import com.blackaby.Frontend.DuckDisplay;
 import com.blackaby.Backend.Helpers.SaveFileManager;
 import com.blackaby.Backend.Helpers.ManagedGameRegistry;
+import com.blackaby.Backend.Helpers.CheatStore;
 import com.blackaby.Backend.Helpers.GameLibraryStore;
 import com.blackaby.Backend.Helpers.QuickStateManager;
 import com.blackaby.Misc.BootRomManager;
@@ -65,6 +68,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
     private final String defaultRomName = "NO ROM LOADED";
     private String romName = defaultRomName;
     private final Object stateLock = new Object();
+    private final CheatEngine cheatEngine = new CheatEngine();
 
     /**
      * Creates an emulator controller for the main window and display.
@@ -135,7 +139,9 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
         memory.SetCpu(cpu);
         memory.SetJoypad(joypad);
         memory.SetApu(apu);
+        memory.SetCheatEngine(cheatEngine);
         memory.LoadRom(this.rom, ShouldUseCgbHardware(this.rom));
+        cheatEngine.SetCheats(CheatStore.GetCheats(this.rom));
         SaveFileManager.LoadSaveBundle(this.rom).ifPresent(saveData -> {
             memory.LoadSaveData(saveData.primaryData());
             memory.LoadSupplementalSaveData(saveData.supplementalData());
@@ -207,6 +213,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
             apu.Shutdown();
         }
 
+        cheatEngine.SetCheats(List.of());
         cpu = null;
         memory = null;
         timer = null;
@@ -219,6 +226,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
     @Override
     public void run() {
         InitialiseBootState();
+        ApplyLiveCheats();
         long previousTime = System.nanoTime();
         double timeAccumulator = 0.0;
 
@@ -248,6 +256,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
             int cyclesToRun = Math.min(availableCycles, maxCyclesPerRunSlice);
             int executedCycles = 0;
             synchronized (stateLock) {
+                ApplyLiveCheats();
                 while (running && !paused && cyclesToRun > 0) {
                     if (!cpu.IsHalted()) {
                         cpu.Fetch();
@@ -260,6 +269,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
                     executedCycles += masterCycles;
                     cyclesToRun -= masterCycles;
                 }
+                ApplyLiveCheats();
             }
 
             timeAccumulator -= executedCycles * Specifics.nanosecondsPerCycle;
@@ -500,6 +510,28 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
                 .toList();
     }
 
+    @Override
+    public List<EmulatorCheat> DescribeCurrentCheats() {
+        if (!HasLoadedRom()) {
+            return List.of();
+        }
+        return CheatStore.GetCheats(rom);
+    }
+
+    @Override
+    public List<EmulatorCheat> UpdateCurrentCheats(List<EmulatorCheat> cheats) {
+        if (!HasLoadedRom()) {
+            throw new IllegalStateException("Load a ROM before managing cheats.");
+        }
+
+        List<EmulatorCheat> storedCheats = CheatStore.SaveCheats(rom, cheats);
+        cheatEngine.SetCheats(storedCheats);
+        synchronized (stateLock) {
+            ApplyLiveCheats();
+        }
+        return storedCheats;
+    }
+
     private void InitialiseBootState() {
         if (ShouldUseBootRom()) {
             InitialiseBootRomState();
@@ -637,10 +669,18 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
         apu.RestoreState(quickState.apuState());
         ppu.RestoreState(quickState.ppuState());
         display.RestoreFrameState(quickState.displayState());
+        ApplyLiveCheats();
     }
 
     private void SetRuntimeStatus(String statusText) {
         host.SetSubtitle(romName, statusText);
+    }
+
+    private void ApplyLiveCheats() {
+        if (memory == null || !cheatEngine.HasLiveWriteCheats()) {
+            return;
+        }
+        cheatEngine.ApplyWriteCheats(memory);
     }
 }
 

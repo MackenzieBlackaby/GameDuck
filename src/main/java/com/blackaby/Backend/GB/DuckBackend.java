@@ -44,7 +44,7 @@ public final class DuckBackend implements EmulatorBackend {
                 new Dimension(640, 576),
                 new Dimension(160, 144),
                 Color.BLACK);
-        private static final EmulatorCapabilities capabilities = new EmulatorCapabilities(true, true, true, true, true);
+        private static final EmulatorCapabilities capabilities = new EmulatorCapabilities(true, true, true, true, true, true);
         private static final List<GBButton> controlButtons = List.of(
                 GBButton.UP,
                 GBButton.DOWN,

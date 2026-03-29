@@ -50,4 +50,8 @@ public interface EmulatorRuntime {
     void ResetTransientAudioState();
 
     List<EmulatorStateSlot> DescribeCurrentStateSlots();
+
+    List<EmulatorCheat> DescribeCurrentCheats();
+
+    List<EmulatorCheat> UpdateCurrentCheats(List<EmulatorCheat> cheats);
 }

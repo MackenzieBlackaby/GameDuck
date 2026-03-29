@@ -95,6 +95,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private JMenu recentGamesMenu;
     private JMenu saveStateMenu;
     private JMenu loadStateMenu;
+    private JMenuItem cheatManagerMenuItem;
     private final JMenuItem[] saveStateSlotItems = new JMenuItem[QuickStateManager.maxSlot + 1];
     private final JMenuItem[] loadStateSlotItems = new JMenuItem[QuickStateManager.maxSlot + 1];
     private final Timer displayStatsTimer;
@@ -473,6 +474,12 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_PAUSE_GAME, Action.PAUSEGAME);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_RESET_GAME, Action.RESETGAME);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_CLOSE_GAME, Action.CLOSEGAME);
+        if (backend.Profile().capabilities().supportsCheats()) {
+            cheatManagerMenuItem = new JMenuItem(UiText.MainWindow.GAME_MENU_CHEATS);
+            ConfigureMenuItem(cheatManagerMenuItem);
+            cheatManagerMenuItem.addActionListener(event -> new CheatManagerWindow(this, emulation));
+            menu.add(cheatManagerMenuItem);
+        }
         menu.addSeparator();
 
         JMenuItem saveStateManagerItem = new JMenuItem(UiText.MainWindow.GAME_MENU_SAVE_STATE_MANAGER);
@@ -859,6 +866,9 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             }
             if (loadStateMenu != null) {
                 loadStateMenu.setText(UiText.MainWindow.GAME_MENU_LOAD_STATE);
+            }
+            if (cheatManagerMenuItem != null) {
+                cheatManagerMenuItem.setEnabled(currentLoadedGame != null);
             }
 
             List<EmulatorStateSlot> slots = emulation.DescribeCurrentStateSlots();

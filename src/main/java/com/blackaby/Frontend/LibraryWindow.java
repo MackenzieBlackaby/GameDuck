@@ -32,12 +32,16 @@ import javax.swing.SwingUtilities;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.BorderLayout;
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Container;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.GridLayout;
 import java.awt.Rectangle;
 import java.awt.event.ComponentAdapter;
@@ -876,58 +880,75 @@ public final class LibraryWindow extends DuckWindow {
     }
 
     private JPanel createLargeIconTile(LibraryEntry entry, int tileSize, boolean selected) {
-        JPanel tile = new JPanel(new BorderLayout(0, 8));
-        tile.setOpaque(true);
-        tile.setBackground(selected ? Styling.listSelectionColour : Styling.cardTintColour);
-        tile.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(selected ? Styling.sectionHighlightBorderColour : cardBorder, 1, true),
-                BorderFactory.createEmptyBorder(8, 8, 8, 8)));
+        final boolean[] hovered = { false };
+        JPanel tile = new JPanel(new BorderLayout());
+        tile.setOpaque(false);
+        tile.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
         tile.setPreferredSize(new Dimension(tileSize, tileSize));
+        tile.setToolTipText(resolveDisplayName(entry));
 
-        int contentWidth = Math.max(80, tileSize - 18);
-        int artHeight = Math.max(92, tileSize - 86);
-        JPanel artPanel = new JPanel(new BorderLayout());
-        artPanel.setOpaque(true);
-        artPanel.setBackground(Styling.displayFrameColour);
-        artPanel.setBorder(BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1));
-        artPanel.setPreferredSize(new Dimension(contentWidth, artHeight));
+        int contentSize = Math.max(80, tileSize - 16);
+        ImageIcon artIcon = iconFor(entry, contentSize, contentSize);
+        JPanel contentPanel = new JPanel(new BorderLayout()) {
+            @Override
+            public void paint(Graphics graphics) {
+                super.paint(graphics);
+                Graphics2D graphics2d = (Graphics2D) graphics.create();
+                if (hovered[0]) {
+                    graphics2d.setColor(new Color(0, 0, 0, 70));
+                    graphics2d.fillRect(0, 0, getWidth(), getHeight());
+                }
+                if (selected || hovered[0]) {
+                    graphics2d.setColor(selected ? Styling.sectionHighlightBorderColour : new Color(255, 255, 255, 90));
+                    graphics2d.setStroke(new BasicStroke(selected ? 3f : 1.5f));
+                    int inset = selected ? 2 : 1;
+                    int width = Math.max(0, getWidth() - (inset * 2) - 1);
+                    int height = Math.max(0, getHeight() - (inset * 2) - 1);
+                    graphics2d.drawRect(inset, inset, width, height);
+                }
+                graphics2d.dispose();
+            }
+        };
+        contentPanel.setOpaque(false);
+        contentPanel.setPreferredSize(new Dimension(contentSize, contentSize));
 
-        JLabel artLabel = new JLabel("", SwingConstants.CENTER);
-        artLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        artLabel.setVerticalAlignment(SwingConstants.CENTER);
-        ImageIcon artIcon = iconFor(entry, contentWidth - 12, artHeight - 12);
+        JComponent contentComponent;
         if (artIcon != null) {
+            JLabel artLabel = new JLabel("", SwingConstants.CENTER);
+            artLabel.setOpaque(false);
+            artLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            artLabel.setVerticalAlignment(SwingConstants.CENTER);
             artLabel.setIcon(artIcon);
             artLabel.setText("");
-            artLabel.setForeground(Styling.fpsForegroundColour);
+            contentComponent = artLabel;
         } else {
-            artLabel.setIcon(null);
-            artLabel.setText(artLoadingKeys.contains(entry.key())
+            JPanel placeholderPanel = new JPanel(new BorderLayout());
+            placeholderPanel.setOpaque(true);
+            placeholderPanel.setBackground(Styling.displayFrameColour);
+            placeholderPanel.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1),
+                    BorderFactory.createEmptyBorder(12, 10, 12, 10)));
+            placeholderPanel.setPreferredSize(new Dimension(contentSize, contentSize));
+
+            JLabel placeholderLabel = new JLabel("", SwingConstants.CENTER);
+            placeholderLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            placeholderLabel.setVerticalAlignment(SwingConstants.CENTER);
+            placeholderLabel.setForeground(mutedTextColour);
+            Font placeholderFont = Styling.menuFont.deriveFont(Font.BOLD, 11f);
+            placeholderLabel.setFont(placeholderFont);
+            String placeholderTitle = truncateToWidth(
+                    resolveDisplayName(entry),
+                    placeholderLabel.getFontMetrics(placeholderFont),
+                    Math.max(60, contentSize - 28));
+            placeholderLabel.setText(artLoadingKeys.contains(entry.key())
                     ? UiText.LibraryWindow.ART_LOADING
-                    : UiText.LibraryWindow.ART_MISSING);
-            artLabel.setForeground(mutedTextColour);
-            artLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+                    : asRendererHtml(placeholderTitle, Math.max(60, contentSize - 28)));
+            placeholderPanel.add(placeholderLabel, BorderLayout.CENTER);
+            contentComponent = placeholderPanel;
         }
-        artPanel.add(artLabel, BorderLayout.CENTER);
+        contentPanel.add(contentComponent, BorderLayout.CENTER);
 
-        JLabel titleLabel = new JLabel(asRendererHtml(resolveDisplayName(entry), contentWidth - 8), SwingConstants.CENTER);
-        titleLabel.setForeground(accentColour);
-        titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-
-        String helperText = entry.favourite()
-                ? UiText.LibraryWindow.FAVOURITE_BADGE + " | " + UiText.LibraryWindow.VariantLabel(entry.patchNames())
-                : UiText.LibraryWindow.VariantLabel(entry.patchNames());
-        JLabel helperLabel = new JLabel(asRendererHtml(helperText, contentWidth - 8), SwingConstants.CENTER);
-        helperLabel.setForeground(mutedTextColour);
-        helperLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 11f));
-
-        JPanel textStack = new JPanel();
-        textStack.setOpaque(false);
-        textStack.setLayout(new javax.swing.BoxLayout(textStack, javax.swing.BoxLayout.Y_AXIS));
-        textStack.add(titleLabel);
-        textStack.add(helperLabel);
-
-        MouseAdapter tileClickHandler = new MouseAdapter() {
+        MouseAdapter tileInteractionHandler = new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent event) {
                 selectEntry(entry);
@@ -935,15 +956,26 @@ public final class LibraryWindow extends DuckWindow {
                     loadSelectedEntry(entry);
                 }
             }
-        };
-        tile.addMouseListener(tileClickHandler);
-        artPanel.addMouseListener(tileClickHandler);
-        artLabel.addMouseListener(tileClickHandler);
-        titleLabel.addMouseListener(tileClickHandler);
-        helperLabel.addMouseListener(tileClickHandler);
 
-        tile.add(artPanel, BorderLayout.CENTER);
-        tile.add(textStack, BorderLayout.SOUTH);
+            @Override
+            public void mouseEntered(MouseEvent event) {
+                hovered[0] = true;
+                contentPanel.repaint();
+            }
+
+            @Override
+            public void mouseExited(MouseEvent event) {
+                if (event.getSource() instanceof Component source
+                        && isPointerInsideTile(source, event, tile)) {
+                    return;
+                }
+                hovered[0] = false;
+                contentPanel.repaint();
+            }
+        };
+        installMouseListenerRecursively(tile, tileInteractionHandler);
+
+        tile.add(contentPanel, BorderLayout.CENTER);
         return tile;
     }
 
@@ -1059,6 +1091,19 @@ public final class LibraryWindow extends DuckWindow {
 
     private int largeTileSize(int tileWidth) {
         return Math.max(largeTileMinWidth, tileWidth);
+    }
+
+    private void installMouseListenerRecursively(Component component, MouseAdapter listener) {
+        component.addMouseListener(listener);
+        if (component instanceof Container container) {
+            for (Component child : container.getComponents()) {
+                installMouseListenerRecursively(child, listener);
+            }
+        }
+    }
+
+    private boolean isPointerInsideTile(Component source, MouseEvent event, Component tile) {
+        return tile.contains(SwingUtilities.convertPoint(source, event.getPoint(), tile));
     }
 
     private String resolveDisplayName(LibraryEntry entry) {

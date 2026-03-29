@@ -17,11 +17,13 @@ import java.awt.Color;
 import java.awt.Container;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.GraphicsConfiguration;
 import java.awt.GraphicsDevice;
 import java.awt.GraphicsEnvironment;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
+import java.awt.Insets;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
@@ -109,8 +111,9 @@ public class DuckWindow extends JFrame {
 
         @Override
         public void mouseReleased(MouseEvent event) {
-            if (titleDragMoved && ShouldSnapMaximise(event.getLocationOnScreen())) {
-                MaximiseWindow();
+            Point releasePoint = event.getLocationOnScreen();
+            if (titleDragMoved && ShouldSnapMaximise(releasePoint)) {
+                MaximiseWindow(releasePoint);
             }
             titleDragAnchorOnScreen = null;
             titleDragWindowLocation = null;
@@ -297,7 +300,7 @@ public class DuckWindow extends JFrame {
         if (maximised) {
             RestoreWindowedBounds();
         } else {
-            MaximiseWindow();
+            MaximiseWindow(resolveWindowScreenPoint());
         }
         updateWindowChromeState();
     }
@@ -319,8 +322,7 @@ public class DuckWindow extends JFrame {
                 setLocation(windowedLocation);
             }
             if (maximisedBeforeFullscreen) {
-                setExtendedState(JFrame.MAXIMIZED_BOTH);
-                maximised = true;
+                MaximiseWindow(resolveWindowScreenPoint());
             }
         } else {
             maximisedBeforeFullscreen = maximised;
@@ -533,18 +535,20 @@ public class DuckWindow extends JFrame {
         return false;
     }
 
-    private void MaximiseWindow() {
+    private void MaximiseWindow(Point screenPoint) {
         if (!isResizable() || fullscreen || maximised) {
             return;
         }
         sizeBeforeMaximise = getSize();
         locationBeforeMaximise = getLocation();
+        setMaximizedBounds(resolveMaximisedBounds(screenPoint));
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         maximised = true;
     }
 
     private void RestoreWindowedBounds() {
         setExtendedState(JFrame.NORMAL);
+        setMaximizedBounds(null);
         if (sizeBeforeMaximise != null) {
             setSize(sizeBeforeMaximise);
         }
@@ -552,6 +556,46 @@ public class DuckWindow extends JFrame {
             setLocation(locationBeforeMaximise);
         }
         maximised = false;
+    }
+
+    private Point resolveWindowScreenPoint() {
+        Rectangle bounds = getBounds();
+        if (!bounds.isEmpty()) {
+            return new Point(bounds.x + Math.max(0, bounds.width / 2),
+                    bounds.y + Math.max(0, bounds.height / 2));
+        }
+        return getLocation();
+    }
+
+    private Rectangle resolveMaximisedBounds(Point screenPoint) {
+        GraphicsConfiguration graphicsConfiguration = resolveGraphicsConfiguration(screenPoint);
+        Rectangle bounds = new Rectangle(graphicsConfiguration.getBounds());
+        Insets screenInsets = Toolkit.getDefaultToolkit().getScreenInsets(graphicsConfiguration);
+        bounds.x += screenInsets.left;
+        bounds.y += screenInsets.top;
+        bounds.width -= screenInsets.left + screenInsets.right;
+        bounds.height -= screenInsets.top + screenInsets.bottom;
+        return bounds;
+    }
+
+    private GraphicsConfiguration resolveGraphicsConfiguration(Point screenPoint) {
+        if (screenPoint != null) {
+            for (GraphicsDevice graphicsDevice : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+                GraphicsConfiguration graphicsConfiguration = graphicsDevice.getDefaultConfiguration();
+                if (graphicsConfiguration.getBounds().contains(screenPoint)) {
+                    return graphicsConfiguration;
+                }
+            }
+        }
+
+        GraphicsConfiguration graphicsConfiguration = getGraphicsConfiguration();
+        if (graphicsConfiguration != null) {
+            return graphicsConfiguration;
+        }
+
+        return GraphicsEnvironment.getLocalGraphicsEnvironment()
+                .getDefaultScreenDevice()
+                .getDefaultConfiguration();
     }
 
     private int cursorForDirection(int directionMask) {

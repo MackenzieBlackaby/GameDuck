@@ -171,8 +171,6 @@ public class OptionsWindow extends DuckWindow {
     private final JPanel[] gbcColorPreviews = new JPanel[12];
     private final JLabel[] gbcColorHexLabels = new JLabel[12];
     private final JPanel[] themeStripPreviews = new JPanel[AppThemeColorRole.values().length];
-    private final Map<EmulatorButton, JButton> bindingButtons = new HashMap<>();
-    private final Map<EmulatorButton, JButton> controllerBindingButtons = new HashMap<>();
     private final EnumMap<AppShortcut, JButton> shortcutButtons = new EnumMap<>(AppShortcut.class);
     private final EnumMap<AppShortcut, JButton> controllerShortcutButtons = new EnumMap<>(AppShortcut.class);
     private final MainWindow mainWindow;
@@ -1037,21 +1035,6 @@ public class OptionsWindow extends DuckWindow {
         return card;
     }
 
-    private JComponent createControllerBindingCard(EmulatorButton button) {
-        return createActionBindingCard(
-                formatControlButtonName(button),
-                controlButtonHelper(button),
-                null,
-                false,
-                Settings.controllerBindings.GetBindingText(button),
-                new Dimension(148, 38),
-                13f,
-                12,
-                14,
-                () -> captureControllerBinding(button),
-                bindingButton -> controllerBindingButtons.put(button, bindingButton));
-    }
-
     private JComponent createShortcutPanel() {
         JPanel container = new JPanel(new BorderLayout(0, 18));
         container.setOpaque(false);
@@ -1087,21 +1070,6 @@ public class OptionsWindow extends DuckWindow {
         container.add(actions, BorderLayout.SOUTH);
 
         return container;
-    }
-
-    private JComponent createBindingCard(EmulatorButton button) {
-        return createActionBindingCard(
-                formatControlButtonName(button),
-                controlButtonHelper(button),
-                controlBadgeText(),
-                false,
-                Settings.inputBindings.GetKeyText(button),
-                new Dimension(128, 40),
-                14f,
-                12,
-                14,
-                () -> captureBinding(button),
-                bindingButton -> bindingButtons.put(button, bindingButton));
     }
 
     private JComponent createShortcutCard(AppShortcut shortcut) {
@@ -3130,34 +3098,6 @@ public class OptionsWindow extends DuckWindow {
         reopenWithCurrentTab();
     }
 
-    private void captureAllBindings() {
-        for (EmulatorButton button : controlButtons()) {
-            if (!captureBinding(button)) {
-                break;
-            }
-        }
-    }
-
-    private void captureAllControllerBindings() {
-        if (controllerInputService.GetInitialisationError() != null) {
-            JOptionPane.showMessageDialog(this, controllerInputService.GetInitialisationError(),
-                    UiText.OptionsWindow.CONTROLLER_WINDOW_TITLE, JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        if (controllerInputService.GetActiveController().isEmpty()) {
-            JOptionPane.showMessageDialog(this, UiText.OptionsWindow.CONTROLLER_NO_ACTIVE_DEVICE_MESSAGE,
-                    UiText.OptionsWindow.CONTROLLER_WINDOW_TITLE, JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        for (EmulatorButton button : controlButtons()) {
-            if (!captureControllerBinding(button)) {
-                break;
-            }
-        }
-    }
-
     private boolean captureBinding(EmulatorButton button) {
         JDialog dialog = new JDialog(this, UiText.OptionsWindow.RebindDialogTitle(formatControlButtonName(button)), true);
         dialog.setLayout(new BorderLayout());
@@ -3198,7 +3138,6 @@ public class OptionsWindow extends DuckWindow {
 
             Settings.inputBindings.SetKeyCode(button, event.getKeyCode());
             captured[0] = true;
-            refreshBindingButtons();
             Config.Save();
             dialog.dispose();
             return true;
@@ -3323,7 +3262,6 @@ public class OptionsWindow extends DuckWindow {
                 UiText.OptionsWindow.ControllerRebindDialogPrompt(formatControlButtonName(button)),
                 binding -> {
                     Settings.controllerBindings.SetBinding(button, binding);
-                    refreshControllerBindingButtons();
                     refreshControllerStatus();
                     Config.Save();
                 });
@@ -3580,24 +3518,6 @@ public class OptionsWindow extends DuckWindow {
         }
     }
 
-    private void refreshBindingButtons() {
-        for (EmulatorButton button : controlButtons()) {
-            JButton bindingButton = bindingButtons.get(button);
-            if (bindingButton != null) {
-                bindingButton.setText(Settings.inputBindings.GetKeyText(button));
-            }
-        }
-    }
-
-    private void refreshControllerBindingButtons() {
-        for (EmulatorButton button : controlButtons()) {
-            JButton bindingButton = controllerBindingButtons.get(button);
-            if (bindingButton != null) {
-                bindingButton.setText(Settings.controllerBindings.GetBindingText(button));
-            }
-        }
-    }
-
     private void refreshShortcutButtons() {
         for (AppShortcut shortcut : AppShortcut.values()) {
             JButton shortcutButton = shortcutButtons.get(shortcut);
@@ -3611,16 +3531,8 @@ public class OptionsWindow extends DuckWindow {
         }
     }
 
-    private List<? extends EmulatorButton> controlButtons() {
-        return backendProfile().controlButtons();
-    }
-
     private String formatControlButtonName(EmulatorButton button) {
         return backendProfile().controlButtonLabel(button);
-    }
-
-    private String controlButtonHelper(EmulatorButton button) {
-        return backendProfile().controlButtonHelper(button);
     }
 
     private String controlBadgeText() {
@@ -3704,37 +3616,33 @@ public class OptionsWindow extends DuckWindow {
     private void updateShaderStatusLabel(JLabel label) {
         List<LoadedDisplayShader> loadedShaders = DisplayShaderManager.GetAvailableShaders();
         List<String> shaderErrors = DisplayShaderManager.GetLoadErrors();
-        String statusText = shaderErrors.isEmpty()
-                ? UiText.OptionsWindow.ShaderStatusSummary(loadedShaders.size(), 0)
-                : UiText.OptionsWindow.ShaderStatusSummary(loadedShaders.size(), shaderErrors.size());
-        setCompactReadout(label, statusText);
-        if (shaderErrors.isEmpty()) {
-            label.setToolTipText(UiText.OptionsWindow.SHADER_STATUS_OK_HELPER);
-            return;
-        }
-
-        List<String> escapedErrors = new ArrayList<>();
-        for (String shaderError : shaderErrors) {
-            escapedErrors.add(escapeHtml(shaderError));
-        }
-        label.setToolTipText("<html>" + String.join("<br>", escapedErrors) + "</html>");
+        updateLoadStatusLabel(
+                label,
+                UiText.OptionsWindow.ShaderStatusSummary(loadedShaders.size(), shaderErrors.size()),
+                shaderErrors,
+                UiText.OptionsWindow.SHADER_STATUS_OK_HELPER);
     }
 
     private void updateBorderStatusLabel(JLabel label) {
         List<LoadedDisplayBorder> loadedBorders = DisplayBorderManager.GetAvailableBorders();
         List<String> borderErrors = DisplayBorderManager.GetLoadErrors();
-        String statusText = borderErrors.isEmpty()
-                ? UiText.OptionsWindow.BorderStatusSummary(loadedBorders.size(), 0)
-                : UiText.OptionsWindow.BorderStatusSummary(loadedBorders.size(), borderErrors.size());
+        updateLoadStatusLabel(
+                label,
+                UiText.OptionsWindow.BorderStatusSummary(loadedBorders.size(), borderErrors.size()),
+                borderErrors,
+                UiText.OptionsWindow.BORDER_STATUS_OK_HELPER);
+    }
+
+    private void updateLoadStatusLabel(JLabel label, String statusText, List<String> errors, String okHelper) {
         setCompactReadout(label, statusText);
-        if (borderErrors.isEmpty()) {
-            label.setToolTipText(UiText.OptionsWindow.BORDER_STATUS_OK_HELPER);
+        if (errors.isEmpty()) {
+            label.setToolTipText(okHelper);
             return;
         }
 
         List<String> escapedErrors = new ArrayList<>();
-        for (String borderError : borderErrors) {
-            escapedErrors.add(escapeHtml(borderError));
+        for (String error : errors) {
+            escapedErrors.add(WindowUiSupport.escapeHtml(error));
         }
         label.setToolTipText("<html>" + String.join("<br>", escapedErrors) + "</html>");
     }
@@ -3768,10 +3676,6 @@ public class OptionsWindow extends DuckWindow {
         setVisible(false);
         dispose();
         SwingUtilities.invokeLater(() -> new OptionsWindow(mainWindow, selectedTab));
-    }
-
-    private String escapeHtml(String value) {
-        return WindowUiSupport.escapeHtml(value);
     }
 
     private File PromptForBootRomFile() {

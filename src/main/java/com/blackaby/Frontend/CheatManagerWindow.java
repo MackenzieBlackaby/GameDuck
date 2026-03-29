@@ -132,7 +132,7 @@ public final class CheatManagerWindow extends DuckWindow {
 
         JPanel listCard = new JPanel(new BorderLayout(0, 12));
         listCard.setBackground(cardBackground);
-        listCard.setBorder(createCardBorder());
+        listCard.setBorder(WindowUiSupport.createCardBorder(cardBorder, false, 18));
         listCard.setPreferredSize(new Dimension(340, 0));
 
         listCard.add(createSectionHeader(
@@ -157,7 +157,7 @@ public final class CheatManagerWindow extends DuckWindow {
 
         JPanel editorCard = new JPanel(new BorderLayout(0, 14));
         editorCard.setBackground(cardBackground);
-        editorCard.setBorder(createCardBorder());
+        editorCard.setBorder(WindowUiSupport.createCardBorder(cardBorder, false, 18));
         editorCard.add(createSectionHeader(
                 UiText.CheatManagerWindow.EDITOR_TITLE,
                 UiText.CheatManagerWindow.EDITOR_HELPER), BorderLayout.NORTH);
@@ -273,13 +273,13 @@ public final class CheatManagerWindow extends DuckWindow {
         JPanel actions = new JPanel(new GridLayout(1, 3, 10, 0));
         actions.setOpaque(false);
 
-        newButton = createSecondaryButton(UiText.CheatManagerWindow.NEW_BUTTON);
+        newButton = WindowUiSupport.createSecondaryButton(UiText.CheatManagerWindow.NEW_BUTTON, accentColour, cardBorder);
         newButton.addActionListener(event -> startNewCheat());
 
-        saveButton = createPrimaryButton(UiText.CheatManagerWindow.SAVE_BUTTON);
+        saveButton = WindowUiSupport.createPrimaryButton(UiText.CheatManagerWindow.SAVE_BUTTON, accentColour);
         saveButton.addActionListener(event -> saveCurrentCheat());
 
-        deleteButton = createSecondaryButton(UiText.CheatManagerWindow.DELETE_BUTTON);
+        deleteButton = WindowUiSupport.createSecondaryButton(UiText.CheatManagerWindow.DELETE_BUTTON, accentColour, cardBorder);
         deleteButton.addActionListener(event -> deleteSelectedCheat());
 
         actions.add(newButton);
@@ -576,14 +576,6 @@ public final class CheatManagerWindow extends DuckWindow {
         return header;
     }
 
-    private JButton createPrimaryButton(String text) {
-        return WindowUiSupport.createPrimaryButton(text, accentColour);
-    }
-
-    private JButton createSecondaryButton(String text) {
-        return WindowUiSupport.createSecondaryButton(text, accentColour, cardBorder);
-    }
-
     private void styleTextField(JTextField field) {
         field.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
         field.setForeground(accentColour);
@@ -592,10 +584,6 @@ public final class CheatManagerWindow extends DuckWindow {
         field.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(cardBorder, 1, true),
                 BorderFactory.createEmptyBorder(8, 10, 8, 10)));
-    }
-
-    private javax.swing.border.Border createCardBorder() {
-        return WindowUiSupport.createCardBorder(cardBorder, false, 18);
     }
 
     private final class CheatEntryRenderer extends DefaultListCellRenderer {
@@ -608,9 +596,9 @@ public final class CheatManagerWindow extends DuckWindow {
                         ? String.format("%04X -> %02X", cheat.address(), cheat.value())
                         : String.format("%04X: %02X if %02X", cheat.address(), cheat.value(), cheat.compareValue());
                 String statusPrefix = cheat.enabled() ? "[On] " : "[Off] ";
-                label.setText("<html><b>" + escapeHtml(statusPrefix + cheat.label())
+                label.setText("<html><b>" + WindowUiSupport.escapeHtml(statusPrefix + cheat.label())
                         + "</b><br><span style='font-size:10px;'>"
-                        + escapeHtml(summary)
+                        + WindowUiSupport.escapeHtml(summary)
                         + "</span></html>");
             } else {
                 label.setText("");
@@ -618,13 +606,6 @@ public final class CheatManagerWindow extends DuckWindow {
             label.setBorder(BorderFactory.createEmptyBorder(8, 10, 8, 10));
             label.setVerticalAlignment(SwingConstants.CENTER);
             return label;
-        }
-
-        private String escapeHtml(String value) {
-            return value == null ? "" : value
-                    .replace("&", "&amp;")
-                    .replace("<", "&lt;")
-                    .replace(">", "&gt;");
         }
     }
 }

@@ -651,12 +651,6 @@ public final class LibraryWindow extends DuckWindow {
         searchRefreshTimer.restart();
     }
 
-    private void applySearchQuery(String nextSearchQuery) {
-        searchQuery = nextSearchQuery == null ? "" : nextSearchQuery.trim();
-        rememberLibraryBrowserState(false);
-        refreshEntryList();
-    }
-
     private boolean matchesFilterMode(LibraryEntry entry) {
         if (entry == null) {
             return false;

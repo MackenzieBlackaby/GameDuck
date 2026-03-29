@@ -303,12 +303,14 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
     }
 
     protected final String asHtml(String value, int width, String fallback) {
-        String body = value == null || value.isBlank() ? fallback : escapeHtml(value);
+        String body = value == null || value.isBlank() ? fallback : WindowUiSupport.escapeHtml(value);
         return "<html><body style='width: " + width + "px'>" + body + "</body></html>";
     }
 
     protected final String asTitleHtml(String value, int width) {
-        return "<html><body style='width: " + width + "px'>" + escapeHtml(value == null ? "" : value) + "</body></html>";
+        return "<html><body style='width: " + width + "px'>"
+                + WindowUiSupport.escapeHtml(value == null ? "" : value)
+                + "</body></html>";
     }
 
     protected final String truncateToWidth(String value, FontMetrics metrics, int maxWidth) {
@@ -627,7 +629,4 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
         gameList.repaint();
     }
 
-    private String escapeHtml(String value) {
-        return WindowUiSupport.escapeHtml(value);
-    }
 }

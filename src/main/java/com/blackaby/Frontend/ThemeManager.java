@@ -14,12 +14,10 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ListSelectionModel;
-import javax.swing.border.Border;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.util.List;
 
 /**
  * Browser for loading and deleting saved host themes.
@@ -83,7 +81,7 @@ public final class ThemeManager extends DuckWindow {
 
         JPanel card = new JPanel(new BorderLayout(0, 16));
         card.setBackground(cardBackground);
-        card.setBorder(CreateCardBorder());
+        card.setBorder(WindowUiSupport.createCardBorder(cardBorder, false, 18));
 
         JList<String> themeList = new JList<>(themeListModel);
         themeList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
@@ -106,7 +104,10 @@ public final class ThemeManager extends DuckWindow {
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         buttonPanel.setOpaque(false);
 
-        JButton deleteButton = CreateSecondaryButton(UiText.ThemeManager.DELETE_BUTTON);
+        JButton deleteButton = WindowUiSupport.createSecondaryButton(
+                UiText.ThemeManager.DELETE_BUTTON,
+                accentColour,
+                cardBorder);
         deleteButton.addActionListener(event -> {
             String selectedTheme = themeList.getSelectedValue();
             if (selectedTheme == null) {
@@ -130,7 +131,10 @@ public final class ThemeManager extends DuckWindow {
             }
         });
 
-        JButton restoreDefaultsButton = CreateSecondaryButton(UiText.ThemeManager.RESTORE_DEFAULTS_BUTTON);
+        JButton restoreDefaultsButton = WindowUiSupport.createSecondaryButton(
+                UiText.ThemeManager.RESTORE_DEFAULTS_BUTTON,
+                accentColour,
+                cardBorder);
         restoreDefaultsButton.addActionListener(event -> {
             try {
                 Config.RestoreDefaultThemes();
@@ -144,7 +148,7 @@ public final class ThemeManager extends DuckWindow {
             }
         });
 
-        JButton loadButton = CreatePrimaryButton(UiText.ThemeManager.LOAD_BUTTON);
+        JButton loadButton = WindowUiSupport.createPrimaryButton(UiText.ThemeManager.LOAD_BUTTON, accentColour);
         loadButton.addActionListener(event -> {
             String selectedTheme = themeList.getSelectedValue();
             if (selectedTheme == null) {
@@ -168,45 +172,6 @@ public final class ThemeManager extends DuckWindow {
 
     private void RefreshThemeList() {
         themeListModel.clear();
-        List<String> themeNames = Config.GetSavedThemeNames();
-        for (String themeName : themeNames) {
-            themeListModel.addElement(themeName);
-        }
-    }
-
-    private Border CreateCardBorder() {
-        return BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1),
-                BorderFactory.createEmptyBorder(18, 18, 18, 18));
-    }
-
-    private JButton CreatePrimaryButton(String text) {
-        JButton button = new JButton(text);
-        button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(false);
-        button.setBackground(accentColour);
-        button.setForeground(Color.WHITE);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.primaryButtonBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
-        return button;
-    }
-
-    private JButton CreateSecondaryButton(String text) {
-        JButton button = new JButton(text);
-        button.setFocusPainted(false);
-        button.setOpaque(true);
-        button.setContentAreaFilled(true);
-        button.setBorderPainted(false);
-        button.setBackground(Styling.buttonSecondaryBackground);
-        button.setForeground(accentColour);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        button.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1, true),
-                BorderFactory.createEmptyBorder(8, 16, 8, 16)));
-        return button;
+        Config.GetSavedThemeNames().forEach(themeListModel::addElement);
     }
 }

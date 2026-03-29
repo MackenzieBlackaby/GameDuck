@@ -168,7 +168,7 @@ public final class LibraryGameInfoWindow extends DuckWindow {
 
         actionRow.add(javax.swing.Box.createHorizontalStrut(8));
 
-        JButton explorerButton = createPrimaryButton(UiText.LibraryWindow.INFO_OPEN_EXPLORER_BUTTON);
+        JButton explorerButton = WindowUiSupport.createPrimaryButton(UiText.LibraryWindow.INFO_OPEN_EXPLORER_BUTTON, accentColour);
         explorerButton.addActionListener(event -> openInExplorer(entry.romPath()));
         actionRow.add(explorerButton);
 
@@ -188,7 +188,7 @@ public final class LibraryGameInfoWindow extends DuckWindow {
         JPanel card = new JPanel(new BorderLayout(0, 12));
         card.setAlignmentX(Component.LEFT_ALIGNMENT);
         card.setBackground(cardBackground);
-        card.setBorder(createCardBorder());
+        card.setBorder(WindowUiSupport.createCardBorder(cardBorder, false, 18));
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
         JLabel titleLabel = new JLabel(title);
@@ -395,10 +395,6 @@ public final class LibraryGameInfoWindow extends DuckWindow {
         return "<html><body style='width: 320px'>" + WindowUiSupport.escapeHtml(resolvedValue) + "</body></html>";
     }
 
-    private JButton createPrimaryButton(String text) {
-        return WindowUiSupport.createPrimaryButton(text, accentColour);
-    }
-
     private void stylePrimaryButton(JButton button) {
         WindowUiSupport.stylePrimaryButton(button, accentColour);
     }
@@ -407,8 +403,5 @@ public final class LibraryGameInfoWindow extends DuckWindow {
         WindowUiSupport.styleSecondaryButton(button, accentColour, cardBorder);
     }
 
-    private javax.swing.border.Border createCardBorder() {
-        return WindowUiSupport.createCardBorder(cardBorder, false, 18);
-    }
 }
 

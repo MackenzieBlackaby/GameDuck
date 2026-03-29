@@ -90,6 +90,7 @@ public final class Styling {
         Color textSelectionForeground = theme.SurfaceColour();
 
         putColor("Panel.background", theme.AppBackgroundColour());
+        putColor("Panel.foreground", textForeground);
         putColor("Viewport.background", theme.SurfaceColour());
         putColor("ScrollPane.background", theme.SurfaceColour());
         putColor("TabbedPane.background", theme.AppBackgroundColour());
@@ -191,7 +192,8 @@ public final class Styling {
         putColor("ToolTip.background", theme.SurfaceColour());
         putColor("ToolTip.foreground", textForeground);
         putColor("OptionPane.background", theme.AppBackgroundColour());
-        putColor("OptionPane.foreground", theme.AccentColour());
+        putColor("OptionPane.foreground", textForeground);
+        putColor("OptionPane.messageForeground", textForeground);
         putColor("ScrollBar.thumb", theme.CardTintColour());
         putColor("ScrollBar.track", theme.SurfaceColour());
 

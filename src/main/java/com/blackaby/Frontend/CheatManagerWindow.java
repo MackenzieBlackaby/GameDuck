@@ -1,6 +1,8 @@
 package com.blackaby.Frontend;
 
+import com.blackaby.Backend.Helpers.LibretroCheatProvider;
 import com.blackaby.Backend.Platform.EmulatorCheat;
+import com.blackaby.Backend.Platform.EmulatorGame;
 import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Misc.UiText;
 
@@ -19,6 +21,7 @@ import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -31,6 +34,8 @@ import java.awt.Insets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Dedicated editor for the currently loaded game's cheat list.
@@ -39,6 +44,7 @@ public final class CheatManagerWindow extends DuckWindow {
 
     private final MainWindow mainWindow;
     private final EmulatorRuntime emulation;
+    private final EmulatorGame loadedGame;
     private final Color panelBackground = Styling.appBackgroundColour;
     private final Color cardBackground = Styling.surfaceColour;
     private final Color cardBorder = Styling.surfaceBorderColour;
@@ -66,6 +72,7 @@ public final class CheatManagerWindow extends DuckWindow {
         super(UiText.CheatManagerWindow.WINDOW_TITLE, 980, 680, true);
         this.mainWindow = mainWindow;
         this.emulation = emulation;
+        this.loadedGame = emulation.GetLoadedGame();
 
         if (!emulation.HasLoadedGame()) {
             JOptionPane.showMessageDialog(mainWindow,
@@ -87,6 +94,7 @@ public final class CheatManagerWindow extends DuckWindow {
         configureFields();
         reloadCheats(null);
         setVisible(true);
+        requestLibretroCheatImport();
     }
 
     private JComponent buildHeader() {
@@ -314,6 +322,64 @@ public final class CheatManagerWindow extends DuckWindow {
 
         cheatList.setSelectedIndex(0);
         cheatList.ensureIndexIsVisible(0);
+    }
+
+    private void requestLibretroCheatImport() {
+        if (loadedGame == null) {
+            return;
+        }
+
+        CompletableFuture<LibretroCheatProvider.AutoImportResult> importTask =
+                LibretroCheatProvider.AutoImportCheatsAsync(loadedGame);
+        if (!importTask.isDone()) {
+            statusLabel.setText(UiText.CheatManagerWindow.STATUS_SYNCING_LIBRETRO);
+        }
+
+        importTask
+                .thenAccept(result -> SwingUtilities.invokeLater(() -> applyLibretroImportResult(result)))
+                .exceptionally(exception -> {
+                    SwingUtilities.invokeLater(() -> {
+                        if (isDisplayable()) {
+                            statusLabel.setText(UiText.CheatManagerWindow.STATUS_READY);
+                        }
+                    });
+                    return null;
+                });
+    }
+
+    private void applyLibretroImportResult(LibretroCheatProvider.AutoImportResult result) {
+        if (!isDisplayable() || result == null) {
+            return;
+        }
+        if (!isSameLoadedGame(mainWindow.GetCurrentLoadedGame())) {
+            return;
+        }
+
+        switch (result.status()) {
+            case IMPORTED -> {
+                reloadCheats(null);
+                statusLabel.setText(UiText.CheatManagerWindow.LibretroImportedMessage(
+                        result.importedCount(),
+                        result.matchedGameName()));
+            }
+            case UNCHANGED, ALREADY_IMPORTED, NOT_FOUND -> {
+                if (cheatListModel.isEmpty()) {
+                    statusLabel.setText(UiText.CheatManagerWindow.EMPTY_EDITOR);
+                } else {
+                    statusLabel.setText(UiText.CheatManagerWindow.STATUS_READY);
+                }
+            }
+        }
+    }
+
+    private boolean isSameLoadedGame(EmulatorGame otherGame) {
+        return loadedGame != null
+                && otherGame != null
+                && Objects.equals(loadedGame.sourcePath(), otherGame.sourcePath())
+                && Objects.equals(loadedGame.sourceName(), otherGame.sourceName())
+                && Objects.equals(loadedGame.displayName(), otherGame.displayName())
+                && Objects.equals(loadedGame.patchSourcePaths(), otherGame.patchSourcePaths())
+                && Objects.equals(loadedGame.patchNames(), otherGame.patchNames());
     }
 
     private void populateEditor(EmulatorCheat cheat) {

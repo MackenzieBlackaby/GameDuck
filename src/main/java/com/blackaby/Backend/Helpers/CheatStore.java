@@ -12,6 +12,7 @@ import java.util.List;
  */
 public final class CheatStore {
 
+    private static final String libretroImportPrefix = "cheat.libretro_imported.";
     private static final String gameKeySuffix = ".game_key";
     private static final String labelSuffix = ".label";
     private static final String addressSuffix = ".address";
@@ -86,6 +87,76 @@ public final class CheatStore {
         return GetCheats(game);
     }
 
+    static synchronized boolean HasLibretroImportRecord(EmulatorGame game) {
+        String gameKey = BuildGameKey(game);
+        if (gameKey.isBlank()) {
+            return false;
+        }
+
+        store.EnsureLoaded();
+        String value = store.RawProperty(libretroImportPrefix + gameKey);
+        return value != null && !value.isBlank();
+    }
+
+    static synchronized void MarkLibretroImport(EmulatorGame game, String sourceId) {
+        String gameKey = BuildGameKey(game);
+        if (gameKey.isBlank()) {
+            return;
+        }
+
+        store.EnsureLoaded();
+        store.SetRawProperty(libretroImportPrefix + gameKey,
+                sourceId == null || sourceId.isBlank() ? "libretro" : sourceId.trim());
+        store.Persist();
+    }
+
+    static synchronized int MergeLibretroCheats(EmulatorGame game, List<EmulatorCheat> importedCheats) {
+        String gameKey = BuildGameKey(game);
+        if (gameKey.isBlank()) {
+            return 0;
+        }
+
+        List<EmulatorCheat> requestedCheats = importedCheats == null ? List.of() : importedCheats;
+        if (requestedCheats.isEmpty()) {
+            return 0;
+        }
+
+        List<EmulatorCheat> existingCheats = GetCheats(game);
+        java.util.LinkedHashSet<String> existingKeys = new java.util.LinkedHashSet<>();
+        java.util.LinkedHashSet<String> existingSignatures = new java.util.LinkedHashSet<>();
+        java.util.ArrayList<EmulatorCheat> mergedCheats = new java.util.ArrayList<>(existingCheats);
+        for (EmulatorCheat cheat : existingCheats) {
+            if (cheat == null) {
+                continue;
+            }
+
+            existingKeys.add(cheat.key());
+            existingSignatures.add(CheatSignature(cheat));
+        }
+
+        int addedCount = 0;
+        for (EmulatorCheat cheat : requestedCheats) {
+            if (cheat == null) {
+                continue;
+            }
+
+            String signature = CheatSignature(cheat);
+            if (existingKeys.contains(cheat.key()) || existingSignatures.contains(signature)) {
+                continue;
+            }
+
+            mergedCheats.add(cheat);
+            existingKeys.add(cheat.key());
+            existingSignatures.add(signature);
+            addedCount++;
+        }
+
+        if (addedCount > 0) {
+            SaveCheats(game, mergedCheats);
+        }
+        return addedCount;
+    }
+
     static synchronized void ResetForTests() {
         store.ResetForTests();
     }
@@ -112,6 +183,17 @@ public final class CheatStore {
     private static StoredCheat ReadEntry(String key) {
         EntryProperties entry = new EntryProperties(key);
         return entry.Read();
+    }
+
+    private static String CheatSignature(EmulatorCheat cheat) {
+        if (cheat == null) {
+            return "";
+        }
+
+        return String.format("%04X|%s|%02X",
+                cheat.address() & 0xFFFF,
+                cheat.compareValue() == null ? "" : String.format("%02X", cheat.compareValue() & 0xFF),
+                cheat.value() & 0xFF);
     }
 
     private static EmulatorCheat NormaliseCheat(String gameKey, EmulatorCheat cheat, int position) {

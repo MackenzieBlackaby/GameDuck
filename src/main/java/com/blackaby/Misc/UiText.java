@@ -609,6 +609,7 @@ public final class UiText {
         public static final String EMPTY_EDITOR = "Select a cheat or create a new one";
         public static final String STATUS_READY = "Ready";
         public static final String STATUS_NEW = "Enter a cheat and save to apply it immediately.";
+        public static final String STATUS_SYNCING_LIBRETRO = "Looking up libretro cheats...";
         public static final String STATUS_SAVED = "Cheat saved";
         public static final String STATUS_DELETED = "Cheat deleted";
         public static final String DELETE_CONFIRM_TITLE = "Delete Cheat";
@@ -624,6 +625,12 @@ public final class UiText {
 
         public static String DeleteConfirmMessage(String cheatName) {
             return "Delete cheat \"" + cheatName + "\"?";
+        }
+
+        public static String LibretroImportedMessage(int cheatCount, String gameName) {
+            String sourceName = gameName == null || gameName.isBlank() ? "libretro" : gameName;
+            return (cheatCount == 1 ? "Imported 1 libretro cheat from " : "Imported " + cheatCount + " libretro cheats from ")
+                    + sourceName;
         }
 
         public static String MissingHexMessage(String fieldName, String expectedFormat) {

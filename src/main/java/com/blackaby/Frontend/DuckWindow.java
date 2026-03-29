@@ -11,6 +11,7 @@ import javax.swing.JMenuBar;
 import javax.swing.JPanel;
 import javax.swing.JRootPane;
 import javax.swing.SwingUtilities;
+import javax.swing.JWindow;
 import java.awt.BasicStroke;
 import java.awt.BorderLayout;
 import java.awt.Color;
@@ -49,6 +50,9 @@ public class DuckWindow extends JFrame {
     private static final int DIR_EAST = 8;
     private static final Dimension TITLE_BUTTON_SIZE = new Dimension(34, 24);
     private static final int SNAP_MAXIMISE_THRESHOLD = 2;
+    private static final int SNAP_EDGE_THRESHOLD = 24;
+    private static final int SNAP_PREVIEW_INSET = 10;
+    private static final int DRAG_RESTORE_THRESHOLD = 6;
 
     private final JPanel shellPanel;
     private final JPanel windowChromePanel;
@@ -72,19 +76,31 @@ public class DuckWindow extends JFrame {
         CLOSE
     }
 
+    private enum SnapZone {
+        NONE,
+        LEFT_HALF,
+        RIGHT_HALF,
+        MAXIMISE
+    }
+
     private JMenuBar attachedMenuBar;
     private boolean fullscreen;
     private boolean maximised;
     private boolean maximisedBeforeFullscreen;
+    private SnapZone snappedZone = SnapZone.NONE;
     private Dimension windowedSize;
     private Point windowedLocation;
     private Dimension sizeBeforeMaximise;
     private Point locationBeforeMaximise;
+    private Rectangle restoreBounds;
     private Point titleDragAnchorOnScreen;
     private Point titleDragWindowLocation;
     private boolean titleDragMoved;
+    private float titleDragHorizontalRatio = 0.5f;
+    private int titleDragVerticalOffset = TITLE_BAR_HEIGHT / 2;
     private Rectangle resizeStartBounds;
     private Point resizeStartOnScreen;
+    private JWindow snapPreviewWindow;
     private final MouseAdapter windowDragAdapter = new MouseAdapter() {
         @Override
         public void mousePressed(MouseEvent event) {
@@ -94,26 +110,42 @@ public class DuckWindow extends JFrame {
             titleDragAnchorOnScreen = event.getLocationOnScreen();
             titleDragWindowLocation = getLocation();
             titleDragMoved = false;
+            titleDragHorizontalRatio = getWidth() <= 0
+                    ? 0.5f
+                    : Math.max(0f, Math.min(1f, event.getX() / (float) getWidth()));
+            titleDragVerticalOffset = Math.max(0, event.getY());
         }
 
         @Override
         public void mouseDragged(MouseEvent event) {
             if (!SwingUtilities.isLeftMouseButton(event) || titleDragAnchorOnScreen == null
-                    || titleDragWindowLocation == null || fullscreen || maximised) {
+                    || titleDragWindowLocation == null || fullscreen) {
                 return;
             }
             Point currentOnScreen = event.getLocationOnScreen();
+            if ((maximised || isSnapped()) && shouldRestoreWindowForDragging(currentOnScreen)) {
+                RestoreWindowForDragging(currentOnScreen);
+            }
+            if (maximised || isSnapped()) {
+                return;
+            }
             int deltaX = currentOnScreen.x - titleDragAnchorOnScreen.x;
             int deltaY = currentOnScreen.y - titleDragAnchorOnScreen.y;
             titleDragMoved = titleDragMoved || deltaX != 0 || deltaY != 0;
             setLocation(titleDragWindowLocation.x + deltaX, titleDragWindowLocation.y + deltaY);
+            showSnapPreview(ResolveSnapBounds(ResolveSnapZone(currentOnScreen), currentOnScreen));
         }
 
         @Override
         public void mouseReleased(MouseEvent event) {
             Point releasePoint = event.getLocationOnScreen();
-            if (titleDragMoved && ShouldSnapMaximise(releasePoint)) {
-                MaximiseWindow(releasePoint);
+            SnapZone snapZone = titleDragMoved ? ResolveSnapZone(releasePoint) : SnapZone.NONE;
+            hideSnapPreview();
+            if (titleDragMoved) {
+                ApplySnapZone(snapZone, releasePoint);
+                if (!maximised && !isSnapped()) {
+                    storeRestoreBounds(getBounds());
+                }
             }
             titleDragAnchorOnScreen = null;
             titleDragWindowLocation = null;
@@ -200,6 +232,7 @@ public class DuckWindow extends JFrame {
         sizeBeforeMaximise = getSize();
         locationBeforeMaximise = getLocation();
         windowedLocation = getLocation();
+        restoreBounds = getBounds();
 
         installTitleBarInteractions();
         addWindowStateListener(event -> {
@@ -310,6 +343,7 @@ public class DuckWindow extends JFrame {
      */
     public void ToggleFullScreen() {
         GraphicsDevice graphicsDevice = GraphicsEnvironment.getLocalGraphicsEnvironment().getDefaultScreenDevice();
+        hideSnapPreview();
 
         if (fullscreen) {
             graphicsDevice.setFullScreenWindow(null);
@@ -498,7 +532,7 @@ public class DuckWindow extends JFrame {
     }
 
     private boolean canResizeWindow() {
-        return isResizable() && !fullscreen && !maximised;
+        return isResizable() && !fullscreen && !maximised && !isSnapped();
     }
 
     private boolean isFrameMaximised() {
@@ -520,28 +554,15 @@ public class DuckWindow extends JFrame {
         }
     }
 
-    private boolean ShouldSnapMaximise(Point screenPoint) {
-        if (screenPoint == null || !isResizable() || fullscreen || maximised) {
-            return false;
-        }
-
-        for (GraphicsDevice graphicsDevice : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
-            Rectangle bounds = graphicsDevice.getDefaultConfiguration().getBounds();
-            if (screenPoint.x < bounds.x || screenPoint.x >= bounds.x + bounds.width) {
-                continue;
-            }
-            return screenPoint.y <= bounds.y + SNAP_MAXIMISE_THRESHOLD;
-        }
-        return false;
-    }
-
     private void MaximiseWindow(Point screenPoint) {
         if (!isResizable() || fullscreen || maximised) {
             return;
         }
-        sizeBeforeMaximise = getSize();
-        locationBeforeMaximise = getLocation();
-        setMaximizedBounds(resolveMaximisedBounds(screenPoint));
+        if (!isSnapped() || restoreBounds == null) {
+            storeRestoreBounds(getBounds());
+        }
+        snappedZone = SnapZone.NONE;
+        setMaximizedBounds(resolveWorkAreaBounds(screenPoint));
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         maximised = true;
     }
@@ -549,13 +570,20 @@ public class DuckWindow extends JFrame {
     private void RestoreWindowedBounds() {
         setExtendedState(JFrame.NORMAL);
         setMaximizedBounds(null);
-        if (sizeBeforeMaximise != null) {
-            setSize(sizeBeforeMaximise);
-        }
-        if (locationBeforeMaximise != null) {
-            setLocation(locationBeforeMaximise);
+        Rectangle bounds = restoreBounds;
+        if (bounds != null && !bounds.isEmpty()) {
+            setBounds(bounds);
+        } else {
+            if (sizeBeforeMaximise != null) {
+                setSize(sizeBeforeMaximise);
+            }
+            if (locationBeforeMaximise != null) {
+                setLocation(locationBeforeMaximise);
+            }
         }
         maximised = false;
+        snappedZone = SnapZone.NONE;
+        hideSnapPreview();
     }
 
     private Point resolveWindowScreenPoint() {
@@ -567,7 +595,7 @@ public class DuckWindow extends JFrame {
         return getLocation();
     }
 
-    private Rectangle resolveMaximisedBounds(Point screenPoint) {
+    private Rectangle resolveWorkAreaBounds(Point screenPoint) {
         GraphicsConfiguration graphicsConfiguration = resolveGraphicsConfiguration(screenPoint);
         Rectangle bounds = new Rectangle(graphicsConfiguration.getBounds());
         Insets screenInsets = Toolkit.getDefaultToolkit().getScreenInsets(graphicsConfiguration);
@@ -596,6 +624,169 @@ public class DuckWindow extends JFrame {
         return GraphicsEnvironment.getLocalGraphicsEnvironment()
                 .getDefaultScreenDevice()
                 .getDefaultConfiguration();
+    }
+
+    private boolean isSnapped() {
+        return snappedZone != SnapZone.NONE;
+    }
+
+    private boolean shouldRestoreWindowForDragging(Point currentOnScreen) {
+        if (currentOnScreen == null || titleDragAnchorOnScreen == null || (!maximised && !isSnapped())) {
+            return false;
+        }
+        return Math.abs(currentOnScreen.x - titleDragAnchorOnScreen.x) >= DRAG_RESTORE_THRESHOLD
+                || Math.abs(currentOnScreen.y - titleDragAnchorOnScreen.y) >= DRAG_RESTORE_THRESHOLD;
+    }
+
+    private void RestoreWindowForDragging(Point currentOnScreen) {
+        Rectangle bounds = restoreBounds;
+        if (bounds == null || bounds.isEmpty()) {
+            bounds = new Rectangle(getX(), getY(), Math.max(640, getWidth()), Math.max(400, getHeight()));
+        }
+
+        int anchorX = Math.round(bounds.width * titleDragHorizontalRatio);
+        int anchorY = Math.max(0, Math.min(titleDragVerticalOffset, Math.max(0, bounds.height - 1)));
+        int nextX = currentOnScreen.x - anchorX;
+        int nextY = currentOnScreen.y - anchorY;
+
+        if (maximised) {
+            setExtendedState(JFrame.NORMAL);
+            setMaximizedBounds(null);
+            maximised = false;
+        }
+        snappedZone = SnapZone.NONE;
+        setBounds(nextX, nextY, bounds.width, bounds.height);
+        titleDragAnchorOnScreen = currentOnScreen;
+        titleDragWindowLocation = getLocation();
+        titleDragMoved = true;
+        updateWindowChromeState();
+        revalidate();
+        repaint();
+    }
+
+    private SnapZone ResolveSnapZone(Point screenPoint) {
+        if (screenPoint == null || !isResizable() || fullscreen) {
+            return SnapZone.NONE;
+        }
+
+        Rectangle bounds = resolveWorkAreaBounds(screenPoint);
+        if (screenPoint.y <= bounds.y + Math.max(SNAP_MAXIMISE_THRESHOLD, SNAP_EDGE_THRESHOLD)) {
+            return SnapZone.MAXIMISE;
+        }
+        if (screenPoint.x <= bounds.x + SNAP_EDGE_THRESHOLD) {
+            return SnapZone.LEFT_HALF;
+        }
+        if (screenPoint.x >= bounds.x + bounds.width - SNAP_EDGE_THRESHOLD) {
+            return SnapZone.RIGHT_HALF;
+        }
+        return SnapZone.NONE;
+    }
+
+    private Rectangle ResolveSnapBounds(SnapZone snapZone, Point screenPoint) {
+        if (snapZone == null || snapZone == SnapZone.NONE) {
+            return null;
+        }
+
+        Rectangle workArea = resolveWorkAreaBounds(screenPoint);
+        return switch (snapZone) {
+            case LEFT_HALF -> new Rectangle(workArea.x, workArea.y, workArea.width / 2, workArea.height);
+            case RIGHT_HALF -> new Rectangle(workArea.x + (workArea.width / 2), workArea.y,
+                    workArea.width - (workArea.width / 2), workArea.height);
+            case MAXIMISE -> workArea;
+            case NONE -> null;
+        };
+    }
+
+    private void ApplySnapZone(SnapZone snapZone, Point screenPoint) {
+        if (snapZone == null || snapZone == SnapZone.NONE) {
+            return;
+        }
+        if (snapZone == SnapZone.MAXIMISE) {
+            MaximiseWindow(screenPoint);
+            return;
+        }
+
+        if (!isSnapped() && !maximised) {
+            storeRestoreBounds(getBounds());
+        }
+
+        Rectangle snapBounds = ResolveSnapBounds(snapZone, screenPoint);
+        if (snapBounds == null || snapBounds.isEmpty()) {
+            return;
+        }
+
+        setExtendedState(JFrame.NORMAL);
+        setMaximizedBounds(null);
+        maximised = false;
+        snappedZone = snapZone;
+        setBounds(snapBounds);
+        updateWindowChromeState();
+        revalidate();
+        repaint();
+    }
+
+    private void storeRestoreBounds(Rectangle bounds) {
+        if (bounds == null || bounds.isEmpty()) {
+            return;
+        }
+        restoreBounds = new Rectangle(bounds);
+        sizeBeforeMaximise = restoreBounds.getSize();
+        locationBeforeMaximise = restoreBounds.getLocation();
+    }
+
+    private void showSnapPreview(Rectangle bounds) {
+        if (bounds == null || bounds.isEmpty()) {
+            hideSnapPreview();
+            return;
+        }
+
+        Rectangle previewBounds = new Rectangle(bounds);
+        previewBounds.grow(-SNAP_PREVIEW_INSET, -SNAP_PREVIEW_INSET);
+        if (previewBounds.isEmpty()) {
+            previewBounds = bounds;
+        }
+
+        if (snapPreviewWindow == null) {
+            snapPreviewWindow = createSnapPreviewWindow();
+        }
+        snapPreviewWindow.setBounds(previewBounds);
+        if (!snapPreviewWindow.isVisible()) {
+            snapPreviewWindow.setVisible(true);
+        } else {
+            snapPreviewWindow.repaint();
+        }
+    }
+
+    private void hideSnapPreview() {
+        if (snapPreviewWindow != null) {
+            snapPreviewWindow.setVisible(false);
+        }
+    }
+
+    private JWindow createSnapPreviewWindow() {
+        JWindow previewWindow = new JWindow(this);
+        previewWindow.setFocusableWindowState(false);
+        previewWindow.setBackground(new Color(0, 0, 0, 0));
+        previewWindow.setContentPane(new JPanel() {
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                Graphics2D graphics2d = (Graphics2D) graphics.create();
+                graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                graphics2d.setColor(new Color(Styling.accentColour.getRed(),
+                        Styling.accentColour.getGreen(),
+                        Styling.accentColour.getBlue(),
+                        54));
+                graphics2d.fillRoundRect(0, 0, Math.max(0, getWidth() - 1), Math.max(0, getHeight() - 1), 18, 18);
+                graphics2d.setColor(new Color(Styling.accentColour.getRed(),
+                        Styling.accentColour.getGreen(),
+                        Styling.accentColour.getBlue(),
+                        170));
+                graphics2d.drawRoundRect(0, 0, Math.max(0, getWidth() - 1), Math.max(0, getHeight() - 1), 18, 18);
+                graphics2d.dispose();
+            }
+        });
+        previewWindow.getContentPane().setBackground(new Color(0, 0, 0, 0));
+        return previewWindow;
     }
 
     private int cursorForDirection(int directionMask) {

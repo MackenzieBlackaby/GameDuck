@@ -1,13 +1,13 @@
-package com.blackaby.Backend.Emulation.Peripherals;
+package com.blackaby.Backend.GB.Peripherals;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
 
-import com.blackaby.Backend.Emulation.CPU.DuckCPU;
-import com.blackaby.Backend.Emulation.Memory.DuckAddresses;
-import com.blackaby.Backend.Emulation.Memory.DuckMemory;
-import com.blackaby.Backend.Emulation.TestSupport.EmulatorTestUtils;
+import com.blackaby.Backend.GB.CPU.DuckCPU;
+import com.blackaby.Backend.GB.Memory.DuckAddresses;
+import com.blackaby.Backend.GB.Memory.DuckMemory;
+import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
 
 class DuckTimerTest {
 

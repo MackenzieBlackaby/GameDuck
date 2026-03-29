@@ -1,4 +1,4 @@
-package com.blackaby.Backend.Emulation.CPU;
+package com.blackaby.Backend.GB.CPU;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -6,9 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.blackaby.Backend.Emulation.Memory.DuckAddresses;
-import com.blackaby.Backend.Emulation.TestSupport.EmulatorTestUtils;
-import com.blackaby.Backend.Emulation.TestSupport.EmulatorTestUtils.CpuHarness;
+import com.blackaby.Backend.GB.Memory.DuckAddresses;
+import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
+import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils.CpuHarness;
 
 class DuckCpuIntegrationTest {
 

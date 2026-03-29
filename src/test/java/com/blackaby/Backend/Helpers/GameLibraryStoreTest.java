@@ -1,13 +1,14 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.Emulation.Misc.ROM;
-import com.blackaby.Backend.Emulation.TestSupport.EmulatorTestUtils;
+import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -122,7 +123,10 @@ class GameLibraryStoreTest {
                 filename.endsWith(".gbc") ? 0x80 : 0x00,
                 tempDir.resolve(filename).toString(),
                 displayName);
-        return ROM.FromBytes(baseRom.GetSourcePath(), baseRom.ToByteArray(), displayName, patchNames, patchSourcePaths);
+        byte[] romBytes = baseRom.ToByteArray();
+        byte[] identityBytes = (filename + "|" + displayName).getBytes(StandardCharsets.UTF_8);
+        System.arraycopy(identityBytes, 0, romBytes, 0x0150, Math.min(identityBytes.length, romBytes.length - 0x0150));
+        return ROM.FromBytes(baseRom.GetSourcePath(), romBytes, displayName, patchNames, patchSourcePaths);
     }
 
     private static void restoreProperty(String name, String value) {

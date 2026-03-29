@@ -1,4 +1,4 @@
-package com.blackaby.Backend.Emulation.Memory;
+package com.blackaby.Backend.GB.Memory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -6,8 +6,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.blackaby.Backend.Emulation.Misc.ROM;
-import com.blackaby.Backend.Emulation.TestSupport.EmulatorTestUtils;
+import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
 
 class CartridgeControllerTest {
 

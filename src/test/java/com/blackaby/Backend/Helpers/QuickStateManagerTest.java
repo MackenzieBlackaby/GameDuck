@@ -11,11 +11,11 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import com.blackaby.Backend.Emulation.Graphics.DuckPPU;
-import com.blackaby.Backend.Emulation.Memory.DuckMemory;
-import com.blackaby.Backend.Emulation.Peripherals.DuckJoypad;
-import com.blackaby.Backend.Emulation.Peripherals.DuckTimer;
-import com.blackaby.Backend.Emulation.TestSupport.EmulatorTestUtils;
+import com.blackaby.Backend.GB.Graphics.DuckPPU;
+import com.blackaby.Backend.GB.Memory.DuckMemory;
+import com.blackaby.Backend.GB.Peripherals.DuckJoypad;
+import com.blackaby.Backend.GB.Peripherals.DuckTimer;
+import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
 import com.blackaby.Frontend.DuckDisplay;
 
 class QuickStateManagerTest {

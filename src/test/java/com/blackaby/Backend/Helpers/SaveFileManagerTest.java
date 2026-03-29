@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.Emulation.TestSupport.EmulatorTestUtils;
+import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

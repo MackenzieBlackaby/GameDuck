@@ -1,12 +1,12 @@
-package com.blackaby.Backend.Emulation.Misc;
+package com.blackaby.Backend.GB.Misc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.blackaby.Backend.Emulation.Memory.CartridgeMapperType;
-import com.blackaby.Backend.Emulation.TestSupport.EmulatorTestUtils;
+import com.blackaby.Backend.GB.Memory.CartridgeMapperType;
+import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
 
 class ROMTest {
 

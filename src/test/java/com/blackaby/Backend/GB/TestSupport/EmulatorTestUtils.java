@@ -1,11 +1,11 @@
-package com.blackaby.Backend.Emulation.TestSupport;
+package com.blackaby.Backend.GB.TestSupport;
 
 import java.util.Arrays;
 
-import com.blackaby.Backend.Emulation.CPU.DuckCPU;
-import com.blackaby.Backend.Emulation.CPU.InstructionLogic;
-import com.blackaby.Backend.Emulation.Memory.DuckMemory;
-import com.blackaby.Backend.Emulation.Misc.ROM;
+import com.blackaby.Backend.GB.CPU.DuckCPU;
+import com.blackaby.Backend.GB.CPU.InstructionLogic;
+import com.blackaby.Backend.GB.Memory.DuckMemory;
+import com.blackaby.Backend.GB.Misc.ROM;
 
 public final class EmulatorTestUtils {
 

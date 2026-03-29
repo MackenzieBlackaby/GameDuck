@@ -1,14 +1,14 @@
-package com.blackaby.Backend.Emulation.Graphics;
+package com.blackaby.Backend.GB.Graphics;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.blackaby.Backend.Emulation.CPU.DuckCPU;
-import com.blackaby.Backend.Emulation.Memory.DuckAddresses;
-import com.blackaby.Backend.Emulation.Memory.DuckMemory;
-import com.blackaby.Backend.Emulation.TestSupport.EmulatorTestUtils;
+import com.blackaby.Backend.GB.CPU.DuckCPU;
+import com.blackaby.Backend.GB.Memory.DuckAddresses;
+import com.blackaby.Backend.GB.Memory.DuckMemory;
+import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
 import com.blackaby.Frontend.DuckDisplay;
 import com.blackaby.Misc.Settings;
 

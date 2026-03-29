@@ -76,6 +76,7 @@ class ThemeStoreTest {
                     AppThemePreset.HARBOR.Label(),
                     AppThemePreset.MINT_DMG.Label(),
                     AppThemePreset.GRAPHITE.Label(),
+                    AppThemePreset.MIDNIGHT.Label(),
                     AppThemePreset.SUNSET.Label(),
                     themeName), ThemeStore.SavedThemeNames());
             AppTheme migratedTheme = ThemeStore.FindTheme(themeName);

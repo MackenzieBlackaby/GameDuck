@@ -56,7 +56,10 @@ public final class Config {
     private static final String gameArtDisplayModeKey = "ui.game_art_display_mode";
     private static final String gameNameBracketDisplayModeKey = "library.game_name_bracket_display_mode";
     private static final String libraryViewModeKey = "library.view_mode";
+    private static final String libraryFilterModeKey = "library.filter_mode";
+    private static final String libraryConsoleFilterKey = "library.console_filter";
     private static final String librarySortModeKey = "library.sort_mode";
+    private static final String librarySearchQueryKey = "library.search_query";
     private static final String loadRecentMenuLimitKey = "library.load_recent_menu_limit";
     private static final String preferDmgModeForGbcCompatibleGamesKey = "palette.prefer_dmg_mode_for_gbc_compatible_games";
     private static final String gbcPaletteModeEnabledKey = "palette.gbc_mode_enabled";
@@ -551,10 +554,20 @@ public final class Config {
         Settings.libraryViewMode = configuredViewMode == null || configuredViewMode.isBlank()
                 ? "LIST"
                 : configuredViewMode;
+        String configuredFilterMode = properties.getProperty(libraryFilterModeKey, "ALL");
+        Settings.libraryFilterMode = configuredFilterMode == null || configuredFilterMode.isBlank()
+                ? "ALL"
+                : configuredFilterMode;
+        String configuredConsoleFilter = properties.getProperty(libraryConsoleFilterKey, "ALL");
+        Settings.libraryConsoleFilter = configuredConsoleFilter == null || configuredConsoleFilter.isBlank()
+                ? "ALL"
+                : configuredConsoleFilter;
         String configuredSortMode = properties.getProperty(librarySortModeKey, "ALPHABETICAL");
         Settings.librarySortMode = configuredSortMode == null || configuredSortMode.isBlank()
                 ? "ALPHABETICAL"
                 : configuredSortMode;
+        String configuredSearchQuery = properties.getProperty(librarySearchQueryKey, "");
+        Settings.librarySearchQuery = configuredSearchQuery == null ? "" : configuredSearchQuery;
         try {
             int configuredRecentLimit = Integer.parseInt(properties.getProperty(loadRecentMenuLimitKey, "10"));
             Settings.loadRecentMenuLimit = Math.max(1, Math.min(25, configuredRecentLimit));
@@ -646,10 +659,18 @@ public final class Config {
         properties.setProperty(gameNameBracketDisplayModeKey, Settings.gameNameBracketDisplayMode.name());
         properties.setProperty(libraryViewModeKey,
                 Settings.libraryViewMode == null || Settings.libraryViewMode.isBlank() ? "LIST" : Settings.libraryViewMode);
+        properties.setProperty(libraryFilterModeKey,
+                Settings.libraryFilterMode == null || Settings.libraryFilterMode.isBlank() ? "ALL" : Settings.libraryFilterMode);
+        properties.setProperty(libraryConsoleFilterKey,
+                Settings.libraryConsoleFilter == null || Settings.libraryConsoleFilter.isBlank()
+                        ? "ALL"
+                        : Settings.libraryConsoleFilter);
         properties.setProperty(librarySortModeKey,
                 Settings.librarySortMode == null || Settings.librarySortMode.isBlank()
                         ? "ALPHABETICAL"
                         : Settings.librarySortMode);
+        properties.setProperty(librarySearchQueryKey,
+                Settings.librarySearchQuery == null ? "" : Settings.librarySearchQuery);
         properties.setProperty(loadRecentMenuLimitKey, String.valueOf(Settings.loadRecentMenuLimit));
     }
 

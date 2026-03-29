@@ -156,8 +156,17 @@ public final class Settings {
     /** Remembered library browser view mode. */
     public static String libraryViewMode = "LIST";
 
+    /** Remembered library browser content filter mode. */
+    public static String libraryFilterMode = "ALL";
+
+    /** Remembered library browser console filter. */
+    public static String libraryConsoleFilter = "ALL";
+
     /** Remembered library browser sort mode. */
     public static String librarySortMode = "ALPHABETICAL";
+
+    /** Remembered library browser search query. */
+    public static String librarySearchQuery = "";
 
     /** How many games should appear in the Game -> Load Recent menu. */
     public static int loadRecentMenuLimit = 10;
@@ -404,7 +413,10 @@ public final class Settings {
     public static void ResetLibrary() {
         gameNameBracketDisplayMode = GameNameBracketDisplayMode.NONE;
         libraryViewMode = "LIST";
+        libraryFilterMode = "ALL";
+        libraryConsoleFilter = "ALL";
         librarySortMode = "ALPHABETICAL";
+        librarySearchQuery = "";
         loadRecentMenuLimit = 10;
 
     }

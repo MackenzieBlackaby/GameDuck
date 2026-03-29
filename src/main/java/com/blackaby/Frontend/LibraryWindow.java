@@ -154,7 +154,10 @@ public final class LibraryWindow extends DuckWindow {
         this.mainWindow = mainWindow;
         this.emulation = emulation;
         this.viewMode = resolveSavedViewMode();
+        this.filterMode = resolveSavedFilterMode();
+        this.consoleFilter = resolveSavedConsoleFilter();
         this.sortMode = resolveSavedSortMode();
+        this.searchQuery = resolveSavedSearchQuery();
         panelBackground = Styling.appBackgroundColour;
         cardBackground = Styling.surfaceColour;
         cardBorder = Styling.surfaceBorderColour;
@@ -419,7 +422,7 @@ public final class LibraryWindow extends DuckWindow {
         wrapper.add(listCard, BorderLayout.CENTER);
         wrapper.add(detailsCard, BorderLayout.EAST);
 
-        applyViewMode(ViewMode.LIST);
+        applyViewMode(viewMode);
         return wrapper;
     }
 
@@ -573,8 +576,7 @@ public final class LibraryWindow extends DuckWindow {
 
     private void applyViewMode(ViewMode nextViewMode) {
         viewMode = nextViewMode == null ? ViewMode.LIST : nextViewMode;
-        Settings.libraryViewMode = viewMode.name();
-        Config.Save();
+        rememberLibraryBrowserState(true);
         if (entryList == null) {
             return;
         }
@@ -613,23 +615,25 @@ public final class LibraryWindow extends DuckWindow {
 
     private void applyFilterMode(FilterMode nextFilterMode) {
         filterMode = nextFilterMode == null ? FilterMode.ALL : nextFilterMode;
+        rememberLibraryBrowserState(true);
         refreshEntryList();
     }
 
     private void applyConsoleFilter(RomConsoleFilter nextConsoleFilter) {
         consoleFilter = nextConsoleFilter == null ? RomConsoleFilter.ALL : nextConsoleFilter;
+        rememberLibraryBrowserState(true);
         refreshEntryList();
     }
 
     private void applySortMode(SortMode nextSortMode) {
         sortMode = nextSortMode == null ? SortMode.ALPHABETICAL : nextSortMode;
-        Settings.librarySortMode = sortMode.name();
-        Config.Save();
+        rememberLibraryBrowserState(true);
         refreshEntryList();
     }
 
     private void applySearchQuery(String nextSearchQuery) {
         searchQuery = nextSearchQuery == null ? "" : nextSearchQuery.trim();
+        rememberLibraryBrowserState(false);
         refreshEntryList();
     }
 
@@ -1146,6 +1150,51 @@ public final class LibraryWindow extends DuckWindow {
         } catch (IllegalArgumentException exception) {
             return SortMode.ALPHABETICAL;
         }
+    }
+
+    private FilterMode resolveSavedFilterMode() {
+        String configuredMode = Settings.libraryFilterMode;
+        if (configuredMode == null || configuredMode.isBlank()) {
+            return FilterMode.ALL;
+        }
+        try {
+            return FilterMode.valueOf(configuredMode);
+        } catch (IllegalArgumentException exception) {
+            return FilterMode.ALL;
+        }
+    }
+
+    private RomConsoleFilter resolveSavedConsoleFilter() {
+        String configuredFilter = Settings.libraryConsoleFilter;
+        if (configuredFilter == null || configuredFilter.isBlank()) {
+            return RomConsoleFilter.ALL;
+        }
+        try {
+            return RomConsoleFilter.valueOf(configuredFilter);
+        } catch (IllegalArgumentException exception) {
+            return RomConsoleFilter.ALL;
+        }
+    }
+
+    private String resolveSavedSearchQuery() {
+        return Settings.librarySearchQuery == null ? "" : Settings.librarySearchQuery;
+    }
+
+    private void rememberLibraryBrowserState(boolean persist) {
+        Settings.libraryViewMode = viewMode.name();
+        Settings.libraryFilterMode = filterMode.name();
+        Settings.libraryConsoleFilter = consoleFilter.name();
+        Settings.librarySortMode = sortMode.name();
+        Settings.librarySearchQuery = searchQuery == null ? "" : searchQuery;
+        if (persist) {
+            Config.Save();
+        }
+    }
+
+    @Override
+    public void dispose() {
+        rememberLibraryBrowserState(true);
+        super.dispose();
     }
 
     private Comparator<LibraryEntry> resolveSortComparator() {

@@ -42,6 +42,7 @@ public class DuckWindow extends JFrame {
     private static final int DIR_WEST = 4;
     private static final int DIR_EAST = 8;
     private static final Dimension TITLE_BUTTON_SIZE = new Dimension(42, 26);
+    private static final int SNAP_MAXIMISE_THRESHOLD = 2;
 
     private final JPanel shellPanel;
     private final JPanel windowChromePanel;
@@ -69,8 +70,50 @@ public class DuckWindow extends JFrame {
     private Point locationBeforeMaximise;
     private Point titleDragAnchorOnScreen;
     private Point titleDragWindowLocation;
+    private boolean titleDragMoved;
     private Rectangle resizeStartBounds;
     private Point resizeStartOnScreen;
+    private final MouseAdapter windowDragAdapter = new MouseAdapter() {
+        @Override
+        public void mousePressed(MouseEvent event) {
+            if (!SwingUtilities.isLeftMouseButton(event) || fullscreen) {
+                return;
+            }
+            titleDragAnchorOnScreen = event.getLocationOnScreen();
+            titleDragWindowLocation = getLocation();
+            titleDragMoved = false;
+        }
+
+        @Override
+        public void mouseDragged(MouseEvent event) {
+            if (!SwingUtilities.isLeftMouseButton(event) || titleDragAnchorOnScreen == null
+                    || titleDragWindowLocation == null || fullscreen || maximised) {
+                return;
+            }
+            Point currentOnScreen = event.getLocationOnScreen();
+            int deltaX = currentOnScreen.x - titleDragAnchorOnScreen.x;
+            int deltaY = currentOnScreen.y - titleDragAnchorOnScreen.y;
+            titleDragMoved = titleDragMoved || deltaX != 0 || deltaY != 0;
+            setLocation(titleDragWindowLocation.x + deltaX, titleDragWindowLocation.y + deltaY);
+        }
+
+        @Override
+        public void mouseReleased(MouseEvent event) {
+            if (titleDragMoved && ShouldSnapMaximise(event.getLocationOnScreen())) {
+                MaximiseWindow();
+            }
+            titleDragAnchorOnScreen = null;
+            titleDragWindowLocation = null;
+            titleDragMoved = false;
+        }
+
+        @Override
+        public void mouseClicked(MouseEvent event) {
+            if (event.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(event) && isResizable()) {
+                ToggleMaximise();
+            }
+        }
+    };
 
     /**
      * Creates a window with explicit dimensions and resize behaviour.
@@ -196,6 +239,7 @@ public class DuckWindow extends JFrame {
         attachedMenuBar = menuBar;
         if (menuBar != null) {
             menuBarHost.add(menuBar, BorderLayout.CENTER);
+            installWindowDragInteractions(menuBar);
         }
         updateWindowChromeState();
         menuBarHost.revalidate();
@@ -241,19 +285,10 @@ public class DuckWindow extends JFrame {
         }
 
         if (maximised) {
-            setExtendedState(JFrame.NORMAL);
-            if (sizeBeforeMaximise != null) {
-                setSize(sizeBeforeMaximise);
-            }
-            if (locationBeforeMaximise != null) {
-                setLocation(locationBeforeMaximise);
-            }
+            RestoreWindowedBounds();
         } else {
-            sizeBeforeMaximise = getSize();
-            locationBeforeMaximise = getLocation();
-            setExtendedState(JFrame.MAXIMIZED_BOTH);
+            MaximiseWindow();
         }
-        maximised = !maximised;
         updateWindowChromeState();
     }
 
@@ -369,48 +404,10 @@ public class DuckWindow extends JFrame {
     }
 
     private void installTitleBarInteractions() {
-        MouseAdapter dragAdapter = new MouseAdapter() {
-            @Override
-            public void mousePressed(MouseEvent event) {
-                if (!SwingUtilities.isLeftMouseButton(event) || fullscreen) {
-                    return;
-                }
-                titleDragAnchorOnScreen = event.getLocationOnScreen();
-                titleDragWindowLocation = getLocation();
-            }
-
-            @Override
-            public void mouseDragged(MouseEvent event) {
-                if (!SwingUtilities.isLeftMouseButton(event) || titleDragAnchorOnScreen == null
-                        || titleDragWindowLocation == null || fullscreen || maximised) {
-                    return;
-                }
-                Point currentOnScreen = event.getLocationOnScreen();
-                int deltaX = currentOnScreen.x - titleDragAnchorOnScreen.x;
-                int deltaY = currentOnScreen.y - titleDragAnchorOnScreen.y;
-                setLocation(titleDragWindowLocation.x + deltaX, titleDragWindowLocation.y + deltaY);
-            }
-
-            @Override
-            public void mouseReleased(MouseEvent event) {
-                titleDragAnchorOnScreen = null;
-                titleDragWindowLocation = null;
-            }
-
-            @Override
-            public void mouseClicked(MouseEvent event) {
-                if (event.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(event) && isResizable()) {
-                    ToggleMaximise();
-                }
-            }
-        };
-
-        titleBarPanel.addMouseListener(dragAdapter);
-        titleBarPanel.addMouseMotionListener(dragAdapter);
-        titleLabel.addMouseListener(dragAdapter);
-        titleLabel.addMouseMotionListener(dragAdapter);
-        titleIconLabel.addMouseListener(dragAdapter);
-        titleIconLabel.addMouseMotionListener(dragAdapter);
+        installWindowDragInteractions(titleBarPanel);
+        installWindowDragInteractions(titleLabel);
+        installWindowDragInteractions(titleIconLabel);
+        installWindowDragInteractions(menuBarHost);
     }
 
     private void applyWindowChromeTheme() {
@@ -494,6 +491,57 @@ public class DuckWindow extends JFrame {
 
     private boolean isFrameMaximised() {
         return (getExtendedState() & JFrame.MAXIMIZED_BOTH) == JFrame.MAXIMIZED_BOTH;
+    }
+
+    private void installWindowDragInteractions(java.awt.Component component) {
+        if (component == null || component instanceof JButton) {
+            return;
+        }
+        if (component instanceof javax.swing.JComponent themedComponent
+                && Boolean.TRUE.equals(themedComponent.getClientProperty("duckwindow.dragInstalled"))) {
+            return;
+        }
+        component.addMouseListener(windowDragAdapter);
+        component.addMouseMotionListener(windowDragAdapter);
+        if (component instanceof javax.swing.JComponent themedComponent) {
+            themedComponent.putClientProperty("duckwindow.dragInstalled", Boolean.TRUE);
+        }
+    }
+
+    private boolean ShouldSnapMaximise(Point screenPoint) {
+        if (screenPoint == null || !isResizable() || fullscreen || maximised) {
+            return false;
+        }
+
+        for (GraphicsDevice graphicsDevice : GraphicsEnvironment.getLocalGraphicsEnvironment().getScreenDevices()) {
+            Rectangle bounds = graphicsDevice.getDefaultConfiguration().getBounds();
+            if (screenPoint.x < bounds.x || screenPoint.x >= bounds.x + bounds.width) {
+                continue;
+            }
+            return screenPoint.y <= bounds.y + SNAP_MAXIMISE_THRESHOLD;
+        }
+        return false;
+    }
+
+    private void MaximiseWindow() {
+        if (!isResizable() || fullscreen || maximised) {
+            return;
+        }
+        sizeBeforeMaximise = getSize();
+        locationBeforeMaximise = getLocation();
+        setExtendedState(JFrame.MAXIMIZED_BOTH);
+        maximised = true;
+    }
+
+    private void RestoreWindowedBounds() {
+        setExtendedState(JFrame.NORMAL);
+        if (sizeBeforeMaximise != null) {
+            setSize(sizeBeforeMaximise);
+        }
+        if (locationBeforeMaximise != null) {
+            setLocation(locationBeforeMaximise);
+        }
+        maximised = false;
     }
 
     private int cursorForDirection(int directionMask) {

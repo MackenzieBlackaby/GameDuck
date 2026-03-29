@@ -344,7 +344,6 @@ public class DuckAPU {
         for (int address = DuckAddresses.WAVE_PATTERN_START; address <= DuckAddresses.WAVE_PATTERN_END; address++) {
             memory.WriteDirect(address, waveRam[address - DuckAddresses.WAVE_PATTERN_START]);
         }
-        audioOutput.DiscardBufferedAudio();
     }
 
     private void SyncMirrors() {
@@ -402,31 +401,33 @@ public class DuckAPU {
     }
 
     private void WriteMixedSample() {
-        if (!powerEnabled || !Settings.soundEnabled || Settings.masterVolume <= 0) {
-            return;
+        double leftOutput = 0.0;
+        double rightOutput = 0.0;
+
+        if (powerEnabled && Settings.soundEnabled && Settings.masterVolume > 0) {
+            boolean[] muted = Settings.channelMuted;
+            int[] volumes = Settings.channelVolume;
+
+            double channel1Sample = ApplyChannelSettings(channel1.Sample(), muted[0], volumes[0]);
+            double channel2Sample = ApplyChannelSettings(channel2.Sample(), muted[1], volumes[1]);
+            double channel3Sample = ApplyChannelSettings(channel3.Sample(), muted[2], volumes[2]);
+            double channel4Sample = ApplyChannelSettings(channel4.Sample(), muted[3], volumes[3]);
+
+            int leftRouteMask = (nr51 >>> 4) & 0x0F;
+            int rightRouteMask = nr51 & 0x0F;
+
+            double leftMix = MixChannels(leftRouteMask, channel1Sample, channel2Sample, channel3Sample, channel4Sample);
+            double rightMix = MixChannels(rightRouteMask, channel1Sample, channel2Sample, channel3Sample, channel4Sample);
+
+            double masterVolume = Settings.masterVolume / 100.0;
+            double leftVolume = TerminalOutputScale((nr50 >>> 4) & 0x07);
+            double rightVolume = TerminalOutputScale(nr50 & 0x07);
+
+            leftOutput = (leftMix / 4.0) * leftVolume * masterVolume * 0.30;
+            rightOutput = (rightMix / 4.0) * rightVolume * masterVolume * 0.30;
         }
 
-        boolean[] muted = Settings.channelMuted;
-        int[] volumes = Settings.channelVolume;
-
-        double channel1Sample = ApplyChannelSettings(channel1.Sample(), muted[0], volumes[0]);
-        double channel2Sample = ApplyChannelSettings(channel2.Sample(), muted[1], volumes[1]);
-        double channel3Sample = ApplyChannelSettings(channel3.Sample(), muted[2], volumes[2]);
-        double channel4Sample = ApplyChannelSettings(channel4.Sample(), muted[3], volumes[3]);
-
-        int leftRouteMask = (nr51 >>> 4) & 0x0F;
-        int rightRouteMask = nr51 & 0x0F;
-
-        double leftMix = MixChannels(leftRouteMask, channel1Sample, channel2Sample, channel3Sample, channel4Sample);
-        double rightMix = MixChannels(rightRouteMask, channel1Sample, channel2Sample, channel3Sample, channel4Sample);
-
-        double masterVolume = Settings.masterVolume / 100.0;
-        double leftVolume = ((nr50 >>> 4) & 0x07) / 7.0;
-        double rightVolume = (nr50 & 0x07) / 7.0;
-
-        audioOutput.WriteSample(
-                (leftMix / 4.0) * leftVolume * masterVolume * 0.30,
-                (rightMix / 4.0) * rightVolume * masterVolume * 0.30);
+        audioOutput.WriteSample(leftOutput, rightOutput);
     }
 
     private double ApplyChannelSettings(double sample, boolean muted, int volume) {
@@ -452,6 +453,27 @@ public class DuckAPU {
             mix += channel4Sample;
         }
         return mix;
+    }
+
+    static double TerminalOutputScale(int terminalVolume) {
+        int clampedVolume = Math.max(0, Math.min(7, terminalVolume));
+        // NR50 scales each terminal from 1/8 to 8/8; zero is the quietest step,
+        // not a hard mute.
+        return (clampedVolume + 1) / 8.0;
+    }
+
+    static double WaveSampleAmplitude(int sample, int volumeCode) {
+        int clampedSample = Math.max(0, Math.min(15, sample));
+        // Channel 3 attenuation needs to preserve the wave's midpoint; shifting
+        // the already-centred waveform avoids pinning quieter settings negative.
+        double centredSample = (clampedSample - 7.5) / 7.5;
+        return switch (volumeCode & 0x03) {
+            case 0 -> 0.0;
+            case 1 -> centredSample;
+            case 2 -> centredSample * 0.5;
+            case 3 -> centredSample * 0.25;
+            default -> 0.0;
+        };
     }
 
     private PulseChannelState CapturePulseChannel(PulseChannel channel) {
@@ -912,14 +934,7 @@ public class DuckAPU {
             int sampleByte = waveRam[sampleIndex >>> 1] & 0xFF;
             int sample = ((sampleIndex & 1) == 0) ? (sampleByte >>> 4) : (sampleByte & 0x0F);
             int volumeCode = (nr2 >>> 5) & 0x03;
-            int shifted = switch (volumeCode) {
-                case 0 -> 0;
-                case 1 -> sample;
-                case 2 -> sample >>> 1;
-                case 3 -> sample >>> 2;
-                default -> 0;
-            };
-            return ((shifted / 15.0) * 2.0) - 1.0;
+            return WaveSampleAmplitude(sample, volumeCode);
         }
 
         @Override

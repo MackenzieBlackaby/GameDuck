@@ -2,6 +2,7 @@ package com.blackaby.Misc;
 
 import com.blackaby.Backend.GB.Graphics.GBColor;
 
+import java.util.Arrays;
 import java.util.List;
 
 /**
@@ -103,22 +104,22 @@ public final class Settings {
     public static int controllerDeadzonePercent = 45;
 
     /** Whether host audio output is enabled. */
-    public static boolean soundEnabled = true;
+    public static volatile boolean soundEnabled = true;
 
     /** Master output volume as a percentage from 0 to 100. */
-    public static int masterVolume = 100;
+    public static volatile int masterVolume = 100;
 
     /** Whether each of the four DMG audio channels is muted. */
-    public static boolean[] channelMuted = new boolean[] { false, false, false, false };
+    public static final boolean[] channelMuted = new boolean[] { false, false, false, false };
 
     /** Per-channel volume as a percentage from 0 to 100. */
-    public static int[] channelVolume = new int[] { 100, 100, 100, 100 };
+    public static final int[] channelVolume = new int[] { 100, 100, 100, 100 };
 
     /** Ordered host-side enhancement chain applied after APU mixing. */
     public static volatile List<AudioEnhancementSetting> audioEnhancementChain = List.of();
 
     /** Whether the host-side enhancement chain should be applied to audio output. */
-    public static boolean audioEnhancementChainEnabled = false;
+    public static volatile boolean audioEnhancementChainEnabled = false;
 
     /** Monotonic version used to refresh the live enhancement chain. */
     private static volatile long audioEnhancementChainVersion;
@@ -282,8 +283,8 @@ public final class Settings {
     public static void ResetSound() {
         soundEnabled = true;
         masterVolume = 100;
-        channelMuted = new boolean[] { false, false, false, false };
-        channelVolume = new int[] { 100, 100, 100, 100 };
+        Arrays.fill(channelMuted, false);
+        Arrays.fill(channelVolume, 100);
         audioEnhancementChainEnabled = false;
         SetAudioEnhancementChainInternal(List.of(), false);
 

@@ -9,6 +9,7 @@ import javax.sound.sampled.SourceDataLine;
 import java.util.Arrays;
 import java.util.concurrent.BlockingDeque;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Wraps the host PCM output line used by the emulator.
@@ -20,6 +21,7 @@ public class DuckAudioOutput {
     private static final int frameBytes = channels * bytesPerSample;
     private static final int bufferFrames = 1024;
     private static final int queuedBatchCount = 8;
+    private static final long queueOfferTimeoutMillis = 4L;
 
     private final byte[] buffer = new byte[bufferFrames * frameBytes];
     private final BlockingDeque<byte[]> pendingBatches = new LinkedBlockingDeque<>(queuedBatchCount);
@@ -66,50 +68,54 @@ public class DuckAudioOutput {
      * @param left left channel sample from -1.0 to 1.0
      * @param right right channel sample from -1.0 to 1.0
      */
-    public synchronized void WriteSample(double left, double right) {
+    public void WriteSample(double left, double right) {
         if (!available) {
             return;
         }
 
-        SyncEnhancementChain();
-        AudioEnhancementChain.StereoFrame processedFrame = enhancementChain.Process(left, right);
+        byte[] batchToEnqueue;
+        synchronized (this) {
+            if (!available) {
+                return;
+            }
 
-        short leftSample = ToPcm16(processedFrame.Left());
-        short rightSample = ToPcm16(processedFrame.Right());
+            SyncEnhancementChain();
+            AudioEnhancementChain.StereoFrame processedFrame = enhancementChain.Process(left, right);
 
-        buffer[writeIndex++] = (byte) (leftSample & 0xFF);
-        buffer[writeIndex++] = (byte) ((leftSample >>> 8) & 0xFF);
-        buffer[writeIndex++] = (byte) (rightSample & 0xFF);
-        buffer[writeIndex++] = (byte) ((rightSample >>> 8) & 0xFF);
+            short leftSample = ToPcm16(processedFrame.Left());
+            short rightSample = ToPcm16(processedFrame.Right());
 
-        if (writeIndex >= buffer.length) {
-            Flush();
+            buffer[writeIndex++] = (byte) (leftSample & 0xFF);
+            buffer[writeIndex++] = (byte) ((leftSample >>> 8) & 0xFF);
+            buffer[writeIndex++] = (byte) (rightSample & 0xFF);
+            buffer[writeIndex++] = (byte) ((rightSample >>> 8) & 0xFF);
+
+            batchToEnqueue = writeIndex >= buffer.length ? DrainBufferedFrames() : null;
+        }
+        if (batchToEnqueue != null) {
+            EnqueueBatch(batchToEnqueue);
         }
     }
 
     /**
      * Flushes the buffered PCM data to the host audio line.
      */
-    public synchronized void Flush() {
-        if (!available || writeIndex == 0) {
-            return;
-        }
+    public void Flush() {
+        byte[] batchToEnqueue;
+        synchronized (this) {
+            if (!available || writeIndex == 0) {
+                return;
+            }
 
-        if (line == null) {
-            writeIndex = 0;
-            enhancementChain.ResetState();
-            return;
+            if (line == null) {
+                writeIndex = 0;
+                enhancementChain.ResetState();
+                return;
+            }
+            batchToEnqueue = DrainBufferedFrames();
         }
-        int bytesToWrite = writeIndex - (writeIndex % frameBytes);
-        if (bytesToWrite <= 0) {
-            writeIndex = 0;
-            return;
-        }
-
-        EnqueueBatch(Arrays.copyOf(buffer, bytesToWrite));
-        writeIndex -= bytesToWrite;
-        if (writeIndex > 0) {
-            System.arraycopy(buffer, bytesToWrite, buffer, 0, writeIndex);
+        if (batchToEnqueue != null) {
+            EnqueueBatch(batchToEnqueue);
         }
     }
 
@@ -163,6 +169,7 @@ public class DuckAudioOutput {
 
         writerThread = new Thread(this::WriterLoop, "DuckAudioOutput");
         writerThread.setDaemon(true);
+        writerThread.setPriority(Math.min(Thread.MAX_PRIORITY, Thread.NORM_PRIORITY + 1));
         writerThread.start();
     }
 
@@ -202,12 +209,38 @@ public class DuckAudioOutput {
             return;
         }
 
-        while (!pendingBatches.offerLast(batch)) {
-            pendingBatches.pollFirst();
-            if (closed) {
+        // Brief backpressure is preferable to dropping older audio, which is
+        // heard immediately as stutter or skipped notes.
+        while (!closed) {
+            try {
+                if (pendingBatches.offerLast(batch, queueOfferTimeoutMillis, TimeUnit.MILLISECONDS)) {
+                    return;
+                }
+            } catch (InterruptedException exception) {
+                if (closed) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+            if (!available) {
                 return;
             }
         }
+    }
+
+    private byte[] DrainBufferedFrames() {
+        int bytesToWrite = writeIndex - (writeIndex % frameBytes);
+        if (bytesToWrite <= 0) {
+            writeIndex = 0;
+            return null;
+        }
+
+        byte[] batch = Arrays.copyOf(buffer, bytesToWrite);
+        writeIndex -= bytesToWrite;
+        if (writeIndex > 0) {
+            System.arraycopy(buffer, bytesToWrite, buffer, 0, writeIndex);
+        }
+        return batch;
     }
 
     private short ToPcm16(double sample) {

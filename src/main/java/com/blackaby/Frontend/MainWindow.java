@@ -324,6 +324,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         JPanel actions = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.CENTER, 10, 0));
         actions.setOpaque(false);
         actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_OPEN_ROM, Action.LOADROM, true));
+        actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_OPEN_ROM_HACK, Action.LOADIPS));
         actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_LIBRARY, Action.LIBRARY));
 
         if (logoLabel.getIcon() != null) {

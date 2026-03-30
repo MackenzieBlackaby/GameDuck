@@ -64,6 +64,7 @@ public final class UiText {
 
         // Primary header action buttons.
         public static final String BUTTON_OPEN_ROM = "Open ROM";
+        public static final String BUTTON_OPEN_ROM_HACK = "Open ROM Hack";
         public static final String BUTTON_LIBRARY = "Library";
         public static final String BUTTON_OPEN_IPS_PATCH = "Open IPS Patch";
         public static final String BUTTON_OPTIONS = "Options";

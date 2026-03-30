@@ -1430,20 +1430,20 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         }
     }
 
-    private void RefreshDisplayStats() {
+    void RefreshDisplayStats() {
         if (displayHintLabel == null || display == null) {
             return;
         }
 
-        DuckDisplay.PresentationStats stats = display.SnapshotPresentationStats();
-        String nextText;
-        if (stats == null || stats.paintedFps() <= 0.0) {
-            nextText = UiText.MainWindow.DISPLAY_HINT;
-        } else {
-            nextText = String.format("%s  %.1f fps  %.2f ms",
-                    UiText.MainWindow.DISPLAY_HINT,
-                    stats.paintedFps(),
-                    stats.averageFrameTimeMs());
+        String nextText = UiText.MainWindow.DISPLAY_HINT;
+        if (Settings.showDisplayFps) {
+            DuckDisplay.PresentationStats stats = display.SnapshotPresentationStats();
+            if (stats != null && stats.paintedFps() > 0.0) {
+                nextText = String.format("%s  %.1f fps  %.2f ms",
+                        UiText.MainWindow.DISPLAY_HINT,
+                        stats.paintedFps(),
+                        stats.averageFrameTimeMs());
+            }
         }
 
         if (!nextText.equals(lastDisplayStatsText)) {

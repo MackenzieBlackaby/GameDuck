@@ -53,6 +53,8 @@ public final class Config {
     private static final String displayShaderKey = "ui.display_shader";
     private static final String displayBorderKey = "ui.display_border";
     private static final String showSerialOutputKey = "ui.show_serial_output";
+    private static final String displayFrameBlendingKey = "ui.display_frame_blending";
+    private static final String showDisplayFpsKey = "ui.show_display_fps";
     private static final String gameArtDisplayModeKey = "ui.game_art_display_mode";
     private static final String gameNameBracketDisplayModeKey = "library.game_name_bracket_display_mode";
     private static final String libraryViewModeKey = "library.view_mode";
@@ -532,6 +534,8 @@ public final class Config {
         Settings.displayShaderId = properties.getProperty(displayShaderKey, "none");
         Settings.displayBorderId = properties.getProperty(displayBorderKey, "none");
         Settings.showSerialOutput = Boolean.parseBoolean(properties.getProperty(showSerialOutputKey, "true"));
+        Settings.enableFrameBlending = Boolean.parseBoolean(properties.getProperty(displayFrameBlendingKey, "true"));
+        Settings.showDisplayFps = Boolean.parseBoolean(properties.getProperty(showDisplayFpsKey, "true"));
         String configuredGameArtMode = properties.getProperty(gameArtDisplayModeKey, GameArtDisplayMode.BOX_ART.name());
         try {
             Settings.gameArtDisplayMode = GameArtDisplayMode.valueOf(configuredGameArtMode);
@@ -652,6 +656,8 @@ public final class Config {
         properties.setProperty(displayBorderKey,
                 Settings.displayBorderId == null || Settings.displayBorderId.isBlank() ? "none" : Settings.displayBorderId);
         properties.setProperty(showSerialOutputKey, String.valueOf(Settings.showSerialOutput));
+        properties.setProperty(displayFrameBlendingKey, String.valueOf(Settings.enableFrameBlending));
+        properties.setProperty(showDisplayFpsKey, String.valueOf(Settings.showDisplayFps));
         properties.setProperty(gameArtDisplayModeKey, Settings.gameArtDisplayMode.name());
     }
 

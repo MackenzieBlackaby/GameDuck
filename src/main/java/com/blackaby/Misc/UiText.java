@@ -946,6 +946,8 @@ public final class UiText {
         // -----------------------------------------------------------------
         public static final String WINDOW_FILL_CHECKBOX = "Fill window with output";
         public static final String WINDOW_INTEGER_SCALE_CHECKBOX = "Use integer scaling";
+        public static final String DISPLAY_FRAME_BLENDING_CHECKBOX = "Enable frame blending";
+        public static final String SHOW_DISPLAY_FPS_CHECKBOX = "Show FPS counter";
         public static final String SERIAL_OUTPUT_CHECKBOX = "Show serial output";
         public static final String GAME_ART_MODE_LABEL = "Game Art";
         public static final String RESET_WINDOW_BUTTON = "Reset Window Layout";

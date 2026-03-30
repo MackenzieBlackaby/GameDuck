@@ -2328,6 +2328,31 @@ public class OptionsWindow extends DuckWindow {
             }
         });
 
+        JCheckBox frameBlendingEnabledCheckBox = new JCheckBox(
+                UiText.OptionsWindow.DISPLAY_FRAME_BLENDING_CHECKBOX,
+                Settings.enableFrameBlending);
+        frameBlendingEnabledCheckBox.setOpaque(false);
+        frameBlendingEnabledCheckBox.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+        frameBlendingEnabledCheckBox.setForeground(accentColour);
+        frameBlendingEnabledCheckBox.addActionListener(event -> {
+            Settings.enableFrameBlending = frameBlendingEnabledCheckBox.isSelected();
+            Config.Save();
+        });
+
+        JCheckBox showDisplayFpsCheckBox = new JCheckBox(
+                UiText.OptionsWindow.SHOW_DISPLAY_FPS_CHECKBOX,
+                Settings.showDisplayFps);
+        showDisplayFpsCheckBox.setOpaque(false);
+        showDisplayFpsCheckBox.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+        showDisplayFpsCheckBox.setForeground(accentColour);
+        showDisplayFpsCheckBox.addActionListener(event -> {
+            Settings.showDisplayFps = showDisplayFpsCheckBox.isSelected();
+            Config.Save();
+            if (mainWindow != null) {
+                mainWindow.RefreshDisplayStats();
+            }
+        });
+
         JCheckBox serialOutputCheckBox = new JCheckBox(UiText.OptionsWindow.SERIAL_OUTPUT_CHECKBOX,
                 Settings.showSerialOutput);
         serialOutputCheckBox.setOpaque(false);
@@ -2344,7 +2369,9 @@ public class OptionsWindow extends DuckWindow {
         JPanel optionStack = createFillStackPanel();
         addFillStackRow(optionStack, createSimpleWindowOptionCard(fillWindowCheckBox), 0, 0);
         addFillStackRow(optionStack, createSimpleWindowOptionCard(integerScaleCheckBox), 1, 10);
-        addFillStackRow(optionStack, createSimpleWindowOptionCard(serialOutputCheckBox), 2, 10);
+        addFillStackRow(optionStack, createSimpleWindowOptionCard(frameBlendingEnabledCheckBox), 2, 10);
+        addFillStackRow(optionStack, createSimpleWindowOptionCard(showDisplayFpsCheckBox), 3, 10);
+        addFillStackRow(optionStack, createSimpleWindowOptionCard(serialOutputCheckBox), 4, 10);
         addFillStackRow(stack, optionStack, stackRow++, 0);
 
         JComboBox<GameArtDisplayMode> gameArtModeSelector = new JComboBox<>(GameArtDisplayMode.values());

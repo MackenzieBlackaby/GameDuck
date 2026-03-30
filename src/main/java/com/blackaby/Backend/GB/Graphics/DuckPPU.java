@@ -154,14 +154,18 @@ public class DuckPPU {
                         SetMode(PpuMode.VBLANK);
                         cpu.RequestInterrupt(DuckCPU.Interrupt.VBLANK);
                         completedFrames++;
-                        if (memory.IsCgbMode()) {
-                            display.presentFrame(
-                                    DuckDisplay.DefaultCgbPreviousFrameBlendWeight(),
-                                    DuckDisplay.DefaultCgbCurrentFrameBlendWeight());
+                        if (Settings.enableFrameBlending) {
+                            if (memory.IsCgbMode()) {
+                                display.presentFrame(
+                                        DuckDisplay.DefaultCgbPreviousFrameBlendWeight(),
+                                        DuckDisplay.DefaultCgbCurrentFrameBlendWeight());
+                            } else {
+                                display.presentFrame(
+                                        DuckDisplay.DefaultDmgPreviousFrameBlendWeight(),
+                                        DuckDisplay.DefaultDmgCurrentFrameBlendWeight());
+                            }
                         } else {
-                            display.presentFrame(
-                                    DuckDisplay.DefaultDmgPreviousFrameBlendWeight(),
-                                    DuckDisplay.DefaultDmgCurrentFrameBlendWeight());
+                            display.presentFrame();
                         }
                     } else {
                         SetMode(PpuMode.OAM);

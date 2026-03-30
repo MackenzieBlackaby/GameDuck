@@ -151,6 +151,12 @@ public final class Settings {
     /** Which libretro artwork type should be shown in the main window. */
     public static GameArtDisplayMode gameArtDisplayMode = GameArtDisplayMode.BOX_ART;
 
+    /** Whether each rendered frame should be blended with the previous frame. */
+    public static boolean enableFrameBlending = true;
+
+    /** Whether the display FPS / frame time label should be shown. */
+    public static boolean showDisplayFps = true;
+
     /** Which bracketed suffixes should be removed from displayed game names. */
     public static GameNameBracketDisplayMode gameNameBracketDisplayMode = GameNameBracketDisplayMode.NONE;
 
@@ -404,6 +410,8 @@ public final class Settings {
         displayShaderId = "none";
         displayBorderId = "none";
         showSerialOutput = true;
+        enableFrameBlending = true;
+        showDisplayFps = true;
         gameArtDisplayMode = GameArtDisplayMode.BOX_ART;
 
     }

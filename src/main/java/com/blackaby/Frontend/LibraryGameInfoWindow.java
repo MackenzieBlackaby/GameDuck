@@ -1,6 +1,6 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Helpers.GameArtProvider;
 import com.blackaby.Backend.Helpers.GameLibraryStore;
 import com.blackaby.Backend.Helpers.GameLibraryStore.LibraryEntry;
@@ -40,7 +40,7 @@ public final class LibraryGameInfoWindow extends DuckWindow {
     private static final DateTimeFormatter lastPlayedFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
 
     private final LibraryEntry entry;
-    private final ROM rom;
+    private final GBRom rom;
     private final Color panelBackground;
     private final Color cardBackground;
     private final Color cardBorder;
@@ -54,11 +54,11 @@ public final class LibraryGameInfoWindow extends DuckWindow {
     private final JButton getArtworkButton = new JButton();
     private final JButton deleteRomButton = new JButton();
 
-    public LibraryGameInfoWindow(LibraryEntry entry, ROM rom) {
+    public LibraryGameInfoWindow(LibraryEntry entry, GBRom rom) {
         this(entry, rom, null, null);
     }
 
-    public LibraryGameInfoWindow(LibraryEntry entry, ROM rom, Runnable artworkUpdatedAction, Runnable entryDeletedAction) {
+    public LibraryGameInfoWindow(LibraryEntry entry, GBRom rom, Runnable artworkUpdatedAction, Runnable entryDeletedAction) {
         super(UiText.LibraryWindow.INFO_WINDOW_TITLE, 760, 640, true);
         this.entry = entry;
         this.rom = rom;

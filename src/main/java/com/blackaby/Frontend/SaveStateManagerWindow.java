@@ -1,6 +1,6 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Helpers.GameArtProvider;
 import com.blackaby.Backend.Helpers.GameLibraryStore;
 import com.blackaby.Backend.Helpers.GameLibraryStore.LibraryEntry;
@@ -461,7 +461,7 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
     }
 
     private boolean isCurrentGame(LibraryEntry entry) {
-        ROM currentRom = mainWindow == null ? null : mainWindow.GetCurrentLoadedRom();
+        GBRom currentRom = mainWindow == null ? null : mainWindow.GetCurrentLoadedRom();
         return entry != null
                 && currentRom != null
                 && safeText(entry.sourcePath()).equals(safeText(currentRom.GetSourcePath()))

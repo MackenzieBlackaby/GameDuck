@@ -3,7 +3,7 @@ package com.blackaby.Backend.GB.Memory;
 /**
  * Supported Game Boy cartridge mapper families.
  */
-public enum CartridgeMapperType {
+public enum GBMapperTypes {
     ROM_ONLY,
     MBC1,
     MBC2,
@@ -11,4 +11,3 @@ public enum CartridgeMapperType {
     MBC5,
     UNSUPPORTED
 }
-

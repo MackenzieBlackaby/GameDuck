@@ -1,10 +1,10 @@
 package com.blackaby.Backend.GB.Memory;
 
-import com.blackaby.Backend.GB.CPU.DuckCPU;
-import com.blackaby.Backend.GB.Misc.ROM;
-import com.blackaby.Backend.GB.Peripherals.DuckAPU;
-import com.blackaby.Backend.GB.Peripherals.DuckJoypad;
-import com.blackaby.Backend.GB.Peripherals.DuckTimer;
+import com.blackaby.Backend.GB.CPU.GBProcessor;
+import com.blackaby.Backend.GB.Misc.GBRom;
+import com.blackaby.Backend.GB.Peripherals.GBAudioProcessingUnit;
+import com.blackaby.Backend.GB.Peripherals.GBGamepad;
+import com.blackaby.Backend.GB.Peripherals.GBTimerSet;
 
 import java.util.Arrays;
 
@@ -17,7 +17,7 @@ import java.util.Arrays;
  * bank switching, WRAM bank switching, palette RAM, and the extra boot ROM
  * layout used by the color models.
  */
-public class DuckMemory {
+public class GBMemory {
 
     public record MemoryState(
             int[] ram,
@@ -42,7 +42,7 @@ public class DuckMemory {
             int[][] wramBanks,
             int[] bgPaletteRam,
             int[] objPaletteRam,
-            CartridgeController.MapperState cartridgeState) implements java.io.Serializable {
+            GBCartController.MapperState cartridgeState) implements java.io.Serializable {
     }
 
     private static final int vramBankSize = 0x2000;
@@ -53,13 +53,13 @@ public class DuckMemory {
     private int[] bootRom;
     private boolean bootRomMapped;
     private boolean cgbBootRomMapped;
-    private CartridgeController cartridge;
-    private ROM currentRom;
-    private DuckTimer timer;
-    private DuckCPU cpu;
-    private DuckJoypad joypad;
-    private DuckAPU apu;
-    private CheatEngine cheatEngine;
+    private GBCartController cartridge;
+    private GBRom currentRom;
+    private GBTimerSet timer;
+    private GBProcessor cpu;
+    private GBGamepad joypad;
+    private GBAudioProcessingUnit apu;
+    private GBCheatEngine cheatEngine;
 
     private final int[][] vramBanks = new int[2][vramBankSize];
     private final int[][] wramBanks = new int[8][wramBankSize];
@@ -87,8 +87,8 @@ public class DuckMemory {
     /**
      * Creates an empty memory map with no cartridge attached.
      */
-    public DuckMemory() {
-        ram = new int[DuckAddresses.MEMORY_SIZE];
+    public GBMemory() {
+        ram = new int[GBMemAddresses.MEMORY_SIZE];
     }
 
     /**
@@ -96,7 +96,7 @@ public class DuckMemory {
      *
      * @param timer timer instance
      */
-    public void SetTimer(DuckTimer timer) {
+    public void SetTimer(GBTimerSet timer) {
         this.timer = timer;
     }
 
@@ -105,7 +105,7 @@ public class DuckMemory {
      *
      * @param cpu CPU instance
      */
-    public void SetCpu(DuckCPU cpu) {
+    public void SetCpu(GBProcessor cpu) {
         this.cpu = cpu;
     }
 
@@ -114,10 +114,10 @@ public class DuckMemory {
      *
      * @param joypad joypad instance
      */
-    public void SetJoypad(DuckJoypad joypad) {
+    public void SetJoypad(GBGamepad joypad) {
         this.joypad = joypad;
         if (joypad != null) {
-            WriteDirect(DuckAddresses.JOYPAD, joypad.ReadRegister());
+            WriteDirect(GBMemAddresses.JOYPAD, joypad.ReadRegister());
         }
     }
 
@@ -126,10 +126,10 @@ public class DuckMemory {
      *
      * @param apu audio unit
      */
-    public void SetApu(DuckAPU apu) {
+    public void SetApu(GBAudioProcessingUnit apu) {
         this.apu = apu;
         if (apu != null) {
-            WriteDirect(DuckAddresses.NR52, apu.Read(DuckAddresses.NR52));
+            WriteDirect(GBMemAddresses.NR52, apu.Read(GBMemAddresses.NR52));
         }
     }
 
@@ -138,7 +138,7 @@ public class DuckMemory {
      *
      * @param cheatEngine compiled cheat engine
      */
-    public void SetCheatEngine(CheatEngine cheatEngine) {
+    public void SetCheatEngine(GBCheatEngine cheatEngine) {
         this.cheatEngine = cheatEngine;
     }
 
@@ -147,7 +147,7 @@ public class DuckMemory {
      *
      * @param rom cartridge image to attach
      */
-    public void LoadRom(ROM rom) {
+    public void LoadRom(GBRom rom) {
         LoadRom(rom, rom != null && rom.IsCgbCompatible());
     }
 
@@ -158,12 +158,12 @@ public class DuckMemory {
      * @param rom        cartridge image to attach
      * @param useCgbMode whether to enable CGB hardware when the cartridge allows it
      */
-    public void LoadRom(ROM rom, boolean useCgbMode) {
-        cartridge = CartridgeController.Create(rom);
+    public void LoadRom(GBRom rom, boolean useCgbMode) {
+        cartridge = GBCartController.Create(rom);
         currentRom = rom;
         cgbMode = rom != null && (rom.IsCgbOnly() || (rom.IsCgbCompatible() && useCgbMode));
 
-        ram = new int[DuckAddresses.MEMORY_SIZE];
+        ram = new int[GBMemAddresses.MEMORY_SIZE];
         bootRom = null;
         bootRomMapped = false;
         cgbBootRomMapped = false;
@@ -232,7 +232,7 @@ public class DuckMemory {
 
         bootRomMapped = true;
         cgbBootRomMapped = isCgbBootRom;
-        WriteDirect(DuckAddresses.BOOT_ROM_DISABLE, 0x00);
+        WriteDirect(GBMemAddresses.BOOT_ROM_DISABLE, 0x00);
     }
 
     /**
@@ -242,17 +242,17 @@ public class DuckMemory {
     public void InitialiseDmgBootState() {
         if (joypad != null) {
             joypad.Reset();
-            WriteDirect(DuckAddresses.JOYPAD, joypad.ReadRegister());
+            WriteDirect(GBMemAddresses.JOYPAD, joypad.ReadRegister());
         } else {
-            WriteDirect(DuckAddresses.JOYPAD, 0xCF);
+            WriteDirect(GBMemAddresses.JOYPAD, 0xCF);
         }
 
-        WriteDirect(DuckAddresses.SERIAL_DATA, 0x00);
-        WriteDirect(DuckAddresses.SERIAL_CONTROL, 0x7E);
-        WriteDirect(DuckAddresses.TIMA, 0x00);
-        WriteDirect(DuckAddresses.TMA, 0x00);
-        WriteDirect(DuckAddresses.TAC, 0xF8);
-        WriteDirect(DuckAddresses.INTERRUPT_FLAG, 0xE1);
+        WriteDirect(GBMemAddresses.SERIAL_DATA, 0x00);
+        WriteDirect(GBMemAddresses.SERIAL_CONTROL, 0x7E);
+        WriteDirect(GBMemAddresses.TIMA, 0x00);
+        WriteDirect(GBMemAddresses.TMA, 0x00);
+        WriteDirect(GBMemAddresses.TAC, 0xF8);
+        WriteDirect(GBMemAddresses.INTERRUPT_FLAG, 0xE1);
 
         if (apu != null) {
             apu.InitialiseDmgBootState();
@@ -280,20 +280,20 @@ public class DuckMemory {
             WriteDirect(0xFF26, 0xF1);
         }
 
-        WriteDirect(DuckAddresses.LCDC, 0x91);
-        WriteDirect(DuckAddresses.STAT, 0x80);
-        WriteDirect(DuckAddresses.SCY, 0x00);
-        WriteDirect(DuckAddresses.SCX, 0x00);
-        WriteDirect(DuckAddresses.LY, 0x00);
-        WriteDirect(DuckAddresses.LYC, 0x00);
-        WriteDirect(DuckAddresses.DMA, 0xFF);
-        WriteDirect(DuckAddresses.BGP, 0xFC);
-        WriteDirect(DuckAddresses.OBP0, 0xFF);
-        WriteDirect(DuckAddresses.OBP1, 0xFF);
-        WriteDirect(DuckAddresses.WY, 0x00);
-        WriteDirect(DuckAddresses.WX, 0x00);
-        WriteDirect(DuckAddresses.IE, 0x00);
-        WriteDirect(DuckAddresses.BOOT_ROM_DISABLE, 0x01);
+        WriteDirect(GBMemAddresses.LCDC, 0x91);
+        WriteDirect(GBMemAddresses.STAT, 0x80);
+        WriteDirect(GBMemAddresses.SCY, 0x00);
+        WriteDirect(GBMemAddresses.SCX, 0x00);
+        WriteDirect(GBMemAddresses.LY, 0x00);
+        WriteDirect(GBMemAddresses.LYC, 0x00);
+        WriteDirect(GBMemAddresses.DMA, 0xFF);
+        WriteDirect(GBMemAddresses.BGP, 0xFC);
+        WriteDirect(GBMemAddresses.OBP0, 0xFF);
+        WriteDirect(GBMemAddresses.OBP1, 0xFF);
+        WriteDirect(GBMemAddresses.WY, 0x00);
+        WriteDirect(GBMemAddresses.WX, 0x00);
+        WriteDirect(GBMemAddresses.IE, 0x00);
+        WriteDirect(GBMemAddresses.BOOT_ROM_DISABLE, 0x01);
     }
 
     /**
@@ -302,17 +302,17 @@ public class DuckMemory {
     public void InitialiseCgbBootState() {
         if (joypad != null) {
             joypad.Reset();
-            WriteDirect(DuckAddresses.JOYPAD, joypad.ReadRegister());
+            WriteDirect(GBMemAddresses.JOYPAD, joypad.ReadRegister());
         } else {
-            WriteDirect(DuckAddresses.JOYPAD, 0xCF);
+            WriteDirect(GBMemAddresses.JOYPAD, 0xCF);
         }
 
-        WriteDirect(DuckAddresses.SERIAL_DATA, 0x00);
-        WriteDirect(DuckAddresses.SERIAL_CONTROL, 0x7F);
-        WriteDirect(DuckAddresses.TIMA, 0x00);
-        WriteDirect(DuckAddresses.TMA, 0x00);
-        WriteDirect(DuckAddresses.TAC, 0xF8);
-        WriteDirect(DuckAddresses.INTERRUPT_FLAG, 0xE1);
+        WriteDirect(GBMemAddresses.SERIAL_DATA, 0x00);
+        WriteDirect(GBMemAddresses.SERIAL_CONTROL, 0x7F);
+        WriteDirect(GBMemAddresses.TIMA, 0x00);
+        WriteDirect(GBMemAddresses.TMA, 0x00);
+        WriteDirect(GBMemAddresses.TAC, 0xF8);
+        WriteDirect(GBMemAddresses.INTERRUPT_FLAG, 0xE1);
 
         if (apu != null) {
             apu.InitialiseDmgBootState();
@@ -340,36 +340,36 @@ public class DuckMemory {
             WriteDirect(0xFF26, 0xF1);
         }
 
-        WriteDirect(DuckAddresses.LCDC, 0x91);
-        WriteDirect(DuckAddresses.STAT, 0x80);
-        WriteDirect(DuckAddresses.SCY, 0x00);
-        WriteDirect(DuckAddresses.SCX, 0x00);
-        WriteDirect(DuckAddresses.LY, 0x00);
-        WriteDirect(DuckAddresses.LYC, 0x00);
-        WriteDirect(DuckAddresses.DMA, 0x00);
-        WriteDirect(DuckAddresses.BGP, 0xFC);
-        WriteDirect(DuckAddresses.OBP0, 0xFF);
-        WriteDirect(DuckAddresses.OBP1, 0xFF);
-        WriteDirect(DuckAddresses.WY, 0x00);
-        WriteDirect(DuckAddresses.WX, 0x00);
-        WriteDirect(DuckAddresses.KEY1, 0x00);
-        WriteDirect(DuckAddresses.VBK, 0x00);
-        WriteDirect(DuckAddresses.HDMA1, 0xFF);
-        WriteDirect(DuckAddresses.HDMA2, 0xFF);
-        WriteDirect(DuckAddresses.HDMA3, 0xFF);
-        WriteDirect(DuckAddresses.HDMA4, 0xFF);
-        WriteDirect(DuckAddresses.HDMA5, 0xFF);
-        WriteDirect(DuckAddresses.RP, 0x00);
-        WriteDirect(DuckAddresses.BCPS, 0xC0);
-        WriteDirect(DuckAddresses.OCPS, 0xC0);
-        WriteDirect(DuckAddresses.OPRI, 0x00);
-        WriteDirect(DuckAddresses.SVBK, 0x01);
-        WriteDirect(DuckAddresses.IE, 0x00);
+        WriteDirect(GBMemAddresses.LCDC, 0x91);
+        WriteDirect(GBMemAddresses.STAT, 0x80);
+        WriteDirect(GBMemAddresses.SCY, 0x00);
+        WriteDirect(GBMemAddresses.SCX, 0x00);
+        WriteDirect(GBMemAddresses.LY, 0x00);
+        WriteDirect(GBMemAddresses.LYC, 0x00);
+        WriteDirect(GBMemAddresses.DMA, 0x00);
+        WriteDirect(GBMemAddresses.BGP, 0xFC);
+        WriteDirect(GBMemAddresses.OBP0, 0xFF);
+        WriteDirect(GBMemAddresses.OBP1, 0xFF);
+        WriteDirect(GBMemAddresses.WY, 0x00);
+        WriteDirect(GBMemAddresses.WX, 0x00);
+        WriteDirect(GBMemAddresses.KEY1, 0x00);
+        WriteDirect(GBMemAddresses.VBK, 0x00);
+        WriteDirect(GBMemAddresses.HDMA1, 0xFF);
+        WriteDirect(GBMemAddresses.HDMA2, 0xFF);
+        WriteDirect(GBMemAddresses.HDMA3, 0xFF);
+        WriteDirect(GBMemAddresses.HDMA4, 0xFF);
+        WriteDirect(GBMemAddresses.HDMA5, 0xFF);
+        WriteDirect(GBMemAddresses.RP, 0x00);
+        WriteDirect(GBMemAddresses.BCPS, 0xC0);
+        WriteDirect(GBMemAddresses.OCPS, 0xC0);
+        WriteDirect(GBMemAddresses.OPRI, 0x00);
+        WriteDirect(GBMemAddresses.SVBK, 0x01);
+        WriteDirect(GBMemAddresses.IE, 0x00);
 
         InitialiseCgbPalettesToWhite(bgPaletteRam, bgPaletteRgbCache);
         InitialiseCgbPalettesToWhite(objPaletteRam, objPaletteRgbCache);
 
-        WriteDirect(DuckAddresses.BOOT_ROM_DISABLE, 0x01);
+        WriteDirect(GBMemAddresses.BOOT_ROM_DISABLE, 0x01);
     }
 
     /**
@@ -383,49 +383,49 @@ public class DuckMemory {
         address &= 0xFFFF;
         value &= 0xFF;
 
-        if (address >= DuckAddresses.NOT_USABLE_START && address <= DuckAddresses.NOT_USABLE_END) {
+        if (address >= GBMemAddresses.NOT_USABLE_START && address <= GBMemAddresses.NOT_USABLE_END) {
             return;
         }
 
-        if (address >= DuckAddresses.VRAM_START && address <= DuckAddresses.VRAM_END) {
-            vramBanks[activeVramBank][address - DuckAddresses.VRAM_START] = value;
+        if (address >= GBMemAddresses.VRAM_START && address <= GBMemAddresses.VRAM_END) {
+            vramBanks[activeVramBank][address - GBMemAddresses.VRAM_START] = value;
             return;
         }
 
-        if (address >= DuckAddresses.WORK_RAM_START && address <= 0xCFFF) {
-            wramBanks[0][address - DuckAddresses.WORK_RAM_START] = value;
+        if (address >= GBMemAddresses.WORK_RAM_START && address <= 0xCFFF) {
+            wramBanks[0][address - GBMemAddresses.WORK_RAM_START] = value;
             return;
         }
 
-        if (address >= 0xD000 && address <= DuckAddresses.WORK_RAM_END) {
+        if (address >= 0xD000 && address <= GBMemAddresses.WORK_RAM_END) {
             wramBanks[activeWramBank][address - 0xD000] = value;
             return;
         }
 
-        if (address >= DuckAddresses.ECHO_RAM_START && address <= DuckAddresses.ECHO_RAM_END) {
+        if (address >= GBMemAddresses.ECHO_RAM_START && address <= GBMemAddresses.ECHO_RAM_END) {
             WriteDirect(address - 0x2000, value);
             return;
         }
 
-        if (address == DuckAddresses.VBK) {
+        if (address == GBMemAddresses.VBK) {
             activeVramBank = value & 0x01;
             ram[address] = 0xFE | activeVramBank;
             return;
         }
 
-        if (address == DuckAddresses.SVBK) {
+        if (address == GBMemAddresses.SVBK) {
             activeWramBank = DecodeWramBank(value);
             ram[address] = 0xF8 | activeWramBank;
             return;
         }
 
-        if (address == DuckAddresses.KEY1) {
+        if (address == GBMemAddresses.KEY1) {
             key1Armed = (value & 0x01) != 0;
             ram[address] = (doubleSpeedMode ? 0x80 : 0x00) | (key1Armed ? 0x01 : 0x00);
             return;
         }
 
-        if (address == DuckAddresses.BCPS || address == DuckAddresses.OCPS) {
+        if (address == GBMemAddresses.BCPS || address == GBMemAddresses.OCPS) {
             ram[address] = 0x40 | (value & 0xBF);
             return;
         }
@@ -442,7 +442,7 @@ public class DuckMemory {
     public int Read(int address) {
         int resolvedAddress = address & 0xFFFF;
         int value = ReadInternal(resolvedAddress);
-        CheatEngine currentCheatEngine = cheatEngine;
+        GBCheatEngine currentCheatEngine = cheatEngine;
         if (currentCheatEngine == null || !currentCheatEngine.HasReadOverrides()) {
             return value;
         }
@@ -460,94 +460,94 @@ public class DuckMemory {
             return bootRom[BootRomIndex(address)] & 0xFF;
         }
 
-        if (address <= DuckAddresses.ROM_BANK_N_END) {
+        if (address <= GBMemAddresses.ROM_BANK_N_END) {
             return cartridge != null ? cartridge.ReadRom(address) : 0xFF;
         }
 
-        if (address >= DuckAddresses.VRAM_START && address <= DuckAddresses.VRAM_END) {
-            return vramBanks[activeVramBank][address - DuckAddresses.VRAM_START] & 0xFF;
+        if (address >= GBMemAddresses.VRAM_START && address <= GBMemAddresses.VRAM_END) {
+            return vramBanks[activeVramBank][address - GBMemAddresses.VRAM_START] & 0xFF;
         }
 
-        if (address >= DuckAddresses.EXTERNAL_RAM_START && address <= DuckAddresses.EXTERNAL_RAM_END) {
-            return cartridge != null ? cartridge.ReadRam(address - DuckAddresses.EXTERNAL_RAM_START) : 0xFF;
+        if (address >= GBMemAddresses.EXTERNAL_RAM_START && address <= GBMemAddresses.EXTERNAL_RAM_END) {
+            return cartridge != null ? cartridge.ReadRam(address - GBMemAddresses.EXTERNAL_RAM_START) : 0xFF;
         }
 
-        if (address >= DuckAddresses.WORK_RAM_START && address <= 0xCFFF) {
-            return wramBanks[0][address - DuckAddresses.WORK_RAM_START] & 0xFF;
+        if (address >= GBMemAddresses.WORK_RAM_START && address <= 0xCFFF) {
+            return wramBanks[0][address - GBMemAddresses.WORK_RAM_START] & 0xFF;
         }
 
-        if (address >= 0xD000 && address <= DuckAddresses.WORK_RAM_END) {
+        if (address >= 0xD000 && address <= GBMemAddresses.WORK_RAM_END) {
             return wramBanks[activeWramBank][address - 0xD000] & 0xFF;
         }
 
-        if (address >= DuckAddresses.ECHO_RAM_START && address <= DuckAddresses.ECHO_RAM_END) {
+        if (address >= GBMemAddresses.ECHO_RAM_START && address <= GBMemAddresses.ECHO_RAM_END) {
             return ReadInternal(address - 0x2000);
         }
 
-        if (address >= DuckAddresses.NOT_USABLE_START && address <= DuckAddresses.NOT_USABLE_END) {
+        if (address >= GBMemAddresses.NOT_USABLE_START && address <= GBMemAddresses.NOT_USABLE_END) {
             return 0xFF;
         }
 
-        if (address == DuckAddresses.SERIAL_CONTROL) {
+        if (address == GBMemAddresses.SERIAL_CONTROL) {
             return cgbMode ? (ram[address] | 0x7C) : (ram[address] | 0x7E);
         }
 
-        if (address == DuckAddresses.JOYPAD && joypad != null) {
+        if (address == GBMemAddresses.JOYPAD && joypad != null) {
             return joypad.ReadRegister();
         }
 
-        if ((address >= DuckAddresses.AUDIO_START && address <= DuckAddresses.AUDIO_END)
-                || (address >= DuckAddresses.WAVE_PATTERN_START && address <= DuckAddresses.WAVE_PATTERN_END)) {
+        if ((address >= GBMemAddresses.AUDIO_START && address <= GBMemAddresses.AUDIO_END)
+                || (address >= GBMemAddresses.WAVE_PATTERN_START && address <= GBMemAddresses.WAVE_PATTERN_END)) {
             if (apu != null) {
                 return apu.Read(address);
             }
         }
 
-        if (address == DuckAddresses.TAC) {
+        if (address == GBMemAddresses.TAC) {
             return ram[address] | 0xF8;
         }
 
-        if (address == DuckAddresses.INTERRUPT_FLAG) {
+        if (address == GBMemAddresses.INTERRUPT_FLAG) {
             return ram[address] | 0xE0;
         }
 
-        if (address == DuckAddresses.STAT) {
+        if (address == GBMemAddresses.STAT) {
             return ram[address] | 0x80;
         }
 
-        if (address == DuckAddresses.KEY1) {
+        if (address == GBMemAddresses.KEY1) {
             return cgbMode ? (0x7E | (doubleSpeedMode ? 0x80 : 0x00) | (key1Armed ? 0x01 : 0x00)) : 0xFF;
         }
 
-        if (address == DuckAddresses.VBK) {
+        if (address == GBMemAddresses.VBK) {
             return cgbMode ? (0xFE | activeVramBank) : 0xFF;
         }
 
-        if (address == DuckAddresses.SVBK) {
+        if (address == GBMemAddresses.SVBK) {
             return cgbMode ? (0xF8 | activeWramBank) : 0xFF;
         }
 
-        if (address == DuckAddresses.BCPS || address == DuckAddresses.OCPS
-                || address == DuckAddresses.HDMA1 || address == DuckAddresses.HDMA2
-                || address == DuckAddresses.HDMA3 || address == DuckAddresses.HDMA4
-                || address == DuckAddresses.HDMA5 || address == DuckAddresses.OPRI
-                || address == DuckAddresses.RP) {
+        if (address == GBMemAddresses.BCPS || address == GBMemAddresses.OCPS
+                || address == GBMemAddresses.HDMA1 || address == GBMemAddresses.HDMA2
+                || address == GBMemAddresses.HDMA3 || address == GBMemAddresses.HDMA4
+                || address == GBMemAddresses.HDMA5 || address == GBMemAddresses.OPRI
+                || address == GBMemAddresses.RP) {
             return cgbMode ? (ram[address] & 0xFF) : 0xFF;
         }
 
-        if (address == DuckAddresses.BCPD) {
-            return cgbMode ? bgPaletteRam[ram[DuckAddresses.BCPS] & 0x3F] : 0xFF;
+        if (address == GBMemAddresses.BCPD) {
+            return cgbMode ? bgPaletteRam[ram[GBMemAddresses.BCPS] & 0x3F] : 0xFF;
         }
 
-        if (address == DuckAddresses.OCPD) {
-            return cgbMode ? objPaletteRam[ram[DuckAddresses.OCPS] & 0x3F] : 0xFF;
+        if (address == GBMemAddresses.OCPD) {
+            return cgbMode ? objPaletteRam[ram[GBMemAddresses.OCPS] & 0x3F] : 0xFF;
         }
 
         return ram[address] & 0xFF;
     }
 
     private int NormaliseCheatAddress(int address) {
-        if (address >= DuckAddresses.ECHO_RAM_START && address <= DuckAddresses.ECHO_RAM_END) {
+        if (address >= GBMemAddresses.ECHO_RAM_START && address <= GBMemAddresses.ECHO_RAM_END) {
             return address - 0x2000;
         }
         return address & 0xFFFF;
@@ -571,38 +571,38 @@ public class DuckMemory {
             return;
         }
 
-        if (address >= DuckAddresses.VRAM_START && address <= DuckAddresses.VRAM_END) {
-            vramBanks[activeVramBank][address - DuckAddresses.VRAM_START] = value;
+        if (address >= GBMemAddresses.VRAM_START && address <= GBMemAddresses.VRAM_END) {
+            vramBanks[activeVramBank][address - GBMemAddresses.VRAM_START] = value;
             return;
         }
 
-        if (address >= DuckAddresses.EXTERNAL_RAM_START && address <= DuckAddresses.EXTERNAL_RAM_END) {
+        if (address >= GBMemAddresses.EXTERNAL_RAM_START && address <= GBMemAddresses.EXTERNAL_RAM_END) {
             if (cartridge != null) {
                 cartridge.Write(address, value);
             }
             return;
         }
 
-        if (address >= DuckAddresses.WORK_RAM_START && address <= 0xCFFF) {
-            wramBanks[0][address - DuckAddresses.WORK_RAM_START] = value;
+        if (address >= GBMemAddresses.WORK_RAM_START && address <= 0xCFFF) {
+            wramBanks[0][address - GBMemAddresses.WORK_RAM_START] = value;
             return;
         }
 
-        if (address >= 0xD000 && address <= DuckAddresses.WORK_RAM_END) {
+        if (address >= 0xD000 && address <= GBMemAddresses.WORK_RAM_END) {
             wramBanks[activeWramBank][address - 0xD000] = value;
             return;
         }
 
-        if (address >= DuckAddresses.NOT_USABLE_START && address <= DuckAddresses.NOT_USABLE_END) {
+        if (address >= GBMemAddresses.NOT_USABLE_START && address <= GBMemAddresses.NOT_USABLE_END) {
             return;
         }
 
-        if (address >= DuckAddresses.ECHO_RAM_START && address <= DuckAddresses.ECHO_RAM_END) {
+        if (address >= GBMemAddresses.ECHO_RAM_START && address <= GBMemAddresses.ECHO_RAM_END) {
             Write(address - 0x2000, value);
             return;
         }
 
-        if (address == DuckAddresses.JOYPAD) {
+        if (address == GBMemAddresses.JOYPAD) {
             if (joypad != null) {
                 joypad.WriteRegister(value);
                 ram[address] = joypad.ReadRegister();
@@ -612,12 +612,12 @@ public class DuckMemory {
             return;
         }
 
-        if (address == DuckAddresses.SERIAL_CONTROL) {
+        if (address == GBMemAddresses.SERIAL_CONTROL) {
             ram[address] = cgbMode ? (0x7C | (value & 0x83)) : (0x7E | (value & 0x81));
             return;
         }
 
-        if (address == DuckAddresses.BOOT_ROM_DISABLE) {
+        if (address == GBMemAddresses.BOOT_ROM_DISABLE) {
             ram[address] = value & 0x01;
             if ((value & 0x01) != 0) {
                 bootRomMapped = false;
@@ -626,8 +626,8 @@ public class DuckMemory {
             return;
         }
 
-        if ((address >= DuckAddresses.AUDIO_START && address <= DuckAddresses.AUDIO_END)
-                || (address >= DuckAddresses.WAVE_PATTERN_START && address <= DuckAddresses.WAVE_PATTERN_END)) {
+        if ((address >= GBMemAddresses.AUDIO_START && address <= GBMemAddresses.AUDIO_END)
+                || (address >= GBMemAddresses.WAVE_PATTERN_START && address <= GBMemAddresses.WAVE_PATTERN_END)) {
             if (apu != null) {
                 apu.Write(address, value);
             } else {
@@ -636,20 +636,20 @@ public class DuckMemory {
             return;
         }
 
-        if (address == DuckAddresses.DIV) {
+        if (address == GBMemAddresses.DIV) {
             if (timer != null) {
                 timer.ResetDiv();
             }
             return;
         }
 
-        if (address == DuckAddresses.TIMA) {
+        if (address == GBMemAddresses.TIMA) {
             if (timer != null && timer.timaOverflowPending) {
                 timer.CancelPendingOverflow();
             }
         }
 
-        if (address == DuckAddresses.TAC) {
+        if (address == GBMemAddresses.TAC) {
             if (timer != null) {
                 timer.WriteTac(value);
             } else {
@@ -658,22 +658,22 @@ public class DuckMemory {
             return;
         }
 
-        if (address == DuckAddresses.INTERRUPT_FLAG) {
+        if (address == GBMemAddresses.INTERRUPT_FLAG) {
             ram[address] = 0xE0 | (value & 0x1F);
             return;
         }
 
-        if (address == DuckAddresses.STAT) {
+        if (address == GBMemAddresses.STAT) {
             ram[address] = 0x80 | (ram[address] & 0x07) | (value & 0x78);
             return;
         }
 
-        if (address == DuckAddresses.LY) {
+        if (address == GBMemAddresses.LY) {
             ram[address] = 0;
             return;
         }
 
-        if (address == DuckAddresses.DMA) {
+        if (address == GBMemAddresses.DMA) {
             dmaSource = value << 8;
             dmaCounter = 0;
             dmaCycleCounter = 0;
@@ -686,46 +686,46 @@ public class DuckMemory {
             return;
         }
 
-        if (address == DuckAddresses.KEY1) {
+        if (address == GBMemAddresses.KEY1) {
             key1Armed = (value & 0x01) != 0;
             ram[address] = (doubleSpeedMode ? 0x80 : 0x00) | (key1Armed ? 0x01 : 0x00);
             return;
         }
 
-        if (address == DuckAddresses.VBK) {
+        if (address == GBMemAddresses.VBK) {
             activeVramBank = value & 0x01;
             ram[address] = 0xFE | activeVramBank;
             return;
         }
 
-        if (address == DuckAddresses.SVBK) {
+        if (address == GBMemAddresses.SVBK) {
             activeWramBank = DecodeWramBank(value);
             ram[address] = 0xF8 | activeWramBank;
             return;
         }
 
-        if (address == DuckAddresses.BCPS || address == DuckAddresses.OCPS) {
+        if (address == GBMemAddresses.BCPS || address == GBMemAddresses.OCPS) {
             ram[address] = 0x40 | (value & 0xBF);
             return;
         }
 
-        if (address == DuckAddresses.BCPD) {
-            WritePaletteData(bgPaletteRam, bgPaletteRgbCache, DuckAddresses.BCPS, value);
+        if (address == GBMemAddresses.BCPD) {
+            WritePaletteData(bgPaletteRam, bgPaletteRgbCache, GBMemAddresses.BCPS, value);
             return;
         }
 
-        if (address == DuckAddresses.OCPD) {
-            WritePaletteData(objPaletteRam, objPaletteRgbCache, DuckAddresses.OCPS, value);
+        if (address == GBMemAddresses.OCPD) {
+            WritePaletteData(objPaletteRam, objPaletteRgbCache, GBMemAddresses.OCPS, value);
             return;
         }
 
-        if (address == DuckAddresses.HDMA1 || address == DuckAddresses.HDMA2
-                || address == DuckAddresses.HDMA3 || address == DuckAddresses.HDMA4) {
+        if (address == GBMemAddresses.HDMA1 || address == GBMemAddresses.HDMA2
+                || address == GBMemAddresses.HDMA3 || address == GBMemAddresses.HDMA4) {
             ram[address] = value;
             return;
         }
 
-        if (address == DuckAddresses.HDMA5) {
+        if (address == GBMemAddresses.HDMA5) {
             HandleHdmaControlWrite(value);
             return;
         }
@@ -747,7 +747,7 @@ public class DuckMemory {
         }
         dmaCycleCounter = 0;
 
-        int destination = (DuckAddresses.OAM_START + dmaCounter) & 0xFFFF;
+        int destination = (GBMemAddresses.OAM_START + dmaCounter) & 0xFFFF;
         int source = (dmaSource + dmaCounter) & 0xFFFF;
         int value = Read(source);
         ram[destination] = value;
@@ -764,7 +764,7 @@ public class DuckMemory {
      * Advances the CGB H-Blank DMA engine by one master clock.
      *
      * @param hblankTransferWindowOpen whether the current PPU state can service
-     * H-Blank DMA
+     *                                 H-Blank DMA
      */
     public void TickHdma(boolean hblankTransferWindowOpen) {
         if (!hdmaActive) {
@@ -931,7 +931,7 @@ public class DuckMemory {
      * @param value divider register value
      */
     public void SetDividerFromTimer(int value) {
-        WriteDirect(DuckAddresses.DIV, value);
+        WriteDirect(GBMemAddresses.DIV, value);
     }
 
     /**
@@ -940,7 +940,7 @@ public class DuckMemory {
      * @param value TIMA register value
      */
     public void SetTimaFromTimer(int value) {
-        WriteDirect(DuckAddresses.TIMA, value);
+        WriteDirect(GBMemAddresses.TIMA, value);
     }
 
     /**
@@ -963,7 +963,7 @@ public class DuckMemory {
      */
     public int ReadVideoRam(int bank, int address) {
         int resolvedBank = bank & 0x01;
-        int offset = (address & 0xFFFF) - DuckAddresses.VRAM_START;
+        int offset = (address & 0xFFFF) - GBMemAddresses.VRAM_START;
         if (offset < 0 || offset >= vramBankSize) {
             return 0xFF;
         }
@@ -978,7 +978,7 @@ public class DuckMemory {
      */
     public int ReadOamByte(int address) {
         int resolvedAddress = address & 0xFFFF;
-        if (resolvedAddress < DuckAddresses.OAM_START || resolvedAddress > DuckAddresses.OAM_END) {
+        if (resolvedAddress < GBMemAddresses.OAM_START || resolvedAddress > GBMemAddresses.OAM_END) {
             return 0xFF;
         }
         return ram[resolvedAddress] & 0xFF;
@@ -1016,7 +1016,7 @@ public class DuckMemory {
      * @return {@code true} when the serial transfer-complete condition is active
      */
     public boolean IsSerialTransferInProgress() {
-        return (ram[DuckAddresses.SERIAL_CONTROL] & 0x81) == 0x81;
+        return (ram[GBMemAddresses.SERIAL_CONTROL] & 0x81) == 0x81;
     }
 
     /**
@@ -1025,15 +1025,15 @@ public class DuckMemory {
      * @return pending serial byte
      */
     public int ReadSerialDataRegister() {
-        return ram[DuckAddresses.SERIAL_DATA] & 0xFF;
+        return ram[GBMemAddresses.SERIAL_DATA] & 0xFF;
     }
 
     /**
      * Applies the usual transfer-complete side effects for the serial port.
      */
     public void CompleteSerialTransfer() {
-        ram[DuckAddresses.SERIAL_DATA] = 0xFF;
-        ram[DuckAddresses.SERIAL_CONTROL] &= ~0x80;
+        ram[GBMemAddresses.SERIAL_DATA] = 0xFF;
+        ram[GBMemAddresses.SERIAL_CONTROL] &= ~0x80;
     }
 
     /**
@@ -1046,7 +1046,7 @@ public class DuckMemory {
 
         doubleSpeedMode = !doubleSpeedMode;
         key1Armed = false;
-        ram[DuckAddresses.KEY1] = doubleSpeedMode ? 0x80 : 0x00;
+        ram[GBMemAddresses.KEY1] = doubleSpeedMode ? 0x80 : 0x00;
     }
 
     /**
@@ -1090,7 +1090,7 @@ public class DuckMemory {
         if (state == null) {
             throw new IllegalArgumentException("A memory quick state is required.");
         }
-        if (state.ram() == null || state.ram().length != DuckAddresses.MEMORY_SIZE) {
+        if (state.ram() == null || state.ram().length != GBMemAddresses.MEMORY_SIZE) {
             throw new IllegalArgumentException("The quick state memory image is invalid.");
         }
         if (state.cgbMode() != cgbMode) {
@@ -1152,11 +1152,11 @@ public class DuckMemory {
 
     private boolean IsCgbOnlyRegister(int address) {
         return switch (address) {
-            case DuckAddresses.KEY1, DuckAddresses.VBK, DuckAddresses.HDMA1, DuckAddresses.HDMA2,
-                    DuckAddresses.HDMA3, DuckAddresses.HDMA4, DuckAddresses.HDMA5,
-                    DuckAddresses.RP, DuckAddresses.BCPS, DuckAddresses.BCPD,
-                    DuckAddresses.OCPS, DuckAddresses.OCPD, DuckAddresses.OPRI,
-                    DuckAddresses.SVBK ->
+            case GBMemAddresses.KEY1, GBMemAddresses.VBK, GBMemAddresses.HDMA1, GBMemAddresses.HDMA2,
+                    GBMemAddresses.HDMA3, GBMemAddresses.HDMA4, GBMemAddresses.HDMA5,
+                    GBMemAddresses.RP, GBMemAddresses.BCPS, GBMemAddresses.BCPD,
+                    GBMemAddresses.OCPS, GBMemAddresses.OCPD, GBMemAddresses.OPRI,
+                    GBMemAddresses.SVBK ->
                 true;
             default -> false;
         };
@@ -1177,19 +1177,19 @@ public class DuckMemory {
             if ((value & 0x80) == 0) {
                 hdmaActive = false;
                 hdmaTransferredThisHblank = false;
-                ram[DuckAddresses.HDMA5] = 0x80 | Math.max(0, hdmaBlocksRemaining - 1);
+                ram[GBMemAddresses.HDMA5] = 0x80 | Math.max(0, hdmaBlocksRemaining - 1);
             }
             return;
         }
 
         if ((value & 0x80) != 0) {
             hdmaActive = true;
-            hdmaSource = ((ram[DuckAddresses.HDMA1] << 8) | (ram[DuckAddresses.HDMA2] & 0xF0)) & 0xFFF0;
+            hdmaSource = ((ram[GBMemAddresses.HDMA1] << 8) | (ram[GBMemAddresses.HDMA2] & 0xF0)) & 0xFFF0;
             hdmaDestination = 0x8000
-                    | (((ram[DuckAddresses.HDMA3] & 0x1F) << 8) | (ram[DuckAddresses.HDMA4] & 0xF0));
+                    | (((ram[GBMemAddresses.HDMA3] & 0x1F) << 8) | (ram[GBMemAddresses.HDMA4] & 0xF0));
             hdmaBlocksRemaining = (value & 0x7F) + 1;
             hdmaTransferredThisHblank = false;
-            ram[DuckAddresses.HDMA5] = Math.max(0, hdmaBlocksRemaining - 1) & 0x7F;
+            ram[GBMemAddresses.HDMA5] = Math.max(0, hdmaBlocksRemaining - 1) & 0x7F;
             return;
         }
 
@@ -1198,8 +1198,8 @@ public class DuckMemory {
 
     private void PerformGeneralHdmaTransfer(int controlValue) {
         int length = ((controlValue & 0x7F) + 1) * 0x10;
-        int source = ((ram[DuckAddresses.HDMA1] << 8) | (ram[DuckAddresses.HDMA2] & 0xF0)) & 0xFFF0;
-        int destination = 0x8000 | (((ram[DuckAddresses.HDMA3] & 0x1F) << 8) | (ram[DuckAddresses.HDMA4] & 0xF0));
+        int source = ((ram[GBMemAddresses.HDMA1] << 8) | (ram[GBMemAddresses.HDMA2] & 0xF0)) & 0xFFF0;
+        int destination = 0x8000 | (((ram[GBMemAddresses.HDMA3] & 0x1F) << 8) | (ram[GBMemAddresses.HDMA4] & 0xF0));
 
         for (int index = 0; index < length; index++) {
             Write(destination + index, Read(source + index));
@@ -1208,7 +1208,7 @@ public class DuckMemory {
         hdmaActive = false;
         hdmaBlocksRemaining = 0;
         hdmaTransferredThisHblank = false;
-        ram[DuckAddresses.HDMA5] = 0xFF;
+        ram[GBMemAddresses.HDMA5] = 0xFF;
     }
 
     private void TransferHdmaBlock() {
@@ -1222,11 +1222,11 @@ public class DuckMemory {
 
         if (hdmaBlocksRemaining == 0) {
             hdmaActive = false;
-            ram[DuckAddresses.HDMA5] = 0xFF;
+            ram[GBMemAddresses.HDMA5] = 0xFF;
             return;
         }
 
-        ram[DuckAddresses.HDMA5] = (hdmaBlocksRemaining - 1) & 0x7F;
+        ram[GBMemAddresses.HDMA5] = (hdmaBlocksRemaining - 1) & 0x7F;
     }
 
     private void InitialiseCgbPalettesToWhite(int[] paletteRam, int[] rgbCache) {
@@ -1303,4 +1303,3 @@ public class DuckMemory {
         System.arraycopy(source, 0, target, 0, target.length);
     }
 }
-

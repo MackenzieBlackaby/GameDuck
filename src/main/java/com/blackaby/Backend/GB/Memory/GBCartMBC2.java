@@ -1,16 +1,16 @@
 package com.blackaby.Backend.GB.Memory;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 
 /**
  * Mapper for MBC2 cartridges, including their built-in 512 x 4-bit RAM.
  */
-final class Mbc2CartridgeController extends CartridgeController {
+final class GBCartMBC2 extends GBCartController {
 
     private boolean ramEnabled;
     private int romBank = 1;
 
-    Mbc2CartridgeController(ROM rom) {
+    GBCartMBC2(GBRom rom) {
         super(rom, 0x200);
     }
 
@@ -45,7 +45,7 @@ final class Mbc2CartridgeController extends CartridgeController {
             return;
         }
 
-        if (address >= DuckAddresses.EXTERNAL_RAM_START && address <= DuckAddresses.EXTERNAL_RAM_END && ramEnabled) {
+        if (address >= GBMemAddresses.EXTERNAL_RAM_START && address <= GBMemAddresses.EXTERNAL_RAM_END && ramEnabled) {
             ramData[address & 0x01FF] = value & 0x0F;
         }
     }
@@ -68,4 +68,3 @@ final class Mbc2CartridgeController extends CartridgeController {
         }
     }
 }
-

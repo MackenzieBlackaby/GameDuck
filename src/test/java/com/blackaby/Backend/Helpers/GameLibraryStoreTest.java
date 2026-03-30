@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -46,7 +46,7 @@ class GameLibraryStoreTest {
     @Test
     void rememberFavouriteReloadAndDeleteRoundTrip() throws Exception {
         Path patchPath = tempDir.resolve("patch-one.ips");
-        ROM rom = createRom("tracked.gbc", "Tracked Display", List.of("Patch One"), List.of(patchPath.toString()));
+        GBRom rom = createRom("tracked.gbc", "Tracked Display", List.of("Patch One"), List.of(patchPath.toString()));
 
         GameLibraryStore.LibraryEntry storedEntry = GameLibraryStore.RememberGame(rom);
 
@@ -115,8 +115,8 @@ class GameLibraryStoreTest {
         assertTrue(GameLibraryStore.GetRecentEntries(10).isEmpty());
     }
 
-    private ROM createRom(String filename, String displayName, List<String> patchNames, List<String> patchSourcePaths) {
-        ROM baseRom = EmulatorTestUtils.CreateBlankRom(
+    private GBRom createRom(String filename, String displayName, List<String> patchNames, List<String> patchSourcePaths) {
+        GBRom baseRom = EmulatorTestUtils.CreateBlankRom(
                 0x10,
                 2,
                 0x03,
@@ -126,7 +126,7 @@ class GameLibraryStoreTest {
         byte[] romBytes = baseRom.ToByteArray();
         byte[] identityBytes = (filename + "|" + displayName).getBytes(StandardCharsets.UTF_8);
         System.arraycopy(identityBytes, 0, romBytes, 0x0150, Math.min(identityBytes.length, romBytes.length - 0x0150));
-        return ROM.FromBytes(baseRom.GetSourcePath(), romBytes, displayName, patchNames, patchSourcePaths);
+        return GBRom.FromBytes(baseRom.GetSourcePath(), romBytes, displayName, patchNames, patchSourcePaths);
     }
 
     private static void restoreProperty(String name, String value) {

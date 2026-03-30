@@ -1,6 +1,6 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.GB.GBBackends;
+import com.blackaby.Backend.GB.GBBackendManager;
 import com.blackaby.Backend.Platform.EmulatorButton;
 import com.blackaby.Backend.Platform.EmulatorProfile;
 import com.blackaby.Misc.Config;
@@ -565,7 +565,7 @@ public final class InputMappingWindow extends JDialog {
     }
 
     private EmulatorProfile backendProfile() {
-        return mainWindow == null ? GBBackends.Current().Profile() : mainWindow.GetBackendProfile();
+        return mainWindow == null ? GBBackendManager.Current().Profile() : mainWindow.GetBackendProfile();
     }
 
     private String wrapHtml(String text, int width) {

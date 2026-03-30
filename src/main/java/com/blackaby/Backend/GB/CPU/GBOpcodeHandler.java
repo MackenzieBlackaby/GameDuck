@@ -1,7 +1,6 @@
 package com.blackaby.Backend.GB.CPU;
 
 @FunctionalInterface
-public interface OpcodeHandler {
+public interface GBOpcodeHandler {
     int Execute();
 }
-

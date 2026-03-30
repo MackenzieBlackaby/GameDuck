@@ -1,6 +1,6 @@
 package com.blackaby.Backend.GB.Memory;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 
 import java.util.Arrays;
 
@@ -11,13 +11,13 @@ import java.util.Arrays;
  * address space to the correct ROM bank, external RAM bank, and mapper control
  * registers.
  */
-public abstract class CartridgeController {
+public abstract class GBCartController {
 
     public record MapperState(String mapperType, byte[] ramData, int[] registers, byte[] supplementalData)
             implements java.io.Serializable {
     }
 
-    protected final ROM rom;
+    protected final GBRom rom;
     protected final int[] romData;
     protected final int[] ramData;
 
@@ -27,7 +27,7 @@ public abstract class CartridgeController {
      * @param rom          cartridge image and header metadata
      * @param ramSizeBytes amount of external RAM exposed by the cartridge
      */
-    protected CartridgeController(ROM rom, int ramSizeBytes) {
+    protected GBCartController(GBRom rom, int ramSizeBytes) {
         this.rom = rom;
         romData = rom.GetData();
         ramData = ramSizeBytes > 0 ? new int[ramSizeBytes] : new int[0];
@@ -39,13 +39,13 @@ public abstract class CartridgeController {
      * @param rom cartridge image and header metadata
      * @return mapper controller for the cartridge type
      */
-    public static CartridgeController Create(ROM rom) {
+    public static GBCartController Create(GBRom rom) {
         return switch (rom.GetMapperType()) {
-            case ROM_ONLY -> new RomOnlyCartridgeController(rom);
-            case MBC1 -> new Mbc1CartridgeController(rom);
-            case MBC2 -> new Mbc2CartridgeController(rom);
-            case MBC3 -> new Mbc3CartridgeController(rom);
-            case MBC5 -> new Mbc5CartridgeController(rom);
+            case ROM_ONLY -> new GBCCartROMOnly(rom);
+            case MBC1 -> new GBCartMBC1(rom);
+            case MBC2 -> new GBCartMBC2(rom);
+            case MBC3 -> new GBCartMBC3(rom);
+            case MBC5 -> new GBCartMBC5(rom);
             case UNSUPPORTED -> throw new IllegalArgumentException(
                     "Unsupported cartridge type: 0x" + String.format("%02X", rom.GetCartridgeTypeCode()));
         };
@@ -245,4 +245,3 @@ public abstract class CartridgeController {
     protected void RestoreRegisters(int[] registers) {
     }
 }
-

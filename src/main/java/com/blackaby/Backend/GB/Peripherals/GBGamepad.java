@@ -1,26 +1,26 @@
 package com.blackaby.Backend.GB.Peripherals;
 
 import com.blackaby.Backend.GB.GBButton;
-import com.blackaby.Backend.GB.CPU.DuckCPU;
+import com.blackaby.Backend.GB.CPU.GBProcessor;
 
 import java.util.EnumMap;
 
 /**
  * Emulates the DMG joypad register at {@code FF00}.
  */
-public class DuckJoypad {
+public class GBGamepad {
 
     public record JoypadState(int selectBits, int pressedMask) implements java.io.Serializable {
     }
 
     private final EnumMap<GBButton, Boolean> pressedStates = new EnumMap<>(GBButton.class);
-    private DuckCPU cpu;
+    private GBProcessor cpu;
     private int selectBits = 0x30;
 
     /**
      * Creates a joypad with no CPU attached yet.
      */
-    public DuckJoypad() {
+    public GBGamepad() {
         Reset();
     }
 
@@ -29,7 +29,7 @@ public class DuckJoypad {
      *
      * @param cpu CPU instance for interrupt requests
      */
-    public DuckJoypad(DuckCPU cpu) {
+    public GBGamepad(GBProcessor cpu) {
         this();
         this.cpu = cpu;
     }
@@ -39,7 +39,7 @@ public class DuckJoypad {
      *
      * @param cpu CPU instance
      */
-    public synchronized void SetCpu(DuckCPU cpu) {
+    public synchronized void SetCpu(GBProcessor cpu) {
         this.cpu = cpu;
     }
 
@@ -124,7 +124,7 @@ public class DuckJoypad {
         int currentValue = ComputeRegisterValue();
         int fallingEdges = (previousValue & ~currentValue) & 0x0F;
         if (fallingEdges != 0 && cpu != null) {
-            cpu.RequestInterrupt(DuckCPU.Interrupt.JOYPAD);
+            cpu.RequestInterrupt(GBProcessor.Interrupt.JOYPAD);
         }
     }
 

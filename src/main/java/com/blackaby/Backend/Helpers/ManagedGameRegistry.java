@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Platform.EmulatorGame;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ public final class ManagedGameRegistry {
          *
          * @return reconstructed ROM when the base and patch files are still available
          */
-        public Optional<ROM> LoadRom() {
+        public Optional<GBRom> LoadRom() {
             if (saveIdentity == null || saveIdentity.sourcePath() == null || saveIdentity.sourcePath().isBlank()) {
                 return Optional.empty();
             }
@@ -77,7 +77,7 @@ public final class ManagedGameRegistry {
      *
      * @param rom loaded ROM
      */
-    public static synchronized void RememberGame(ROM rom) {
+    public static synchronized void RememberGame(GBRom rom) {
         if (rom == null || !rom.HasBatteryBackedSave()) {
             return;
         }
@@ -133,7 +133,7 @@ public final class ManagedGameRegistry {
      * @param rom loaded ROM
      * @return stable registry key
      */
-    public static String BuildGameKey(ROM rom) {
+    public static String BuildGameKey(GBRom rom) {
         if (rom == null) {
             return "";
         }
@@ -319,8 +319,8 @@ public final class ManagedGameRegistry {
         return cgbOnly;
     }
 
-    private static ROM LoadTrackedRom(String sourcePath, List<String> patchNames, List<String> patchSourcePaths) throws IOException {
-        ROM rom = new ROM(sourcePath);
+    private static GBRom LoadTrackedRom(String sourcePath, List<String> patchNames, List<String> patchSourcePaths) throws IOException {
+        GBRom rom = new GBRom(sourcePath);
         List<String> safePatchNames = patchNames == null ? List.of() : patchNames;
         List<String> safePatchSourcePaths = patchSourcePaths == null ? List.of() : patchSourcePaths;
         for (int index = 0; index < safePatchSourcePaths.size(); index++) {
@@ -329,7 +329,7 @@ public final class ManagedGameRegistry {
             if (patchSourcePath == null || patchSourcePath.isBlank()) {
                 return rom;
             }
-            rom = ROM.LoadPatched(rom, patchSourcePath, patchName);
+            rom = GBRom.LoadPatched(rom, patchSourcePath, patchName);
         }
         return rom;
     }
@@ -348,7 +348,7 @@ public final class ManagedGameRegistry {
             this.entry = store.Entry(key);
         }
 
-        private void WriteMetadata(ROM rom, SaveFileManager.SaveIdentity saveIdentity, String contentHash, long now) {
+        private void WriteMetadata(GBRom rom, SaveFileManager.SaveIdentity saveIdentity, String contentHash, long now) {
             entry.Set(sourcePathSuffix, saveIdentity.sourcePath());
             entry.Set(sourceNameSuffix, saveIdentity.sourceName());
             entry.Set(displayNameSuffix, saveIdentity.displayName());
@@ -362,7 +362,7 @@ public final class ManagedGameRegistry {
             entry.WriteIndexedList(patchSourcePrefix, patchSourceCountSuffix, rom.GetPatchSourcePaths());
         }
 
-        private void TouchFromExistingRom(ROM rom, SaveFileManager.SaveIdentity saveIdentity, String contentHash, long now) {
+        private void TouchFromExistingRom(GBRom rom, SaveFileManager.SaveIdentity saveIdentity, String contentHash, long now) {
             entry.Set(lastSeenSuffix, Math.max(entry.GetLong(lastSeenSuffix, 0L), now));
             entry.Set(contentHashSuffix, contentHash);
             entry.Set(cgbCompatibleSuffix, RomConsoleSupport.IsGbc(rom));
@@ -390,7 +390,7 @@ public final class ManagedGameRegistry {
             }
 
             try {
-                ROM rom = LoadTrackedRom(
+                GBRom rom = LoadTrackedRom(
                         sourcePath,
                         entry.ReadIndexedList(patchNamePrefix, patchNameCountSuffix),
                         entry.ReadIndexedList(patchSourcePrefix, patchSourceCountSuffix));

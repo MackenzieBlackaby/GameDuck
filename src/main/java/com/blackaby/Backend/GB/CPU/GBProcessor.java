@@ -1,9 +1,9 @@
 package com.blackaby.Backend.GB.CPU;
 
-import com.blackaby.Backend.GB.DuckEmulation;
-import com.blackaby.Backend.GB.Memory.DuckAddresses;
-import com.blackaby.Backend.GB.Memory.DuckMemory;
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.GBRuntime;
+import com.blackaby.Backend.GB.Memory.GBMemAddresses;
+import com.blackaby.Backend.GB.Memory.GBMemory;
+import com.blackaby.Backend.GB.Misc.GBRom;
 
 /**
  * Emulates the Game Boy CPU core and its register state.
@@ -11,7 +11,7 @@ import com.blackaby.Backend.GB.Misc.ROM;
  * The class owns the LR35902 register file, interrupt state, HALT behaviour,
  * and the fetch-decode-execute flow used by the main emulation loop.
  */
-public class DuckCPU {
+public class GBProcessor {
 
     public record CpuState(
             int pc,
@@ -64,9 +64,9 @@ public class DuckCPU {
         /**
          * Decodes the two-bit register-pair field used by 16-bit instructions.
          *
-         * @param bitId encoded register field
+         * @param bitId       encoded register field
          * @param isAfContext whether field `11` should resolve to `AF` instead of
-         * `SP`
+         *                    `SP`
          * @return decoded register pair
          */
         public static Register GetRegFrom2Bit(int bitId, boolean isAfContext) {
@@ -171,32 +171,32 @@ public class DuckCPU {
     private int l;
 
     private int instructionRegister;
-    private OpcodeHandler currentInstruction;
+    private GBOpcodeHandler currentInstruction;
     private boolean interruptMasterEnable;
     private int imeDelayCounter;
     private boolean halted;
     private boolean stopped;
     private boolean haltBug;
 
-    public final DuckMemory memory;
-    public final DuckEmulation emulation;
-    public final ROM rom;
+    public final GBMemory memory;
+    public final GBRuntime emulation;
+    public final GBRom rom;
 
-    private final DuckDecoder decoder;
+    private final GBDecoder decoder;
 
     /**
      * Creates a CPU bound to the active memory bus, emulator controller, and
      * cartridge metadata.
      *
-     * @param memory memory bus
+     * @param memory    memory bus
      * @param emulation owning emulator controller
-     * @param rom loaded cartridge
+     * @param rom       loaded cartridge
      */
-    public DuckCPU(DuckMemory memory, DuckEmulation emulation, ROM rom) {
+    public GBProcessor(GBMemory memory, GBRuntime emulation, GBRom rom) {
         this.memory = memory;
         this.emulation = emulation;
         this.rom = rom;
-        decoder = new DuckDecoder(this, memory);
+        decoder = new GBDecoder(this, memory);
     }
 
     /**
@@ -224,7 +224,7 @@ public class DuckCPU {
      * interrupt entry logic.
      *
      * @return T-cycles consumed by the instruction, plus interrupt entry if one
-     * is taken
+     *         is taken
      */
     public int Execute() {
         int cycles = halted ? 4 : ExecuteLoadedInstruction();
@@ -247,7 +247,7 @@ public class DuckCPU {
      * Writes an 8-bit value to a register or the byte addressed by `HL`.
      *
      * @param register target register
-     * @param value value to store
+     * @param value    value to store
      */
     public void SetRegister(Register register, int value) {
         value &= 0xFF;
@@ -292,7 +292,7 @@ public class DuckCPU {
      * Writes a 16-bit value to a register pair.
      *
      * @param register target pair
-     * @param value value to store
+     * @param value    value to store
      */
     public void SetRegisterPair(Register register, int value) {
         value &= 0xFFFF;
@@ -497,7 +497,7 @@ public class DuckCPU {
     /**
      * Sets or clears a status flag.
      *
-     * @param flag flag to update
+     * @param flag  flag to update
      * @param value new flag state
      */
     public void SetFlag(Flag flag, boolean value) {
@@ -609,8 +609,8 @@ public class DuckCPU {
      * @param interrupt interrupt to request
      */
     public void RequestInterrupt(Interrupt interrupt) {
-        int ifRegister = memory.Read(DuckAddresses.INTERRUPT_FLAG);
-        memory.Write(DuckAddresses.INTERRUPT_FLAG, ifRegister | interrupt.GetMask());
+        int ifRegister = memory.Read(GBMemAddresses.INTERRUPT_FLAG);
+        memory.Write(GBMemAddresses.INTERRUPT_FLAG, ifRegister | interrupt.GetMask());
     }
 
     /**
@@ -681,8 +681,8 @@ public class DuckCPU {
     }
 
     private boolean HandleInterrupts() {
-        int ieRegister = memory.Read(DuckAddresses.IE);
-        int ifRegister = memory.Read(DuckAddresses.INTERRUPT_FLAG);
+        int ieRegister = memory.Read(GBMemAddresses.IE);
+        int ifRegister = memory.Read(GBMemAddresses.INTERRUPT_FLAG);
         int pending = ieRegister & ifRegister & 0x1F;
 
         if (pending == 0) {
@@ -699,7 +699,7 @@ public class DuckCPU {
 
         interruptMasterEnable = false;
         Interrupt interrupt = Interrupt.GetInterrupt(Integer.numberOfTrailingZeros(pending));
-        memory.Write(DuckAddresses.INTERRUPT_FLAG, ifRegister & ~interrupt.GetMask());
+        memory.Write(GBMemAddresses.INTERRUPT_FLAG, ifRegister & ~interrupt.GetMask());
         PushStack16(pc);
         pc = interrupt.GetAddress();
         return true;
@@ -719,4 +719,3 @@ public class DuckCPU {
                 a, f, b, c, d, e, h, l, sp, pc);
     }
 }
-

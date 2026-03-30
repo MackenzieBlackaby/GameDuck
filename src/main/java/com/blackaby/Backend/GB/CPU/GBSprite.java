@@ -6,7 +6,7 @@ package com.blackaby.Backend.GB.CPU;
  * The class stores screen-space coordinates derived from OAM and provides small
  * helpers for reading the attribute bits used by the PPU.
  */
-public class DuckSprite {
+public class GBSprite {
 
     private static final int priorityMask = 0x80;
     private static final int yFlipMask = 0x40;
@@ -23,12 +23,12 @@ public class DuckSprite {
     /**
      * Creates a sprite snapshot from raw OAM data.
      *
-     * @param y sprite Y coordinate adjusted by the DMG OAM offset
-     * @param x sprite X coordinate adjusted by the DMG OAM offset
-     * @param tileIndex tile index used by the sprite
+     * @param y          sprite Y coordinate adjusted by the DMG OAM offset
+     * @param x          sprite X coordinate adjusted by the DMG OAM offset
+     * @param tileIndex  tile index used by the sprite
      * @param attributes raw OAM attribute byte
      */
-    public DuckSprite(int y, int x, int tileIndex, int attributes) {
+    public GBSprite(int y, int x, int tileIndex, int attributes) {
         this.y = y;
         this.x = x;
         this.tileIndex = tileIndex;
@@ -94,4 +94,3 @@ public class DuckSprite {
         return String.format("Sprite[x=%d, y=%d, tile=%02X, attr=%02X]", x, y, tileIndex, attributes);
     }
 }
-

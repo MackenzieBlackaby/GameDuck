@@ -1,6 +1,6 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.GB.GBBackends;
+import com.blackaby.Backend.GB.GBBackendManager;
 import com.blackaby.Backend.GB.Graphics.GBColor;
 import com.blackaby.Backend.Platform.EmulatorButton;
 import com.blackaby.Backend.Platform.EmulatorProfile;
@@ -1137,46 +1137,50 @@ public class OptionsWindow extends DuckWindow {
         return row;
     }
 
-    // private JComponent createActionBindingCard(String title, String helperText, String badgeText,
-    //         boolean wrapHelperText, String buttonText, Dimension buttonSize,
-    //         float buttonFontSize, int verticalPadding, int horizontalPadding,
-    //         Runnable action, Consumer<JButton> buttonRegistrar) {
-    //     JPanel card = new JPanel(new BorderLayout());
-    //     card.setBackground(Styling.cardTintColour);
-    //     card.setBorder(BorderFactory.createCompoundBorder(
-    //             BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-    //             BorderFactory.createEmptyBorder(verticalPadding, horizontalPadding, verticalPadding,
-    //                     horizontalPadding)));
+    // private JComponent createActionBindingCard(String title, String helperText,
+    // String badgeText,
+    // boolean wrapHelperText, String buttonText, Dimension buttonSize,
+    // float buttonFontSize, int verticalPadding, int horizontalPadding,
+    // Runnable action, Consumer<JButton> buttonRegistrar) {
+    // JPanel card = new JPanel(new BorderLayout());
+    // card.setBackground(Styling.cardTintColour);
+    // card.setBorder(BorderFactory.createCompoundBorder(
+    // BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
+    // BorderFactory.createEmptyBorder(verticalPadding, horizontalPadding,
+    // verticalPadding,
+    // horizontalPadding)));
 
-    //     JLabel titleLabel = new JLabel(title);
-    //     titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
-    //     titleLabel.setForeground(accentColour);
+    // JLabel titleLabel = new JLabel(title);
+    // titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+    // titleLabel.setForeground(accentColour);
 
-    //     JPanel labelPanel = new JPanel(new BorderLayout(0, 4));
-    //     labelPanel.setOpaque(false);
-    //     if (badgeText == null || badgeText.isBlank()) {
-    //         labelPanel.add(titleLabel, BorderLayout.NORTH);
-    //     } else {
-    //         JPanel titleRow = new JPanel(new BorderLayout());
-    //         titleRow.setOpaque(false);
-    //         titleRow.add(titleLabel, BorderLayout.WEST);
-    //         titleRow.add(createBadgeLabel(badgeText), BorderLayout.EAST);
-    //         labelPanel.add(titleRow, BorderLayout.NORTH);
-    //     }
-    //     labelPanel.add(createBodyTextArea(helperText, wrapHelperText ? 11f : 12f), BorderLayout.CENTER);
+    // JPanel labelPanel = new JPanel(new BorderLayout(0, 4));
+    // labelPanel.setOpaque(false);
+    // if (badgeText == null || badgeText.isBlank()) {
+    // labelPanel.add(titleLabel, BorderLayout.NORTH);
+    // } else {
+    // JPanel titleRow = new JPanel(new BorderLayout());
+    // titleRow.setOpaque(false);
+    // titleRow.add(titleLabel, BorderLayout.WEST);
+    // titleRow.add(createBadgeLabel(badgeText), BorderLayout.EAST);
+    // labelPanel.add(titleRow, BorderLayout.NORTH);
+    // }
+    // labelPanel.add(createBodyTextArea(helperText, wrapHelperText ? 11f : 12f),
+    // BorderLayout.CENTER);
 
-    //     JButton actionButton = createPrimaryButton(buttonText);
-    //     actionButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, buttonFontSize));
-    //     actionButton.setPreferredSize(buttonSize);
-    //     actionButton.addActionListener(event -> action.run());
-    //     buttonRegistrar.accept(actionButton);
+    // JButton actionButton = createPrimaryButton(buttonText);
+    // actionButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, buttonFontSize));
+    // actionButton.setPreferredSize(buttonSize);
+    // actionButton.addActionListener(event -> action.run());
+    // buttonRegistrar.accept(actionButton);
 
-    //     JPanel buttonWrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-    //     buttonWrap.setOpaque(false);
-    //     buttonWrap.add(actionButton);
+    // JPanel buttonWrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    // buttonWrap.setOpaque(false);
+    // buttonWrap.add(actionButton);
 
-    //     card.add(createResponsiveGroup(240, 2, labelPanel, buttonWrap), BorderLayout.CENTER);
-    //     return card;
+    // card.add(createResponsiveGroup(240, 2, labelPanel, buttonWrap),
+    // BorderLayout.CENTER);
+    // return card;
     // }
 
     private JComponent createBindingIntroCard(String title, String description, String badgeText) {
@@ -3136,75 +3140,79 @@ public class OptionsWindow extends DuckWindow {
     }
 
     // private boolean captureBinding(EmulatorButton button) {
-    //     JDialog dialog = new JDialog(this, UiText.OptionsWindow.RebindDialogTitle(formatControlButtonName(button)),
-    //             true);
-    //     dialog.setLayout(new BorderLayout());
-    //     dialog.getContentPane().setBackground(panelBackground);
+    // JDialog dialog = new JDialog(this,
+    // UiText.OptionsWindow.RebindDialogTitle(formatControlButtonName(button)),
+    // true);
+    // dialog.setLayout(new BorderLayout());
+    // dialog.getContentPane().setBackground(panelBackground);
 
-    //     JPanel content = new JPanel(new BorderLayout(0, 8));
-    //     content.setBackground(cardBackground);
-    //     content.setBorder(createCardBorder());
+    // JPanel content = new JPanel(new BorderLayout(0, 8));
+    // content.setBackground(cardBackground);
+    // content.setBorder(createCardBorder());
 
-    //     JLabel title = new JLabel(UiText.OptionsWindow.RebindDialogPrompt(formatControlButtonName(button)),
-    //             SwingConstants.CENTER);
-    //     title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 18f));
-    //     title.setForeground(accentColour);
+    // JLabel title = new
+    // JLabel(UiText.OptionsWindow.RebindDialogPrompt(formatControlButtonName(button)),
+    // SwingConstants.CENTER);
+    // title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 18f));
+    // title.setForeground(accentColour);
 
-    //     JLabel helper = new JLabel(UiText.OptionsWindow.PRESS_ESCAPE_TO_CANCEL, SwingConstants.CENTER);
-    //     helper.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-    //     helper.setForeground(mutedText);
+    // JLabel helper = new JLabel(UiText.OptionsWindow.PRESS_ESCAPE_TO_CANCEL,
+    // SwingConstants.CENTER);
+    // helper.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+    // helper.setForeground(mutedText);
 
-    //     content.add(title, BorderLayout.NORTH);
-    //     content.add(helper, BorderLayout.CENTER);
-    //     dialog.add(content, BorderLayout.CENTER);
-    //     dialog.setSize(420, 180);
-    //     dialog.setLocationRelativeTo(this);
+    // content.add(title, BorderLayout.NORTH);
+    // content.add(helper, BorderLayout.CENTER);
+    // dialog.add(content, BorderLayout.CENTER);
+    // dialog.setSize(420, 180);
+    // dialog.setLocationRelativeTo(this);
 
-    //     KeyboardFocusManager focusManager = KeyboardFocusManager.getCurrentKeyboardFocusManager();
-    //     final boolean[] removed = { false };
-    //     final boolean[] captured = { false };
+    // KeyboardFocusManager focusManager =
+    // KeyboardFocusManager.getCurrentKeyboardFocusManager();
+    // final boolean[] removed = { false };
+    // final boolean[] captured = { false };
 
-    //     KeyEventDispatcher dispatcher = event -> {
-    //         if (event.getID() != KeyEvent.KEY_PRESSED) {
-    //             return false;
-    //         }
+    // KeyEventDispatcher dispatcher = event -> {
+    // if (event.getID() != KeyEvent.KEY_PRESSED) {
+    // return false;
+    // }
 
-    //         if (event.getKeyCode() == KeyEvent.VK_ESCAPE) {
-    //             dialog.dispose();
-    //             return true;
-    //         }
+    // if (event.getKeyCode() == KeyEvent.VK_ESCAPE) {
+    // dialog.dispose();
+    // return true;
+    // }
 
-    //         Settings.inputBindings.SetKeyCode(button, event.getKeyCode());
-    //         captured[0] = true;
-    //         Config.Save();
-    //         dialog.dispose();
-    //         return true;
-    //     };
+    // Settings.inputBindings.SetKeyCode(button, event.getKeyCode());
+    // captured[0] = true;
+    // Config.Save();
+    // dialog.dispose();
+    // return true;
+    // };
 
-    //     Runnable removeDispatcher = () -> {
-    //         if (!removed[0]) {
-    //             focusManager.removeKeyEventDispatcher(dispatcher);
-    //             removed[0] = true;
-    //         }
-    //     };
+    // Runnable removeDispatcher = () -> {
+    // if (!removed[0]) {
+    // focusManager.removeKeyEventDispatcher(dispatcher);
+    // removed[0] = true;
+    // }
+    // };
 
-    //     dialog.addWindowListener(new WindowAdapter() {
-    //         @Override
-    //         public void windowClosed(WindowEvent e) {
-    //             removeDispatcher.run();
-    //         }
+    // dialog.addWindowListener(new WindowAdapter() {
+    // @Override
+    // public void windowClosed(WindowEvent e) {
+    // removeDispatcher.run();
+    // }
 
-    //         @Override
-    //         public void windowClosing(WindowEvent e) {
-    //             removeDispatcher.run();
-    //         }
-    //     });
+    // @Override
+    // public void windowClosing(WindowEvent e) {
+    // removeDispatcher.run();
+    // }
+    // });
 
-    //     focusManager.addKeyEventDispatcher(dispatcher);
-    //     SwingUtilities.invokeLater(dialog::requestFocusInWindow);
-    //     dialog.setVisible(true);
-    //     removeDispatcher.run();
-    //     return captured[0];
+    // focusManager.addKeyEventDispatcher(dispatcher);
+    // SwingUtilities.invokeLater(dialog::requestFocusInWindow);
+    // dialog.setVisible(true);
+    // removeDispatcher.run();
+    // return captured[0];
     // }
 
     private void captureShortcut(AppShortcut shortcut) {
@@ -3295,14 +3303,14 @@ public class OptionsWindow extends DuckWindow {
     }
 
     // private boolean captureControllerBinding(EmulatorButton button) {
-    //     return captureControllerInput(
-    //             UiText.OptionsWindow.ControllerRebindDialogTitle(formatControlButtonName(button)),
-    //             UiText.OptionsWindow.ControllerRebindDialogPrompt(formatControlButtonName(button)),
-    //             binding -> {
-    //                 Settings.controllerBindings.SetBinding(button, binding);
-    //                 refreshControllerStatus();
-    //                 Config.Save();
-    //             });
+    // return captureControllerInput(
+    // UiText.OptionsWindow.ControllerRebindDialogTitle(formatControlButtonName(button)),
+    // UiText.OptionsWindow.ControllerRebindDialogPrompt(formatControlButtonName(button)),
+    // binding -> {
+    // Settings.controllerBindings.SetBinding(button, binding);
+    // refreshControllerStatus();
+    // Config.Save();
+    // });
     // }
 
     private boolean captureControllerInput(String dialogTitle, String dialogPrompt,
@@ -3581,7 +3589,7 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private EmulatorProfile backendProfile() {
-        return mainWindow == null ? GBBackends.Current().Profile() : mainWindow.GetBackendProfile();
+        return mainWindow == null ? GBBackendManager.Current().Profile() : mainWindow.GetBackendProfile();
     }
 
     private JComponent wrapControllerDeadzoneControls() {

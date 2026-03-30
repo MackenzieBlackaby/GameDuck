@@ -1,7 +1,7 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.GB.GBBackends;
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.GBBackendManager;
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Helpers.GameMetadataStore;
 import com.blackaby.Backend.Helpers.GUIActions;
 import com.blackaby.Backend.Helpers.GUIActions.Action;
@@ -163,7 +163,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     public MainWindow() {
         super(UiText.MainWindow.WINDOW_TITLE);
 
-        backend = GBBackends.Current();
+        backend = GBBackendManager.Current();
         display = new DuckDisplay(backend.Profile().displaySpec());
         emulation = backend.CreateRuntime(this, display);
         inputRouter = new InputRouter(this, emulation, backend.Profile());
@@ -856,7 +856,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
      *
      * @param rom active ROM
      */
-    public void SetLoadedRom(ROM rom) {
+    public void SetLoadedRom(GBRom rom) {
         SetLoadedGame(rom, true);
     }
 
@@ -1293,8 +1293,8 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
      *
      * @return loaded ROM or {@code null}
      */
-    public ROM GetCurrentLoadedRom() {
-        return currentLoadedGame instanceof ROM rom ? rom : null;
+    public GBRom GetCurrentLoadedRom() {
+        return currentLoadedGame instanceof GBRom rom ? rom : null;
     }
 
     /**

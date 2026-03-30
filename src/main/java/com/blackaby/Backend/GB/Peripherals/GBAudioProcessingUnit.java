@@ -1,8 +1,8 @@
 package com.blackaby.Backend.GB.Peripherals;
 
-import com.blackaby.Backend.GB.Memory.DuckAddresses;
-import com.blackaby.Backend.GB.Memory.DuckMemory;
-import com.blackaby.Backend.GB.Misc.Specifics;
+import com.blackaby.Backend.GB.Memory.GBMemAddresses;
+import com.blackaby.Backend.GB.Memory.GBMemory;
+import com.blackaby.Backend.GB.Misc.GBConstants;
 import com.blackaby.Misc.Settings;
 
 import java.util.Arrays;
@@ -15,7 +15,7 @@ import java.util.Arrays;
  * output.
  * </p>
  */
-public class DuckAPU {
+public class GBAudioProcessingUnit {
 
     public record PulseChannelState(
             boolean enabled,
@@ -87,7 +87,7 @@ public class DuckAPU {
     }
 
     private static final float outputSampleRate = 48_000.0f;
-    private static final double cyclesPerSample = Specifics.cyclesPerSecond / outputSampleRate;
+    private static final double cyclesPerSample = GBConstants.cyclesPerSecond / outputSampleRate;
     private static final int frameSequencerPeriod = 8192;
     private static final int[] dutyPatterns = {
             0b00000001,
@@ -97,8 +97,8 @@ public class DuckAPU {
     };
     private static final int[] noiseDivisors = { 8, 16, 32, 48, 64, 80, 96, 112 };
 
-    private final DuckMemory memory;
-    private final DuckAudioOutput audioOutput;
+    private final GBMemory memory;
+    private final GBAudio audioOutput;
     private final int[] waveRam = new int[16];
 
     private final PulseChannel channel1 = new PulseChannel(true);
@@ -115,9 +115,9 @@ public class DuckAPU {
     private int frameSequencerStep;
     private double sampleAccumulator;
 
-    public DuckAPU(DuckMemory memory) {
+    public GBAudioProcessingUnit(GBMemory memory) {
         this.memory = memory;
-        this.audioOutput = new DuckAudioOutput(outputSampleRate);
+        this.audioOutput = new GBAudio(outputSampleRate);
         PowerOff();
     }
 
@@ -172,30 +172,30 @@ public class DuckAPU {
 
     public int Read(int address) {
         return switch (address) {
-            case DuckAddresses.NR10 -> channel1.nr0 | 0x80;
-            case DuckAddresses.NR11 -> channel1.nr1 | 0x3F;
-            case DuckAddresses.NR12 -> channel1.nr2;
-            case DuckAddresses.NR13 -> 0xFF;
-            case DuckAddresses.NR14 -> channel1.nr4 | 0xBF;
-            case DuckAddresses.NR21 -> channel2.nr1 | 0x3F;
-            case DuckAddresses.NR22 -> channel2.nr2;
-            case DuckAddresses.NR23 -> 0xFF;
-            case DuckAddresses.NR24 -> channel2.nr4 | 0xBF;
-            case DuckAddresses.NR30 -> channel3.nr0 | 0x7F;
-            case DuckAddresses.NR31 -> 0xFF;
-            case DuckAddresses.NR32 -> channel3.nr2 | 0x9F;
-            case DuckAddresses.NR33 -> 0xFF;
-            case DuckAddresses.NR34 -> channel3.nr4 | 0xBF;
-            case DuckAddresses.NR41 -> 0xFF;
-            case DuckAddresses.NR42 -> channel4.nr2;
-            case DuckAddresses.NR43 -> channel4.nr3;
-            case DuckAddresses.NR44 -> channel4.nr4 | 0xBF;
-            case DuckAddresses.NR50 -> nr50;
-            case DuckAddresses.NR51 -> nr51;
-            case DuckAddresses.NR52 -> 0x70 | (powerEnabled ? 0x80 : 0x00) | StatusBits();
+            case GBMemAddresses.NR10 -> channel1.nr0 | 0x80;
+            case GBMemAddresses.NR11 -> channel1.nr1 | 0x3F;
+            case GBMemAddresses.NR12 -> channel1.nr2;
+            case GBMemAddresses.NR13 -> 0xFF;
+            case GBMemAddresses.NR14 -> channel1.nr4 | 0xBF;
+            case GBMemAddresses.NR21 -> channel2.nr1 | 0x3F;
+            case GBMemAddresses.NR22 -> channel2.nr2;
+            case GBMemAddresses.NR23 -> 0xFF;
+            case GBMemAddresses.NR24 -> channel2.nr4 | 0xBF;
+            case GBMemAddresses.NR30 -> channel3.nr0 | 0x7F;
+            case GBMemAddresses.NR31 -> 0xFF;
+            case GBMemAddresses.NR32 -> channel3.nr2 | 0x9F;
+            case GBMemAddresses.NR33 -> 0xFF;
+            case GBMemAddresses.NR34 -> channel3.nr4 | 0xBF;
+            case GBMemAddresses.NR41 -> 0xFF;
+            case GBMemAddresses.NR42 -> channel4.nr2;
+            case GBMemAddresses.NR43 -> channel4.nr3;
+            case GBMemAddresses.NR44 -> channel4.nr4 | 0xBF;
+            case GBMemAddresses.NR50 -> nr50;
+            case GBMemAddresses.NR51 -> nr51;
+            case GBMemAddresses.NR52 -> 0x70 | (powerEnabled ? 0x80 : 0x00) | StatusBits();
             default -> {
-                if (address >= DuckAddresses.WAVE_PATTERN_START && address <= DuckAddresses.WAVE_PATTERN_END) {
-                    yield waveRam[address - DuckAddresses.WAVE_PATTERN_START] & 0xFF;
+                if (address >= GBMemAddresses.WAVE_PATTERN_START && address <= GBMemAddresses.WAVE_PATTERN_END) {
+                    yield waveRam[address - GBMemAddresses.WAVE_PATTERN_START] & 0xFF;
                 }
                 yield 0xFF;
             }
@@ -205,13 +205,13 @@ public class DuckAPU {
     public void Write(int address, int value) {
         value &= 0xFF;
 
-        if (address >= DuckAddresses.WAVE_PATTERN_START && address <= DuckAddresses.WAVE_PATTERN_END) {
-            waveRam[address - DuckAddresses.WAVE_PATTERN_START] = value;
+        if (address >= GBMemAddresses.WAVE_PATTERN_START && address <= GBMemAddresses.WAVE_PATTERN_END) {
+            waveRam[address - GBMemAddresses.WAVE_PATTERN_START] = value;
             memory.WriteDirect(address, value);
             return;
         }
 
-        if (address == DuckAddresses.NR52) {
+        if (address == GBMemAddresses.NR52) {
             if ((value & 0x80) == 0) {
                 PowerOff();
             } else if (!powerEnabled) {
@@ -226,33 +226,33 @@ public class DuckAPU {
         }
 
         switch (address) {
-            case DuckAddresses.NR10 -> channel1.WriteSweep(value);
-            case DuckAddresses.NR11 -> channel1.WriteDutyLength(value);
-            case DuckAddresses.NR12 -> channel1.WriteEnvelope(value);
-            case DuckAddresses.NR13 -> channel1.WriteFrequencyLow(value);
-            case DuckAddresses.NR14 -> channel1.WriteFrequencyHigh(value);
-            case DuckAddresses.NR21 -> channel2.WriteDutyLength(value);
-            case DuckAddresses.NR22 -> channel2.WriteEnvelope(value);
-            case DuckAddresses.NR23 -> channel2.WriteFrequencyLow(value);
-            case DuckAddresses.NR24 -> channel2.WriteFrequencyHigh(value);
-            case DuckAddresses.NR30 -> channel3.WriteDacPower(value);
-            case DuckAddresses.NR31 -> channel3.WriteLength(value);
-            case DuckAddresses.NR32 -> channel3.WriteVolume(value);
-            case DuckAddresses.NR33 -> channel3.WriteFrequencyLow(value);
-            case DuckAddresses.NR34 -> channel3.WriteFrequencyHigh(value);
-            case DuckAddresses.NR41 -> channel4.WriteLength(value);
-            case DuckAddresses.NR42 -> channel4.WriteEnvelope(value);
-            case DuckAddresses.NR43 -> channel4.WritePolynomial(value);
-            case DuckAddresses.NR44 -> channel4.WriteControl(value);
-            case DuckAddresses.NR50 -> nr50 = value;
-            case DuckAddresses.NR51 -> nr51 = value;
+            case GBMemAddresses.NR10 -> channel1.WriteSweep(value);
+            case GBMemAddresses.NR11 -> channel1.WriteDutyLength(value);
+            case GBMemAddresses.NR12 -> channel1.WriteEnvelope(value);
+            case GBMemAddresses.NR13 -> channel1.WriteFrequencyLow(value);
+            case GBMemAddresses.NR14 -> channel1.WriteFrequencyHigh(value);
+            case GBMemAddresses.NR21 -> channel2.WriteDutyLength(value);
+            case GBMemAddresses.NR22 -> channel2.WriteEnvelope(value);
+            case GBMemAddresses.NR23 -> channel2.WriteFrequencyLow(value);
+            case GBMemAddresses.NR24 -> channel2.WriteFrequencyHigh(value);
+            case GBMemAddresses.NR30 -> channel3.WriteDacPower(value);
+            case GBMemAddresses.NR31 -> channel3.WriteLength(value);
+            case GBMemAddresses.NR32 -> channel3.WriteVolume(value);
+            case GBMemAddresses.NR33 -> channel3.WriteFrequencyLow(value);
+            case GBMemAddresses.NR34 -> channel3.WriteFrequencyHigh(value);
+            case GBMemAddresses.NR41 -> channel4.WriteLength(value);
+            case GBMemAddresses.NR42 -> channel4.WriteEnvelope(value);
+            case GBMemAddresses.NR43 -> channel4.WritePolynomial(value);
+            case GBMemAddresses.NR44 -> channel4.WriteControl(value);
+            case GBMemAddresses.NR50 -> nr50 = value;
+            case GBMemAddresses.NR51 -> nr51 = value;
             default -> {
                 return;
             }
         }
 
         memory.WriteDirect(address, Read(address));
-        memory.WriteDirect(DuckAddresses.NR52, Read(DuckAddresses.NR52));
+        memory.WriteDirect(GBMemAddresses.NR52, Read(GBMemAddresses.NR52));
     }
 
     /**
@@ -337,24 +337,24 @@ public class DuckAPU {
         channel3.Reset();
         channel4.Reset();
 
-        for (int address = DuckAddresses.NR10; address <= DuckAddresses.NR51; address++) {
+        for (int address = GBMemAddresses.NR10; address <= GBMemAddresses.NR51; address++) {
             memory.WriteDirect(address, 0x00);
         }
-        memory.WriteDirect(DuckAddresses.NR52, Read(DuckAddresses.NR52));
-        for (int address = DuckAddresses.WAVE_PATTERN_START; address <= DuckAddresses.WAVE_PATTERN_END; address++) {
-            memory.WriteDirect(address, waveRam[address - DuckAddresses.WAVE_PATTERN_START]);
+        memory.WriteDirect(GBMemAddresses.NR52, Read(GBMemAddresses.NR52));
+        for (int address = GBMemAddresses.WAVE_PATTERN_START; address <= GBMemAddresses.WAVE_PATTERN_END; address++) {
+            memory.WriteDirect(address, waveRam[address - GBMemAddresses.WAVE_PATTERN_START]);
         }
     }
 
     private void SyncMirrors() {
-        for (int address = DuckAddresses.NR10; address <= DuckAddresses.NR52; address++) {
-            if (address == DuckAddresses.NR15 || address == DuckAddresses.NR1F) {
+        for (int address = GBMemAddresses.NR10; address <= GBMemAddresses.NR52; address++) {
+            if (address == GBMemAddresses.NR15 || address == GBMemAddresses.NR1F) {
                 continue;
             }
             memory.WriteDirect(address, Read(address));
         }
-        for (int address = DuckAddresses.WAVE_PATTERN_START; address <= DuckAddresses.WAVE_PATTERN_END; address++) {
-            memory.WriteDirect(address, waveRam[address - DuckAddresses.WAVE_PATTERN_START]);
+        for (int address = GBMemAddresses.WAVE_PATTERN_START; address <= GBMemAddresses.WAVE_PATTERN_END; address++) {
+            memory.WriteDirect(address, waveRam[address - GBMemAddresses.WAVE_PATTERN_START]);
         }
     }
 
@@ -417,7 +417,8 @@ public class DuckAPU {
             int rightRouteMask = nr51 & 0x0F;
 
             double leftMix = MixChannels(leftRouteMask, channel1Sample, channel2Sample, channel3Sample, channel4Sample);
-            double rightMix = MixChannels(rightRouteMask, channel1Sample, channel2Sample, channel3Sample, channel4Sample);
+            double rightMix = MixChannels(rightRouteMask, channel1Sample, channel2Sample, channel3Sample,
+                    channel4Sample);
 
             double masterVolume = Settings.masterVolume / 100.0;
             double leftVolume = TerminalOutputScale((nr50 >>> 4) & 0x07);
@@ -598,7 +599,6 @@ public class DuckAPU {
         channel.envelopeIncrease = state.envelopeIncrease();
         channel.dacEnabled = state.dacEnabled();
     }
-
 
     private abstract static class BaseChannel {
         protected boolean enabled;
@@ -1099,4 +1099,3 @@ public class DuckAPU {
         }
     }
 }
-

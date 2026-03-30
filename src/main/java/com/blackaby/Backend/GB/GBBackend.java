@@ -17,13 +17,13 @@ import java.util.List;
 /**
  * Registers the current Game Boy backend with the host UI.
  */
-public final class DuckBackend implements EmulatorBackend {
+public final class GBBackend implements EmulatorBackend {
 
-    public static final DuckBackend instance = new DuckBackend();
+    public static final GBBackend instance = new GBBackend();
 
     private static final EmulatorProfile profile = new DuckProfile();
 
-    private DuckBackend() {
+    private GBBackend() {
     }
 
     @Override
@@ -33,7 +33,7 @@ public final class DuckBackend implements EmulatorBackend {
 
     @Override
     public EmulatorRuntime CreateRuntime(EmulatorHost host, DuckDisplay display) {
-        return new DuckEmulation(host, display, profile);
+        return new GBRuntime(host, display, profile);
     }
 
     private static final class DuckProfile implements EmulatorProfile {
@@ -43,7 +43,8 @@ public final class DuckBackend implements EmulatorBackend {
                 new Dimension(640, 576),
                 new Dimension(160, 144),
                 Color.BLACK);
-        private static final EmulatorCapabilities capabilities = new EmulatorCapabilities(true, true, true, true, true, true);
+        private static final EmulatorCapabilities capabilities = new EmulatorCapabilities(true, true, true, true, true,
+                true);
         private static final List<GBButton> controlButtons = List.of(
                 GBButton.UP,
                 GBButton.DOWN,
@@ -100,5 +101,3 @@ public final class DuckBackend implements EmulatorBackend {
         }
     }
 }
-
-

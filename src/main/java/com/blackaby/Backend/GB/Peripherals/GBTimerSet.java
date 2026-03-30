@@ -1,8 +1,8 @@
 package com.blackaby.Backend.GB.Peripherals;
 
-import com.blackaby.Backend.GB.CPU.DuckCPU;
-import com.blackaby.Backend.GB.Memory.DuckAddresses;
-import com.blackaby.Backend.GB.Memory.DuckMemory;
+import com.blackaby.Backend.GB.CPU.GBProcessor;
+import com.blackaby.Backend.GB.Memory.GBMemAddresses;
+import com.blackaby.Backend.GB.Memory.GBMemory;
 
 /**
  * Emulates the DMG divider and programmable timer unit.
@@ -10,7 +10,7 @@ import com.blackaby.Backend.GB.Memory.DuckMemory;
  * The timer follows the Game Boy's falling-edge behaviour and preserves the
  * delayed TIMA overflow reload used by many test ROMs.
  */
-public class DuckTimer {
+public class GBTimerSet {
 
     public record TimerState(
             int internalCounter,
@@ -28,16 +28,16 @@ public class DuckTimer {
 
     public boolean timaOverflowPending;
 
-    private final DuckMemory memory;
-    private final DuckCPU cpu;
+    private final GBMemory memory;
+    private final GBProcessor cpu;
 
     /**
      * Creates a timer bound to the active CPU and memory bus.
      *
-     * @param cpu CPU instance for interrupt requests
+     * @param cpu    CPU instance for interrupt requests
      * @param memory memory bus for register mirroring
      */
-    public DuckTimer(DuckCPU cpu, DuckMemory memory) {
+    public GBTimerSet(GBProcessor cpu, GBMemory memory) {
         this.cpu = cpu;
         this.memory = memory;
     }
@@ -58,8 +58,8 @@ public class DuckTimer {
         if (overflowCounter > 0) {
             overflowCounter--;
             if (overflowCounter == 0 && timaOverflowPending) {
-                memory.SetTimaFromTimer(memory.ReadRegisterDirect(DuckAddresses.TMA));
-                cpu.RequestInterrupt(DuckCPU.Interrupt.TIMER);
+                memory.SetTimaFromTimer(memory.ReadRegisterDirect(GBMemAddresses.TMA));
+                cpu.RequestInterrupt(GBProcessor.Interrupt.TIMER);
                 timaOverflowPending = false;
             }
         }
@@ -73,7 +73,7 @@ public class DuckTimer {
      * Resets the divider and applies the usual divider glitch behaviour.
      */
     public void ResetDiv() {
-        int tac = memory.ReadRegisterDirect(DuckAddresses.TAC);
+        int tac = memory.ReadRegisterDirect(GBMemAddresses.TAC);
         boolean timerEnabled = (tac & tacEnableBit) != 0;
         int monitoredBit = GetMonitoredBit(tac);
         boolean wasOne = timerEnabled && ((internalCounter & (1 << monitoredBit)) != 0);
@@ -91,7 +91,7 @@ public class DuckTimer {
      * Recomputes the sampled timer bit after external state changes.
      */
     public void SyncTimerBit() {
-        int tac = memory.ReadRegisterDirect(DuckAddresses.TAC);
+        int tac = memory.ReadRegisterDirect(GBMemAddresses.TAC);
         boolean timerEnabled = (tac & tacEnableBit) != 0;
         int monitoredBit = GetMonitoredBit(tac);
         previousTimerBit = timerEnabled && ((internalCounter & (1 << monitoredBit)) != 0);
@@ -104,10 +104,10 @@ public class DuckTimer {
      * @param value new TAC value
      */
     public void WriteTac(int value) {
-        int oldTac = memory.ReadRegisterDirect(DuckAddresses.TAC);
+        int oldTac = memory.ReadRegisterDirect(GBMemAddresses.TAC);
         boolean oldTimerBit = GetTimerBit(oldTac);
 
-        memory.WriteDirect(DuckAddresses.TAC, 0xF8 | (value & 0x07));
+        memory.WriteDirect(GBMemAddresses.TAC, 0xF8 | (value & 0x07));
 
         boolean newTimerBit = GetTimerBit(value);
         if (oldTimerBit && !newTimerBit) {
@@ -160,7 +160,7 @@ public class DuckTimer {
     }
 
     private void UpdateTima() {
-        int tac = memory.ReadRegisterDirect(DuckAddresses.TAC);
+        int tac = memory.ReadRegisterDirect(GBMemAddresses.TAC);
         boolean timerEnabled = (tac & tacEnableBit) != 0;
         int monitoredBit = GetMonitoredBit(tac);
         boolean currentTimerBit = timerEnabled && ((internalCounter & (1 << monitoredBit)) != 0);
@@ -173,7 +173,7 @@ public class DuckTimer {
     }
 
     private void IncrementTima() {
-        int tima = memory.ReadRegisterDirect(DuckAddresses.TIMA);
+        int tima = memory.ReadRegisterDirect(GBMemAddresses.TIMA);
         if (tima == 0xFF) {
             memory.SetTimaFromTimer(0x00);
             timaOverflowPending = true;
@@ -200,4 +200,3 @@ public class DuckTimer {
     }
 
 }
-

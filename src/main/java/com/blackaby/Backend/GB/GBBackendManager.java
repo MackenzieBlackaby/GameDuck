@@ -5,11 +5,11 @@ import com.blackaby.Backend.Platform.EmulatorBackend;
 /**
  * Central place for selecting the active Game Boy core exposed to the host UI.
  */
-public final class GBBackends {
+public final class GBBackendManager {
 
-    private static final EmulatorBackend current = DuckBackend.instance;
+    private static final EmulatorBackend current = GBBackend.instance;
 
-    private GBBackends() {
+    private GBBackendManager() {
     }
 
     public static EmulatorBackend Current() {

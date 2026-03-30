@@ -14,7 +14,7 @@ import java.util.concurrent.TimeUnit;
 /**
  * Wraps the host PCM output line used by the emulator.
  */
-public class DuckAudioOutput {
+public class GBAudio {
 
     private static final int channels = 2;
     private static final int bytesPerSample = 2;
@@ -40,7 +40,7 @@ public class DuckAudioOutput {
      *
      * @param sampleRate output sample rate in hertz
      */
-    public DuckAudioOutput(float sampleRate) {
+    public GBAudio(float sampleRate) {
         this.sampleRate = sampleRate;
         this.enhancementChain = new AudioEnhancementChain(sampleRate);
         Initialise();
@@ -65,7 +65,7 @@ public class DuckAudioOutput {
     /**
      * Appends one stereo sample frame to the output buffer.
      *
-     * @param left left channel sample from -1.0 to 1.0
+     * @param left  left channel sample from -1.0 to 1.0
      * @param right right channel sample from -1.0 to 1.0
      */
     public void WriteSample(double left, double right) {
@@ -261,4 +261,3 @@ public class DuckAudioOutput {
     }
 
 }
-

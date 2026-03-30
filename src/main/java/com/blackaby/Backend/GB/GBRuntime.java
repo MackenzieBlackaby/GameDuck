@@ -1,16 +1,16 @@
 package com.blackaby.Backend.GB;
 
-import com.blackaby.Backend.GB.CPU.DuckCPU;
-import com.blackaby.Backend.GB.CPU.InstructionLogic;
-import com.blackaby.Backend.GB.Graphics.DuckPPU;
-import com.blackaby.Backend.GB.Memory.DuckAddresses;
-import com.blackaby.Backend.GB.Memory.CheatEngine;
-import com.blackaby.Backend.GB.Memory.DuckMemory;
-import com.blackaby.Backend.GB.Misc.ROM;
-import com.blackaby.Backend.GB.Misc.Specifics;
-import com.blackaby.Backend.GB.Peripherals.DuckAPU;
-import com.blackaby.Backend.GB.Peripherals.DuckJoypad;
-import com.blackaby.Backend.GB.Peripherals.DuckTimer;
+import com.blackaby.Backend.GB.CPU.GBProcessor;
+import com.blackaby.Backend.GB.CPU.GBInstructionLogic;
+import com.blackaby.Backend.GB.Graphics.GBPPU;
+import com.blackaby.Backend.GB.Memory.GBMemAddresses;
+import com.blackaby.Backend.GB.Memory.GBCheatEngine;
+import com.blackaby.Backend.GB.Memory.GBMemory;
+import com.blackaby.Backend.GB.Misc.GBRom;
+import com.blackaby.Backend.GB.Misc.GBConstants;
+import com.blackaby.Backend.GB.Peripherals.GBAudioProcessingUnit;
+import com.blackaby.Backend.GB.Peripherals.GBGamepad;
+import com.blackaby.Backend.GB.Peripherals.GBTimerSet;
 import com.blackaby.Backend.Platform.EmulatorGame;
 import com.blackaby.Backend.Platform.EmulatorCheat;
 import com.blackaby.Backend.Platform.EmulatorHost;
@@ -42,23 +42,23 @@ import java.util.concurrent.locks.LockSupport;
  * boot state when the boot ROM is skipped, and runs the timed execution loop
  * used by the desktop front end.
  */
-public class DuckEmulation implements Runnable, EmulatorRuntime {
+public class GBRuntime implements Runnable, EmulatorRuntime {
 
     private static final double maxTimeAccumulator = 50_000_000.0;
     private static final int minCyclesPerRunSlice = 2_048;
     private static final int maxCyclesPerRunSlice = 17_556;
     private static final long coarseParkThresholdNanos = 2_000_000L;
     private static final long fineSpinThresholdNanos = 250_000L;
-    private static final double minRunSliceNanos = minCyclesPerRunSlice * Specifics.nanosecondsPerCycle;
+    private static final double minRunSliceNanos = minCyclesPerRunSlice * GBConstants.nanosecondsPerCycle;
 
-    private DuckCPU cpu;
-    private DuckMemory memory;
-    private DuckTimer timer;
-    private DuckPPU ppu;
-    private volatile DuckJoypad joypad;
-    private DuckAPU apu;
+    private GBProcessor cpu;
+    private GBMemory memory;
+    private GBTimerSet timer;
+    private GBPPU ppu;
+    private volatile GBGamepad joypad;
+    private GBAudioProcessingUnit apu;
     private final DuckDisplay display;
-    private ROM rom;
+    private GBRom rom;
     private final EmulatorHost host;
     private final EmulatorProfile profile;
     private Thread emulationThread;
@@ -67,7 +67,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
     private final String defaultRomName = "NO ROM LOADED";
     private String romName = defaultRomName;
     private final Object stateLock = new Object();
-    private final CheatEngine cheatEngine = new CheatEngine();
+    private final GBCheatEngine cheatEngine = new GBCheatEngine();
 
     /**
      * Creates an emulator controller for the main window and display.
@@ -75,7 +75,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
      * @param window  owning main window
      * @param display display surface for rendered frames
      */
-    public DuckEmulation(EmulatorHost window, DuckDisplay display, EmulatorProfile profile) {
+    public GBRuntime(EmulatorHost window, DuckDisplay display, EmulatorProfile profile) {
         this.display = display;
         this.host = window;
         this.profile = profile;
@@ -93,17 +93,17 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
      */
     @Override
     public void StartEmulation(String romFile) {
-        StartEmulation(new ROM(romFile));
+        StartEmulation(new GBRom(romFile));
     }
 
     @Override
     public void StartEmulation(EmulatorMedia media) {
-        if (media instanceof ROM loadedRom) {
+        if (media instanceof GBRom loadedRom) {
             StartEmulation(loadedRom);
             return;
         }
 
-        StartEmulation(ROM.FromBytes(
+        StartEmulation(GBRom.FromBytes(
                 media.sourcePath(),
                 media.programBytes(),
                 media.displayName(),
@@ -116,7 +116,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
      *
      * @param rom ROM image to start
      */
-    public void StartEmulation(ROM rom) {
+    public void StartEmulation(GBRom rom) {
         if (running) {
             StopEmulation();
         }
@@ -127,12 +127,12 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
         this.rom = rom;
         romName = rom.GetName();
 
-        memory = new DuckMemory();
-        apu = new DuckAPU(memory);
-        cpu = new DuckCPU(memory, this, this.rom);
-        joypad = new DuckJoypad(cpu);
-        timer = new DuckTimer(cpu, memory);
-        ppu = new DuckPPU(cpu, memory, display);
+        memory = new GBMemory();
+        apu = new GBAudioProcessingUnit(memory);
+        cpu = new GBProcessor(memory, this, this.rom);
+        joypad = new GBGamepad(cpu);
+        timer = new GBTimerSet(cpu, memory);
+        ppu = new GBPPU(cpu, memory, display);
 
         memory.SetTimer(timer);
         memory.SetCpu(cpu);
@@ -152,7 +152,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
             exception.printStackTrace();
         }
 
-        InstructionLogic.Initialise(cpu, memory);
+        GBInstructionLogic.Initialise(cpu, memory);
         host.SetSubtitle(romName);
         host.SetLoadedGame(this.rom, false);
         host.LoadGameArt(this.rom);
@@ -246,7 +246,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
             timeAccumulator += delta;
 
             timeAccumulator = Math.min(timeAccumulator, maxTimeAccumulator);
-            int availableCycles = (int) (timeAccumulator / Specifics.nanosecondsPerCycle);
+            int availableCycles = (int) (timeAccumulator / GBConstants.nanosecondsPerCycle);
             if (availableCycles < minCyclesPerRunSlice) {
                 WaitForRunSlice(timeAccumulator);
                 continue;
@@ -271,7 +271,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
                 ApplyLiveCheats();
             }
 
-            timeAccumulator -= executedCycles * Specifics.nanosecondsPerCycle;
+            timeAccumulator -= executedCycles * GBConstants.nanosecondsPerCycle;
         }
     }
 
@@ -304,7 +304,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
         if (button == null) {
             return;
         }
-        DuckJoypad activeJoypad = joypad;
+        GBGamepad activeJoypad = joypad;
         if (activeJoypad != null) {
             activeJoypad.SetButtonPressed(button, pressed);
         }
@@ -343,7 +343,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
      *
      * @return loaded ROM or {@code null}
      */
-    public ROM GetLoadedRom() {
+    public GBRom GetLoadedRom() {
         return rom;
     }
 
@@ -494,7 +494,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
         if (rom == null) {
             throw new IllegalStateException("No ROM is currently loaded.");
         }
-        StartEmulation(ROM.LoadPatched(rom, patchFilename));
+        StartEmulation(GBRom.LoadPatched(rom, patchFilename));
     }
 
     @Override
@@ -582,7 +582,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
 
         memory.InitialiseDmgBootState();
         timer.InitialiseDmgBootState();
-        memory.WriteDirect(DuckAddresses.STAT, 0x82);
+        memory.WriteDirect(GBMemAddresses.STAT, 0x82);
     }
 
     private void InitialiseCgbBootStateWithoutBootRom() {
@@ -595,14 +595,14 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
 
         memory.InitialiseCgbBootState();
         timer.InitialiseDmgBootState();
-        memory.WriteDirect(DuckAddresses.STAT, 0x82);
+        memory.WriteDirect(GBMemAddresses.STAT, 0x82);
     }
 
     private boolean ShouldUseCgbHardware() {
         return ShouldUseCgbHardware(rom);
     }
 
-    private boolean ShouldUseCgbHardware(ROM loadedRom) {
+    private boolean ShouldUseCgbHardware(GBRom loadedRom) {
         if (loadedRom == null || !loadedRom.IsCgbCompatible()) {
             return false;
         }
@@ -635,7 +635,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
         if (memory.IsSerialTransferInProgress()) {
             DebugLogger.SerialOutput(memory.ReadSerialDataRegister());
             memory.CompleteSerialTransfer();
-            cpu.RequestInterrupt(DuckCPU.Interrupt.SERIAL);
+            cpu.RequestInterrupt(GBProcessor.Interrupt.SERIAL);
         }
     }
 
@@ -664,7 +664,7 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
         cpu.RestoreState(quickState.cpuState());
         timer.RestoreState(quickState.timerState());
         joypad.RestoreState(quickState.joypadState());
-        memory.WriteDirect(DuckAddresses.JOYPAD, joypad.ReadRegister());
+        memory.WriteDirect(GBMemAddresses.JOYPAD, joypad.ReadRegister());
         apu.RestoreState(quickState.apuState());
         ppu.RestoreState(quickState.ppuState());
         display.RestoreFrameState(quickState.displayState());
@@ -682,5 +682,3 @@ public class DuckEmulation implements Runnable, EmulatorRuntime {
         cheatEngine.ApplyWriteCheats(memory);
     }
 }
-
-

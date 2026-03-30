@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 
 import java.io.IOException;
 import java.net.URI;
@@ -53,7 +53,7 @@ public final class LibretroMetadataProvider {
      * @param rom ROM to inspect
      * @return resolved libretro metadata when found
      */
-    public static Optional<LibretroMetadata> FindMetadata(ROM rom) {
+    public static Optional<LibretroMetadata> FindMetadata(GBRom rom) {
         if (rom == null) {
             return Optional.empty();
         }
@@ -155,7 +155,7 @@ public final class LibretroMetadataProvider {
         return cacheDirectory.resolve(fieldName + "-" + safeDatabaseName + ".dat");
     }
 
-    private static List<String> BuildDatabaseOrder(ROM rom) {
+    private static List<String> BuildDatabaseOrder(GBRom rom) {
         String lowerSourcePath = rom.GetSourcePath() == null ? "" : rom.GetSourcePath().toLowerCase();
         boolean preferColorDatabase = rom.IsCgbOnly()
                 || rom.IsCgbCompatible()
@@ -179,7 +179,7 @@ public final class LibretroMetadataProvider {
         return String.format("%08X", crc32.getValue());
     }
 
-    private static Optional<String> LookupReleaseYearFallback(String databaseName, ROM rom) {
+    private static Optional<String> LookupReleaseYearFallback(String databaseName, GBRom rom) {
         if (databaseName == null || databaseName.isBlank() || rom == null) {
             return Optional.empty();
         }
@@ -201,7 +201,7 @@ public final class LibretroMetadataProvider {
         return Optional.empty();
     }
 
-    private static List<String> BuildTitleCandidates(ROM rom) {
+    private static List<String> BuildTitleCandidates(GBRom rom) {
         LinkedHashSet<String> titles = new LinkedHashSet<>();
         AddTitleCandidate(titles, rom.GetSourceName());
         AddTitleCandidate(titles, rom.GetName());

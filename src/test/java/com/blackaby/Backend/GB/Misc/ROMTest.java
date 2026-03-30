@@ -5,16 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.blackaby.Backend.GB.Memory.CartridgeMapperType;
+import com.blackaby.Backend.GB.Memory.GBMapperTypes;
 import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
 
 class ROMTest {
 
     @Test
     void parsesMapperFlagsAndSizesFromHeader() {
-        ROM rom = EmulatorTestUtils.CreateBlankRom(0x1B, 32, 0x03, 0xC0, "pokemon.gbc", "Pokemon Crystal");
+        GBRom rom = EmulatorTestUtils.CreateBlankRom(0x1B, 32, 0x03, 0xC0, "pokemon.gbc", "Pokemon Crystal");
 
-        assertEquals(CartridgeMapperType.MBC5, rom.GetMapperType());
+        assertEquals(GBMapperTypes.MBC5, rom.GetMapperType());
         assertEquals(32, rom.GetDeclaredRomBankCount());
         assertEquals(32, rom.GetEffectiveRomBankCount());
         assertEquals(0x8000, rom.GetExternalRamSizeBytes());
@@ -26,7 +26,7 @@ class ROMTest {
 
     @Test
     void keepsSourceNameSeparateFromDisplayName() {
-        ROM rom = EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00,
+        GBRom rom = EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00,
                 "C:\\roms\\Super Mario Bros Deluxe.gbc", "Mario DX");
 
         assertEquals("Super Mario Bros Deluxe", rom.GetSourceName());

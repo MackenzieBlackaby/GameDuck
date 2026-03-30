@@ -1,9 +1,9 @@
 package com.blackaby.Backend.GB.CPU;
 
-import com.blackaby.Backend.GB.CPU.DuckCPU.Flag;
-import com.blackaby.Backend.GB.CPU.DuckCPU.Register;
-import com.blackaby.Backend.GB.Memory.DuckAddresses;
-import com.blackaby.Backend.GB.Memory.DuckMemory;
+import com.blackaby.Backend.GB.CPU.GBProcessor.Flag;
+import com.blackaby.Backend.GB.CPU.GBProcessor.Register;
+import com.blackaby.Backend.GB.Memory.GBMemAddresses;
+import com.blackaby.Backend.GB.Memory.GBMemory;
 
 /**
  * Holds the shared implementation for decoded CPU instructions.
@@ -11,17 +11,17 @@ import com.blackaby.Backend.GB.Memory.DuckMemory;
  * Each helper mutates the active CPU and memory state for one LR35902
  * instruction and returns the number of T-cycles consumed by that operation.
  */
-public class InstructionLogic {
-    private static DuckCPU cpu;
-    private static DuckMemory memory;
+public class GBInstructionLogic {
+    private static GBProcessor cpu;
+    private static GBMemory memory;
 
     /**
      * Binds the instruction helpers to the active CPU and memory instances.
      *
-     * @param cpuInstance active CPU
+     * @param cpuInstance    active CPU
      * @param memoryInstance active memory bus
      */
-    public static void Initialise(DuckCPU cpuInstance, DuckMemory memoryInstance) {
+    public static void Initialise(GBProcessor cpuInstance, GBMemory memoryInstance) {
         cpu = cpuInstance;
         memory = memoryInstance;
     }
@@ -121,8 +121,8 @@ public class InstructionLogic {
      * @return 4 T-cycles
      */
     public static int Halt() {
-        int ie = memory.Read(DuckAddresses.IE);
-        int ifFlag = memory.Read(DuckAddresses.INTERRUPT_FLAG);
+        int ie = memory.Read(GBMemAddresses.IE);
+        int ifFlag = memory.Read(GBMemAddresses.INTERRUPT_FLAG);
         boolean interruptPending = (ie & ifFlag & 0x1F) != 0;
         if (!cpu.IsInterruptMasterEnable() && interruptPending) {
             cpu.SetHaltBug();
@@ -1022,4 +1022,3 @@ public class InstructionLogic {
         return isConditional ? 20 : 16;
     }
 }
-

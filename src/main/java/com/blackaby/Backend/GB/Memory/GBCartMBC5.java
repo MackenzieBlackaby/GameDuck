@@ -1,17 +1,17 @@
 package com.blackaby.Backend.GB.Memory;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 
 /**
  * Mapper for MBC5 cartridges with 9-bit ROM bank selection.
  */
-final class Mbc5CartridgeController extends CartridgeController {
+final class GBCartMBC5 extends GBCartController {
 
     private boolean ramEnabled;
     private int romBank = 1;
     private int ramBank;
 
-    Mbc5CartridgeController(ROM rom) {
+    GBCartMBC5(GBRom rom) {
         super(rom, rom.GetExternalRamSizeBytes());
     }
 
@@ -49,9 +49,9 @@ final class Mbc5CartridgeController extends CartridgeController {
             ramBank = value & 0x0F;
             return;
         }
-        if (address >= DuckAddresses.EXTERNAL_RAM_START && address <= DuckAddresses.EXTERNAL_RAM_END
+        if (address >= GBMemAddresses.EXTERNAL_RAM_START && address <= GBMemAddresses.EXTERNAL_RAM_END
                 && ramEnabled && HasRam()) {
-            WriteRamBank(ramBank, address - DuckAddresses.EXTERNAL_RAM_START, value);
+            WriteRamBank(ramBank, address - GBMemAddresses.EXTERNAL_RAM_START, value);
         }
     }
 
@@ -71,4 +71,3 @@ final class Mbc5CartridgeController extends CartridgeController {
         ramBank = registers[2] & 0x0F;
     }
 }
-

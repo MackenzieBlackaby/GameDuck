@@ -1,12 +1,12 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.GB.CPU.DuckCPU;
-import com.blackaby.Backend.GB.Graphics.DuckPPU;
-import com.blackaby.Backend.GB.Memory.DuckMemory;
-import com.blackaby.Backend.GB.Misc.ROM;
-import com.blackaby.Backend.GB.Peripherals.DuckAPU;
-import com.blackaby.Backend.GB.Peripherals.DuckJoypad;
-import com.blackaby.Backend.GB.Peripherals.DuckTimer;
+import com.blackaby.Backend.GB.CPU.GBProcessor;
+import com.blackaby.Backend.GB.Graphics.GBPPU;
+import com.blackaby.Backend.GB.Memory.GBMemory;
+import com.blackaby.Backend.GB.Misc.GBRom;
+import com.blackaby.Backend.GB.Peripherals.GBAudioProcessingUnit;
+import com.blackaby.Backend.GB.Peripherals.GBGamepad;
+import com.blackaby.Backend.GB.Peripherals.GBTimerSet;
 import com.blackaby.Frontend.DuckDisplay;
 
 import java.io.BufferedInputStream;
@@ -30,12 +30,12 @@ public final class QuickStateManager {
     public static final int maxSlot = 9;
 
     public record QuickStateIdentity(String sourcePath, String sourceName, String displayName,
-                                     List<String> patchNames) {
+            List<String> patchNames) {
         public QuickStateIdentity {
             patchNames = List.copyOf(patchNames == null ? List.of() : patchNames);
         }
 
-        public static QuickStateIdentity FromRom(ROM rom) {
+        public static QuickStateIdentity FromRom(GBRom rom) {
             if (rom == null) {
                 return null;
             }
@@ -48,12 +48,12 @@ public final class QuickStateManager {
     }
 
     public record QuickStateData(
-            DuckCPU.CpuState cpuState,
-            DuckMemory.MemoryState memoryState,
-            DuckTimer.TimerState timerState,
-            DuckPPU.PpuState ppuState,
-            DuckJoypad.JoypadState joypadState,
-            DuckAPU.ApuState apuState,
+            GBProcessor.CpuState cpuState,
+            GBMemory.MemoryState memoryState,
+            GBTimerSet.TimerState timerState,
+            GBPPU.PpuState ppuState,
+            GBGamepad.JoypadState joypadState,
+            GBAudioProcessingUnit.ApuState apuState,
             DuckDisplay.FrameState displayState,
             int previousLy) implements java.io.Serializable {
     }
@@ -70,23 +70,23 @@ public final class QuickStateManager {
     /**
      * Writes the quick slot for the supplied ROM.
      *
-     * @param rom loaded ROM identity
+     * @param rom            loaded ROM identity
      * @param quickStateData state payload
      * @throws IOException when the state cannot be written
      */
-    public static void Save(ROM rom, QuickStateData quickStateData) throws IOException {
+    public static void Save(GBRom rom, QuickStateData quickStateData) throws IOException {
         Save(rom, quickSlot, quickStateData);
     }
 
     /**
      * Writes a managed state file for the supplied ROM and slot.
      *
-     * @param rom loaded ROM identity
-     * @param slot save-state slot from 0 to 9
+     * @param rom            loaded ROM identity
+     * @param slot           save-state slot from 0 to 9
      * @param quickStateData state payload
      * @throws IOException when the state cannot be written
      */
-    public static void Save(ROM rom, int slot, QuickStateData quickStateData) throws IOException {
+    public static void Save(GBRom rom, int slot, QuickStateData quickStateData) throws IOException {
         if (rom == null) {
             throw new IOException("Load a ROM before saving a state.");
         }
@@ -112,19 +112,19 @@ public final class QuickStateManager {
      * @return state payload
      * @throws IOException when the state cannot be found or read
      */
-    public static QuickStateData Load(ROM rom) throws IOException {
+    public static QuickStateData Load(GBRom rom) throws IOException {
         return Load(rom, quickSlot);
     }
 
     /**
      * Loads a managed state file for the supplied ROM and slot.
      *
-     * @param rom loaded ROM identity
+     * @param rom  loaded ROM identity
      * @param slot save-state slot from 0 to 9
      * @return state payload
      * @throws IOException when the state cannot be found or read
      */
-    public static QuickStateData Load(ROM rom, int slot) throws IOException {
+    public static QuickStateData Load(GBRom rom, int slot) throws IOException {
         if (rom == null) {
             throw new IOException("Load a ROM before trying to load a state.");
         }
@@ -162,18 +162,18 @@ public final class QuickStateManager {
      * @param rom loaded ROM identity
      * @return quick-slot path
      */
-    public static Path QuickStatePath(ROM rom) {
+    public static Path QuickStatePath(GBRom rom) {
         return QuickStatePath(rom, quickSlot);
     }
 
     /**
      * Returns the managed save-state slot path for a ROM.
      *
-     * @param rom loaded ROM identity
+     * @param rom  loaded ROM identity
      * @param slot save-state slot from 0 to 9
      * @return save-state path
      */
-    public static Path QuickStatePath(ROM rom, int slot) {
+    public static Path QuickStatePath(GBRom rom, int slot) {
         return QuickStatePath(QuickStateIdentity.FromRom(rom), slot);
     }
 
@@ -191,7 +191,7 @@ public final class QuickStateManager {
      * Returns the managed save-state slot path for a ROM identity.
      *
      * @param quickStateIdentity ROM identity
-     * @param slot save-state slot from 0 to 9
+     * @param slot               save-state slot from 0 to 9
      * @return save-state path
      */
     public static Path QuickStatePath(QuickStateIdentity quickStateIdentity, int slot) {
@@ -206,7 +206,7 @@ public final class QuickStateManager {
      * @param rom loaded ROM identity
      * @return slot metadata in slot order
      */
-    public static List<StateSlotInfo> DescribeSlots(ROM rom) {
+    public static List<StateSlotInfo> DescribeSlots(GBRom rom) {
         return DescribeSlots(QuickStateIdentity.FromRom(rom));
     }
 
@@ -238,11 +238,12 @@ public final class QuickStateManager {
      * Imports an external save-state file into the managed slot.
      *
      * @param quickStateIdentity ROM identity
-     * @param slot save-state slot from 0 to 9
-     * @param sourcePath external save-state file
+     * @param slot               save-state slot from 0 to 9
+     * @param sourcePath         external save-state file
      * @throws IOException when the file cannot be imported
      */
-    public static void ImportState(QuickStateIdentity quickStateIdentity, int slot, Path sourcePath) throws IOException {
+    public static void ImportState(QuickStateIdentity quickStateIdentity, int slot, Path sourcePath)
+            throws IOException {
         ValidateSlot(slot);
         if (sourcePath == null || !Files.exists(sourcePath) || !Files.isRegularFile(sourcePath)) {
             throw new IOException("Select a valid save-state file to import.");
@@ -257,11 +258,12 @@ public final class QuickStateManager {
      * Exports the managed save-state slot to an external file.
      *
      * @param quickStateIdentity ROM identity
-     * @param slot save-state slot from 0 to 9
-     * @param destinationPath external destination
+     * @param slot               save-state slot from 0 to 9
+     * @param destinationPath    external destination
      * @throws IOException when the state cannot be exported
      */
-    public static void ExportState(QuickStateIdentity quickStateIdentity, int slot, Path destinationPath) throws IOException {
+    public static void ExportState(QuickStateIdentity quickStateIdentity, int slot, Path destinationPath)
+            throws IOException {
         ValidateSlot(slot);
         if (destinationPath == null) {
             throw new IOException("Choose a destination file for the exported save state.");
@@ -285,7 +287,7 @@ public final class QuickStateManager {
      * Deletes one managed save-state slot.
      *
      * @param quickStateIdentity ROM identity
-     * @param slot save-state slot from 0 to 9
+     * @param slot               save-state slot from 0 to 9
      * @throws IOException when deletion fails
      */
     public static void DeleteState(QuickStateIdentity quickStateIdentity, int slot) throws IOException {
@@ -309,11 +311,12 @@ public final class QuickStateManager {
      * Moves one managed save-state slot to another slot for the same ROM.
      *
      * @param quickStateIdentity ROM identity
-     * @param sourceSlot source slot from 0 to 9
-     * @param targetSlot target slot from 0 to 9
+     * @param sourceSlot         source slot from 0 to 9
+     * @param targetSlot         target slot from 0 to 9
      * @throws IOException when the move cannot be completed
      */
-    public static void MoveState(QuickStateIdentity quickStateIdentity, int sourceSlot, int targetSlot) throws IOException {
+    public static void MoveState(QuickStateIdentity quickStateIdentity, int sourceSlot, int targetSlot)
+            throws IOException {
         ValidateSlot(sourceSlot);
         ValidateSlot(targetSlot);
         if (sourceSlot == targetSlot) {
@@ -396,4 +399,3 @@ public final class QuickStateManager {
         }
     }
 }
-

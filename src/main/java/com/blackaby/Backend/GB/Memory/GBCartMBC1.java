@@ -1,18 +1,18 @@
 package com.blackaby.Backend.GB.Memory;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 
 /**
  * Mapper for MBC1 cartridges with ROM banking and optional RAM banking.
  */
-final class Mbc1CartridgeController extends CartridgeController {
+final class GBCartMBC1 extends GBCartController {
 
     private boolean ramEnabled;
     private int romBankLow5 = 1;
     private int upperBankBits;
     private boolean ramBankingMode;
 
-    Mbc1CartridgeController(ROM rom) {
+    GBCartMBC1(GBRom rom) {
         super(rom, rom.GetExternalRamSizeBytes());
     }
 
@@ -60,10 +60,10 @@ final class Mbc1CartridgeController extends CartridgeController {
             ramBankingMode = (value & 0x01) == 0x01;
             return;
         }
-        if (address >= DuckAddresses.EXTERNAL_RAM_START && address <= DuckAddresses.EXTERNAL_RAM_END
+        if (address >= GBMemAddresses.EXTERNAL_RAM_START && address <= GBMemAddresses.EXTERNAL_RAM_END
                 && ramEnabled && HasRam()) {
             int bank = ramBankingMode ? upperBankBits : 0;
-            WriteRamBank(bank, address - DuckAddresses.EXTERNAL_RAM_START, value);
+            WriteRamBank(bank, address - GBMemAddresses.EXTERNAL_RAM_START, value);
         }
     }
 
@@ -92,4 +92,3 @@ final class Mbc1CartridgeController extends CartridgeController {
         ramBankingMode = registers[3] != 0;
     }
 }
-

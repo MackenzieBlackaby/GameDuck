@@ -3,7 +3,7 @@ package com.blackaby.Backend.GB.Misc;
 /**
  * Hardware-wide constants for the original DMG model.
  */
-public final class Specifics {
+public final class GBConstants {
 
     /** Game Boy display width in pixels. */
     public static final int gameBoyDisplayWidth = 160;
@@ -20,7 +20,6 @@ public final class Specifics {
     /** Length of one CPU cycle in nanoseconds. */
     public static final double nanosecondsPerCycle = 1_000_000_000.0 / cyclesPerSecond;
 
-    private Specifics() {
+    private GBConstants() {
     }
 }
-

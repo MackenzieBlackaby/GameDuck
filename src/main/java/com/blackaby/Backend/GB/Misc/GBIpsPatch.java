@@ -8,18 +8,18 @@ import java.util.Arrays;
 /**
  * Applies IPS patches to ROM byte arrays.
  */
-public final class IpsPatch {
+public final class GBIpsPatch {
 
     private static final byte[] patchHeader = { 'P', 'A', 'T', 'C', 'H' };
     private static final byte[] eofMarker = { 'E', 'O', 'F' };
 
-    private IpsPatch() {
+    private GBIpsPatch() {
     }
 
     /**
      * Applies an IPS patch file to a base ROM image.
      *
-     * @param romBytes base ROM bytes
+     * @param romBytes  base ROM bytes
      * @param patchPath patch file path
      * @return patched ROM bytes
      * @throws IOException when the patch file cannot be read
@@ -31,7 +31,7 @@ public final class IpsPatch {
     /**
      * Applies an IPS patch to a base ROM image.
      *
-     * @param romBytes base ROM bytes
+     * @param romBytes   base ROM bytes
      * @param patchBytes IPS patch bytes
      * @return patched ROM bytes
      */
@@ -135,4 +135,3 @@ public final class IpsPatch {
         return Arrays.copyOf(bytes, Math.max(0, requiredLength));
     }
 }
-

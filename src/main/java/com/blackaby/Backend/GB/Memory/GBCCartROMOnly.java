@@ -1,13 +1,13 @@
 package com.blackaby.Backend.GB.Memory;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 
 /**
  * Mapper for ROM-only cartridges, with optional unbanked external RAM.
  */
-final class RomOnlyCartridgeController extends CartridgeController {
+final class GBCCartROMOnly extends GBCartController {
 
-    RomOnlyCartridgeController(ROM rom) {
+    GBCCartROMOnly(GBRom rom) {
         super(rom, rom.GetExternalRamSizeBytes());
     }
 
@@ -26,9 +26,8 @@ final class RomOnlyCartridgeController extends CartridgeController {
 
     @Override
     public void Write(int address, int value) {
-        if (address >= DuckAddresses.EXTERNAL_RAM_START && address <= DuckAddresses.EXTERNAL_RAM_END && HasRam()) {
-            WriteRamBank(0, address - DuckAddresses.EXTERNAL_RAM_START, value);
+        if (address >= GBMemAddresses.EXTERNAL_RAM_START && address <= GBMemAddresses.EXTERNAL_RAM_END && HasRam()) {
+            WriteRamBank(0, address - GBMemAddresses.EXTERNAL_RAM_START, value);
         }
     }
 }
-

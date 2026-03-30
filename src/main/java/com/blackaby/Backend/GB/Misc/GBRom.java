@@ -1,6 +1,6 @@
 package com.blackaby.Backend.GB.Misc;
 
-import com.blackaby.Backend.GB.Memory.CartridgeMapperType;
+import com.blackaby.Backend.GB.Memory.GBMapperTypes;
 import com.blackaby.Backend.Platform.EmulatorMedia;
 
 import java.io.File;
@@ -18,7 +18,7 @@ import java.util.List;
  * The class exposes the raw image bytes together with the cartridge header
  * fields needed for mapper selection and bank sizing.
  */
-public class ROM implements EmulatorMedia {
+public class GBRom implements EmulatorMedia {
 
     private static final int headerCartridgeType = 0x0147;
     private static final int headerRomSize = 0x0148;
@@ -34,7 +34,7 @@ public class ROM implements EmulatorMedia {
     private String headerTitle;
     private int[] data;
     private int cartridgeTypeCode;
-    private CartridgeMapperType mapperType;
+    private GBMapperTypes mapperType;
     private int declaredRomBankCount;
     private int effectiveRomBankCount;
     private int externalRamSizeBytes;
@@ -47,11 +47,12 @@ public class ROM implements EmulatorMedia {
      *
      * @param filename ROM path
      */
-    public ROM(String filename) {
+    public GBRom(String filename) {
         this(filename, LoadRomBytes(filename), DisplayNameFromPath(filename), List.of(), List.of());
     }
 
-    private ROM(String filename, byte[] romBytes, String displayName, List<String> patchNames, List<String> patchSourcePaths) {
+    private GBRom(String filename, byte[] romBytes, String displayName, List<String> patchNames,
+            List<String> patchSourcePaths) {
         this.filename = filename;
         this.displayName = displayName == null || displayName.isBlank()
                 ? DisplayNameFromPath(filename)
@@ -68,12 +69,12 @@ public class ROM implements EmulatorMedia {
     /**
      * Loads a ROM from disk and applies an IPS patch to it.
      *
-     * @param romFilename base ROM path
+     * @param romFilename   base ROM path
      * @param patchFilename IPS patch path
      * @return patched ROM image
      * @throws IOException when either file cannot be read
      */
-    public static ROM LoadPatched(String romFilename, String patchFilename) throws IOException {
+    public static GBRom LoadPatched(String romFilename, String patchFilename) throws IOException {
         return LoadPatched(romFilename, patchFilename, DisplayNameFromPath(patchFilename));
     }
 
@@ -81,31 +82,32 @@ public class ROM implements EmulatorMedia {
      * Loads a ROM from disk and applies an IPS patch to it using an explicit
      * display name for the patch layer.
      *
-     * @param romFilename base ROM path
-     * @param patchFilename IPS patch path
+     * @param romFilename      base ROM path
+     * @param patchFilename    IPS patch path
      * @param patchDisplayName patch name shown in the UI and save identity
      * @return patched ROM image
      * @throws IOException when either file cannot be read
      */
-    public static ROM LoadPatched(String romFilename, String patchFilename, String patchDisplayName) throws IOException {
+    public static GBRom LoadPatched(String romFilename, String patchFilename, String patchDisplayName)
+            throws IOException {
         byte[] romBytes = Files.readAllBytes(Path.of(romFilename));
-        byte[] patchedBytes = IpsPatch.Apply(romBytes, Path.of(patchFilename));
+        byte[] patchedBytes = GBIpsPatch.Apply(romBytes, Path.of(patchFilename));
         String displayName = patchDisplayName == null || patchDisplayName.isBlank()
                 ? DisplayNameFromPath(patchFilename)
                 : patchDisplayName;
-        return new ROM(romFilename, patchedBytes, displayName,
+        return new GBRom(romFilename, patchedBytes, displayName,
                 List.of(displayName), List.of(patchFilename));
     }
 
     /**
      * Applies an IPS patch to an already loaded ROM image.
      *
-     * @param baseRom base ROM image
+     * @param baseRom       base ROM image
      * @param patchFilename IPS patch path
      * @return patched ROM image
      * @throws IOException when the patch file cannot be read
      */
-    public static ROM LoadPatched(ROM baseRom, String patchFilename) throws IOException {
+    public static GBRom LoadPatched(GBRom baseRom, String patchFilename) throws IOException {
         return LoadPatched(baseRom, patchFilename, DisplayNameFromPath(patchFilename));
     }
 
@@ -113,19 +115,19 @@ public class ROM implements EmulatorMedia {
      * Applies an IPS patch to an already loaded ROM image using an explicit
      * display name for the patch layer.
      *
-     * @param baseRom base ROM image
-     * @param patchFilename IPS patch path
+     * @param baseRom          base ROM image
+     * @param patchFilename    IPS patch path
      * @param patchDisplayName patch name shown in the UI and save identity
      * @return patched ROM image
      * @throws IOException when the patch file cannot be read
      */
-    public static ROM LoadPatched(ROM baseRom, String patchFilename, String patchDisplayName) throws IOException {
+    public static GBRom LoadPatched(GBRom baseRom, String patchFilename, String patchDisplayName) throws IOException {
         if (baseRom == null) {
             throw new IllegalArgumentException("A base ROM is required.");
         }
 
         byte[] romBytes = baseRom.ToByteArray();
-        byte[] patchedBytes = IpsPatch.Apply(romBytes, Path.of(patchFilename));
+        byte[] patchedBytes = GBIpsPatch.Apply(romBytes, Path.of(patchFilename));
         List<String> patchNames = new ArrayList<>(baseRom.patchNames);
         List<String> patchSourcePaths = new ArrayList<>(baseRom.patchSourcePaths);
         String displayName = patchDisplayName == null || patchDisplayName.isBlank()
@@ -133,34 +135,34 @@ public class ROM implements EmulatorMedia {
                 : patchDisplayName;
         patchNames.add(displayName);
         patchSourcePaths.add(patchFilename);
-        return new ROM(baseRom.filename, patchedBytes, displayName, patchNames, patchSourcePaths);
+        return new GBRom(baseRom.filename, patchedBytes, displayName, patchNames, patchSourcePaths);
     }
 
     /**
      * Creates a ROM directly from raw bytes.
      *
-     * @param filename source path or identifier
-     * @param romBytes ROM bytes
+     * @param filename    source path or identifier
+     * @param romBytes    ROM bytes
      * @param displayName name to show in the UI
      * @return ROM image instance
      */
-    public static ROM FromBytes(String filename, byte[] romBytes, String displayName) {
-        return new ROM(filename, Arrays.copyOf(romBytes, romBytes.length), displayName, List.of(), List.of());
+    public static GBRom FromBytes(String filename, byte[] romBytes, String displayName) {
+        return new GBRom(filename, Arrays.copyOf(romBytes, romBytes.length), displayName, List.of(), List.of());
     }
 
     /**
      * Creates a ROM directly from raw bytes while preserving patch identity.
      *
-     * @param filename source path or identifier
-     * @param romBytes ROM bytes
-     * @param displayName name to show in the UI
-     * @param patchNames applied patch display names
+     * @param filename         source path or identifier
+     * @param romBytes         ROM bytes
+     * @param displayName      name to show in the UI
+     * @param patchNames       applied patch display names
      * @param patchSourcePaths applied patch source paths
      * @return ROM image instance
      */
-    public static ROM FromBytes(String filename, byte[] romBytes, String displayName, List<String> patchNames,
-                                List<String> patchSourcePaths) {
-        return new ROM(filename, Arrays.copyOf(romBytes, romBytes.length), displayName, patchNames, patchSourcePaths);
+    public static GBRom FromBytes(String filename, byte[] romBytes, String displayName, List<String> patchNames,
+            List<String> patchSourcePaths) {
+        return new GBRom(filename, Arrays.copyOf(romBytes, romBytes.length), displayName, patchNames, patchSourcePaths);
     }
 
     /**
@@ -186,7 +188,7 @@ public class ROM implements EmulatorMedia {
      *
      * @return mapper family
      */
-    public CartridgeMapperType GetMapperType() {
+    public GBMapperTypes GetMapperType() {
         return mapperType;
     }
 
@@ -429,14 +431,14 @@ public class ROM implements EmulatorMedia {
         return new String(titleBytes, 0, length, StandardCharsets.US_ASCII).trim();
     }
 
-    private static CartridgeMapperType DecodeMapperType(int cartridgeTypeCode) {
+    private static GBMapperTypes DecodeMapperType(int cartridgeTypeCode) {
         return switch (cartridgeTypeCode) {
-            case 0x00, 0x08, 0x09 -> CartridgeMapperType.ROM_ONLY;
-            case 0x01, 0x02, 0x03 -> CartridgeMapperType.MBC1;
-            case 0x05, 0x06 -> CartridgeMapperType.MBC2;
-            case 0x0F, 0x10, 0x11, 0x12, 0x13 -> CartridgeMapperType.MBC3;
-            case 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E -> CartridgeMapperType.MBC5;
-            default -> CartridgeMapperType.UNSUPPORTED;
+            case 0x00, 0x08, 0x09 -> GBMapperTypes.ROM_ONLY;
+            case 0x01, 0x02, 0x03 -> GBMapperTypes.MBC1;
+            case 0x05, 0x06 -> GBMapperTypes.MBC2;
+            case 0x0F, 0x10, 0x11, 0x12, 0x13 -> GBMapperTypes.MBC3;
+            case 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E -> GBMapperTypes.MBC5;
+            default -> GBMapperTypes.UNSUPPORTED;
         };
     }
 
@@ -512,4 +514,3 @@ public class ROM implements EmulatorMedia {
         return name;
     }
 }
-

@@ -1,6 +1,6 @@
 package com.blackaby.Backend.GB.Memory;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -14,7 +14,7 @@ import java.util.function.LongSupplier;
  * <p>
  * ROM banking, RAM banking, and the real-time clock are implemented here.
  */
-final class Mbc3CartridgeController extends CartridgeController {
+final class GBCartMBC3 extends GBCartController {
 
     private static final int rtcRegisterSeconds = 0x08;
     private static final int rtcRegisterMinutes = 0x09;
@@ -45,13 +45,14 @@ final class Mbc3CartridgeController extends CartridgeController {
     private boolean latchedRtcValid;
     private final int[] latchedRtcRegisters = new int[5];
 
-    Mbc3CartridgeController(ROM rom) {
+    GBCartMBC3(GBRom rom) {
         this(rom, () -> System.currentTimeMillis() / 1000L);
     }
 
-    Mbc3CartridgeController(ROM rom, LongSupplier epochSecondSupplier) {
+    GBCartMBC3(GBRom rom, LongSupplier epochSecondSupplier) {
         super(rom, rom.GetExternalRamSizeBytes());
-        this.epochSecondSupplier = epochSecondSupplier == null ? () -> System.currentTimeMillis() / 1000L : epochSecondSupplier;
+        this.epochSecondSupplier = epochSecondSupplier == null ? () -> System.currentTimeMillis() / 1000L
+                : epochSecondSupplier;
         hasRtc = rom != null && rom.HasRtc();
         lastRtcUpdateEpochSeconds = CurrentEpochSeconds();
     }
@@ -97,13 +98,13 @@ final class Mbc3CartridgeController extends CartridgeController {
             return;
         }
 
-        if (address >= DuckAddresses.EXTERNAL_RAM_START && address <= DuckAddresses.EXTERNAL_RAM_END
+        if (address >= GBMemAddresses.EXTERNAL_RAM_START && address <= GBMemAddresses.EXTERNAL_RAM_END
                 && ramEnabled && ramBankOrRtcRegister < 0x04) {
-            WriteRamBank(ramBankOrRtcRegister, address - DuckAddresses.EXTERNAL_RAM_START, value);
+            WriteRamBank(ramBankOrRtcRegister, address - GBMemAddresses.EXTERNAL_RAM_START, value);
             return;
         }
 
-        if (address >= DuckAddresses.EXTERNAL_RAM_START && address <= DuckAddresses.EXTERNAL_RAM_END
+        if (address >= GBMemAddresses.EXTERNAL_RAM_START && address <= GBMemAddresses.EXTERNAL_RAM_END
                 && ramEnabled && IsRtcRegisterSelected()) {
             WriteRtcRegister(value);
         }
@@ -111,7 +112,8 @@ final class Mbc3CartridgeController extends CartridgeController {
 
     @Override
     protected int[] CaptureRegisters() {
-        return new int[] { ramEnabled ? 1 : 0, romBank, ramBankOrRtcRegister, latchArmed ? 1 : 0, latchedRtcValid ? 1 : 0,
+        return new int[] { ramEnabled ? 1 : 0, romBank, ramBankOrRtcRegister, latchArmed ? 1 : 0,
+                latchedRtcValid ? 1 : 0,
                 latchedRtcRegisters[0], latchedRtcRegisters[1], latchedRtcRegisters[2], latchedRtcRegisters[3],
                 latchedRtcRegisters[4], (int) rtcSeconds, (int) (rtcSeconds >>> 32), rtcHalted ? 1 : 0,
                 rtcCarry ? 1 : 0 };
@@ -353,4 +355,3 @@ final class Mbc3CartridgeController extends CartridgeController {
         return Math.floorMod(value, maxRtcSeconds);
     }
 }
-

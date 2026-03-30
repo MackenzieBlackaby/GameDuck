@@ -11,10 +11,10 @@ import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import com.blackaby.Backend.GB.Graphics.DuckPPU;
-import com.blackaby.Backend.GB.Memory.DuckMemory;
-import com.blackaby.Backend.GB.Peripherals.DuckJoypad;
-import com.blackaby.Backend.GB.Peripherals.DuckTimer;
+import com.blackaby.Backend.GB.Graphics.GBPPU;
+import com.blackaby.Backend.GB.Memory.GBMemory;
+import com.blackaby.Backend.GB.Peripherals.GBGamepad;
+import com.blackaby.Backend.GB.Peripherals.GBTimerSet;
 import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
 import com.blackaby.Frontend.DuckDisplay;
 
@@ -31,12 +31,12 @@ class QuickStateManagerTest {
             var rom = EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "quick.gb", "quick");
             QuickStateManager.QuickStateData state = new QuickStateManager.QuickStateData(
                     null,
-                    new DuckMemory.MemoryState(new int[0x10000], null, false, false, false, 0, 1, false, false,
+                    new GBMemory.MemoryState(new int[0x10000], null, false, false, false, 0, 1, false, false,
                             false, 0, 0, 0, false, 0, 0x8000, 0, false, new int[2][0x2000], new int[8][0x1000],
                             new int[0x40], new int[0x40], null),
-                    new DuckTimer.TimerState(0x1234, true, 2, true),
-                    new DuckPPU.PpuState(1, 42, 123, true, 17, 6, true),
-                    new DuckJoypad.JoypadState(0x10, 0x03),
+                    new GBTimerSet.TimerState(0x1234, true, 2, true),
+                    new GBPPU.PpuState(1, 42, 123, true, 17, 6, true),
+                    new GBGamepad.JoypadState(0x10, 0x03),
                     null,
                     new DuckDisplay.FrameState(new int[] { 1, 2 }, new int[] { 3, 4 }),
                     42);

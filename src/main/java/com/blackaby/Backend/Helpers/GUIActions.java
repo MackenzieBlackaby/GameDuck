@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Frontend.AboutWindow;
 import com.blackaby.Frontend.LibraryWindow;
@@ -194,7 +194,7 @@ public final class GUIActions implements ActionListener {
         if (baseRom == null) {
             return;
         }
-        attachedEmulation.StartEmulation(ROM.LoadPatched(baseRom.getAbsolutePath(), patchFile.getAbsolutePath()));
+        attachedEmulation.StartEmulation(GBRom.LoadPatched(baseRom.getAbsolutePath(), patchFile.getAbsolutePath()));
     }
 
     private File PromptForBaseRom() {

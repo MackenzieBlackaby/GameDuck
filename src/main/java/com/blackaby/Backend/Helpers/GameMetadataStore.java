@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Platform.EmulatorGame;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ public final class GameMetadataStore {
      * @param rom ROM identity
      * @return cached libretro title when known
      */
-    public static synchronized Optional<String> GetLibretroTitle(ROM rom) {
+    public static synchronized Optional<String> GetLibretroTitle(GBRom rom) {
         return GetLibretroTitle(SaveFileManager.SaveIdentity.FromRom(rom));
     }
 
@@ -64,7 +64,7 @@ public final class GameMetadataStore {
      * @param rom ROM identity
      * @param libretroTitle matched libretro title
      */
-    public static synchronized void RememberLibretroTitle(ROM rom, String libretroTitle) {
+    public static synchronized void RememberLibretroTitle(GBRom rom, String libretroTitle) {
         RememberLibretroTitle(SaveFileManager.SaveIdentity.FromRom(rom), libretroTitle);
     }
 
@@ -88,7 +88,7 @@ public final class GameMetadataStore {
         Persist();
     }
 
-    static String BuildRomKey(ROM rom) {
+    static String BuildRomKey(GBRom rom) {
         return BuildRomKey(SaveFileManager.SaveIdentity.FromRom(rom));
     }
 

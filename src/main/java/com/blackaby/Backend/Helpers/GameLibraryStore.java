@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Platform.EmulatorGame;
 
 import java.io.IOException;
@@ -36,9 +36,9 @@ public final class GameLibraryStore {
             return new GameArtProvider.GameArtDescriptor(sourcePath, sourceName, displayName, headerTitle);
         }
 
-        public ROM LoadRom() throws IOException {
+        public GBRom LoadRom() throws IOException {
             byte[] romBytes = Files.readAllBytes(romPath);
-            return ROM.FromBytes(sourcePath, romBytes, displayName, patchNames, patchSourcePaths);
+            return GBRom.FromBytes(sourcePath, romBytes, displayName, patchNames, patchSourcePaths);
         }
     }
 
@@ -81,7 +81,7 @@ public final class GameLibraryStore {
      * @param rom playable ROM image
      * @return persisted library entry
      */
-    public static synchronized LibraryEntry RememberGame(ROM rom) {
+    public static synchronized LibraryEntry RememberGame(GBRom rom) {
         if (rom == null) {
             throw new IllegalArgumentException("A ROM is required.");
         }
@@ -467,14 +467,14 @@ public final class GameLibraryStore {
     private record EntrySnapshot(LibraryEntry entry, String contentHash) {
     }
 
-    private static String BuildEntryKey(ROM rom) {
+    private static String BuildEntryKey(GBRom rom) {
         return KeyedPropertiesStore.Hash(String.join("|",
                 KeyedPropertiesStore.Hash(rom.ToByteArray()),
                 KeyedPropertiesStore.NullToEmpty(rom.GetSourceName()),
                 String.join("|", rom.GetPatchNames())));
     }
 
-    private static String BuildStoredFilename(ROM rom, String key) {
+    private static String BuildStoredFilename(GBRom rom, String key) {
         String baseName = GameMetadataStore.GetLibretroTitle(rom).orElse(SaveFileManager.BuildFallbackBaseName(rom));
         String extension = ResolveExtension(rom.GetSourcePath());
         return SanitiseFileComponent(baseName) + " [" + key.substring(0, Math.min(8, key.length())) + "]" + extension;
@@ -567,7 +567,7 @@ public final class GameLibraryStore {
             return entry.Has(sourceNameSuffix);
         }
 
-        private void WriteMetadata(ROM rom, Path storedPath, long now, String contentHash) {
+        private void WriteMetadata(GBRom rom, Path storedPath, long now, String contentHash) {
             entry.Set(romPathSuffix, storedPath.toString());
             entry.Set(sourcePathSuffix, rom.GetSourcePath());
             entry.Set(sourceNameSuffix, rom.GetSourceName());
@@ -582,7 +582,7 @@ public final class GameLibraryStore {
             entry.WriteIndexedList(patchSourcePrefix, patchSourceCountSuffix, rom.GetPatchSourcePaths());
         }
 
-        private void TouchFromExistingRom(ROM rom, long now, String contentHash) {
+        private void TouchFromExistingRom(GBRom rom, long now, String contentHash) {
             entry.Set(lastPlayedSuffix, Math.max(entry.GetLong(lastPlayedSuffix, 0L), now));
             if (entry.GetLong(addedAtSuffix, 0L) <= 0L) {
                 entry.Set(addedAtSuffix, now);

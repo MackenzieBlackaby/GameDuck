@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
-import com.blackaby.Backend.GB.Memory.DuckAddresses;
+import com.blackaby.Backend.GB.Memory.GBMemAddresses;
 import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
 import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils.CpuHarness;
 
@@ -28,10 +28,10 @@ class DuckCpuIntegrationTest {
 
         assertEquals(0x1A, harness.cpu.GetAccumulator());
         assertEquals(0x1A, harness.memory.Read(0xC000));
-        assertFalse(harness.cpu.GetFlag(DuckCPU.Flag.Z));
-        assertFalse(harness.cpu.GetFlag(DuckCPU.Flag.N));
-        assertFalse(harness.cpu.GetFlag(DuckCPU.Flag.H));
-        assertFalse(harness.cpu.GetFlag(DuckCPU.Flag.C));
+        assertFalse(harness.cpu.GetFlag(GBProcessor.Flag.Z));
+        assertFalse(harness.cpu.GetFlag(GBProcessor.Flag.N));
+        assertFalse(harness.cpu.GetFlag(GBProcessor.Flag.H));
+        assertFalse(harness.cpu.GetFlag(GBProcessor.Flag.C));
         assertTrue(harness.cpu.IsHalted());
     }
 
@@ -64,8 +64,8 @@ class DuckCpuIntegrationTest {
         harness = EmulatorTestUtils.CreateCpuHarness(new byte[0]);
         harness.cpu.SetPC(0x01FE);
         harness.cpu.SetSP(0xFFFE);
-        harness.memory.Write(DuckAddresses.IE, DuckCPU.Interrupt.VBLANK.GetMask());
-        harness.memory.Write(DuckAddresses.INTERRUPT_FLAG, DuckCPU.Interrupt.VBLANK.GetMask());
+        harness.memory.Write(GBMemAddresses.IE, GBProcessor.Interrupt.VBLANK.GetMask());
+        harness.memory.Write(GBMemAddresses.INTERRUPT_FLAG, GBProcessor.Interrupt.VBLANK.GetMask());
         harness.cpu.EnableInterruptsImmediately();
 
         harness.StepInstruction();
@@ -74,7 +74,7 @@ class DuckCpuIntegrationTest {
         assertEquals(0xFFFC, harness.cpu.GetSP());
         assertEquals(0xFF, harness.memory.Read(0xFFFC));
         assertEquals(0x01, harness.memory.Read(0xFFFD));
-        assertEquals(0x00, harness.memory.Read(DuckAddresses.INTERRUPT_FLAG) & 0x01);
+        assertEquals(0x00, harness.memory.Read(GBMemAddresses.INTERRUPT_FLAG) & 0x01);
         assertFalse(harness.cpu.IsInterruptMasterEnable());
     }
 
@@ -84,8 +84,8 @@ class DuckCpuIntegrationTest {
                 0x76,
                 (byte) 0x3E, 0x12
         });
-        harness.memory.Write(DuckAddresses.IE, DuckCPU.Interrupt.VBLANK.GetMask());
-        harness.memory.Write(DuckAddresses.INTERRUPT_FLAG, DuckCPU.Interrupt.VBLANK.GetMask());
+        harness.memory.Write(GBMemAddresses.IE, GBProcessor.Interrupt.VBLANK.GetMask());
+        harness.memory.Write(GBMemAddresses.INTERRUPT_FLAG, GBProcessor.Interrupt.VBLANK.GetMask());
         harness.cpu.DisableInterrupts();
 
         harness.StepInstruction();

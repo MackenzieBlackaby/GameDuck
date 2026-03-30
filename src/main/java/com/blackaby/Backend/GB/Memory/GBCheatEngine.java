@@ -9,7 +9,7 @@ import java.util.Map;
 /**
  * Applies compiled cheat definitions to memory reads and mutable memory writes.
  */
-public final class CheatEngine {
+public final class GBCheatEngine {
 
     private volatile CompiledCheats compiledCheats = CompiledCheats.Empty();
 
@@ -25,7 +25,7 @@ public final class CheatEngine {
     /**
      * Applies read-time overrides for the requested address.
      *
-     * @param address memory address
+     * @param address       memory address
      * @param originalValue value returned by the raw memory map
      * @return possibly overridden byte value
      */
@@ -56,12 +56,12 @@ public final class CheatEngine {
      *
      * @param memory live memory bus
      */
-    public void ApplyWriteCheats(DuckMemory memory) {
+    public void ApplyWriteCheats(GBMemory memory) {
         compiledCheats.ApplyWriteCheats(memory);
     }
 
     private record CompiledCheats(Map<Integer, List<EmulatorCheat>> cheatsByAddress,
-                                  List<EmulatorCheat> liveWriteCheats) {
+            List<EmulatorCheat> liveWriteCheats) {
 
         private static CompiledCheats Empty() {
             return new CompiledCheats(Map.of(), List.of());
@@ -116,7 +116,7 @@ public final class CheatEngine {
             return !liveWriteCheats.isEmpty();
         }
 
-        private void ApplyWriteCheats(DuckMemory memory) {
+        private void ApplyWriteCheats(GBMemory memory) {
             if (memory == null || liveWriteCheats.isEmpty()) {
                 return;
             }

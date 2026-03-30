@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Platform.EmulatorGame;
 
 import java.io.IOException;
@@ -23,7 +23,7 @@ public final class SaveFileManager {
             patchNames = List.copyOf(patchNames == null ? List.of() : patchNames);
         }
 
-        public static SaveIdentity FromRom(ROM rom) {
+        public static SaveIdentity FromRom(GBRom rom) {
             return FromGame(rom);
         }
 
@@ -69,7 +69,7 @@ public final class SaveFileManager {
      * @param rom active ROM
      * @return save bytes when present
      */
-    public static Optional<byte[]> LoadSave(ROM rom) {
+    public static Optional<byte[]> LoadSave(GBRom rom) {
         return LoadSaveBundle(rom).map(SaveDataBundle::primaryData);
     }
 
@@ -89,7 +89,7 @@ public final class SaveFileManager {
      * @param rom active ROM
      * @return save bytes when present
      */
-    public static Optional<SaveDataBundle> LoadSaveBundle(ROM rom) {
+    public static Optional<SaveDataBundle> LoadSaveBundle(GBRom rom) {
         return LoadSaveBundle(SaveIdentity.FromRom(rom));
     }
 
@@ -134,7 +134,7 @@ public final class SaveFileManager {
      * @param rom active ROM
      * @param saveData raw cartridge save bytes
      */
-    public static void Save(ROM rom, byte[] saveData) {
+    public static void Save(GBRom rom, byte[] saveData) {
         Save(SaveIdentity.FromRom(rom), saveData, new byte[0]);
     }
 
@@ -156,7 +156,7 @@ public final class SaveFileManager {
      * @param saveData raw cartridge save bytes
      * @param supplementalData supplementary save bytes such as RTC state
      */
-    public static void Save(ROM rom, byte[] saveData, byte[] supplementalData) {
+    public static void Save(GBRom rom, byte[] saveData, byte[] supplementalData) {
         Save(SaveIdentity.FromRom(rom), saveData, supplementalData);
     }
 
@@ -206,7 +206,7 @@ public final class SaveFileManager {
      * @param rom active ROM
      * @return preferred save path
      */
-    public static Path PreferredSavePath(ROM rom) {
+    public static Path PreferredSavePath(GBRom rom) {
         return PreferredSavePath(SaveIdentity.FromRom(rom));
     }
 
@@ -229,7 +229,7 @@ public final class SaveFileManager {
      * @param rom active ROM
      * @return legacy save path
      */
-    public static Path LegacySavePath(ROM rom) {
+    public static Path LegacySavePath(GBRom rom) {
         return LegacySavePath(SaveIdentity.FromRom(rom));
     }
 
@@ -261,7 +261,7 @@ public final class SaveFileManager {
      * @param rom active ROM
      * @return save file summary
      */
-    public static SaveFileSummary DescribeSaveFiles(ROM rom) {
+    public static SaveFileSummary DescribeSaveFiles(GBRom rom) {
         return DescribeSaveFiles(SaveIdentity.FromRom(rom));
     }
 
@@ -297,7 +297,7 @@ public final class SaveFileManager {
      * @param rom active ROM
      * @throws IOException when deletion fails
      */
-    public static void DeleteSave(ROM rom) throws IOException {
+    public static void DeleteSave(GBRom rom) throws IOException {
         DeleteSave(SaveIdentity.FromRom(rom));
     }
 
@@ -330,7 +330,7 @@ public final class SaveFileManager {
      * @return imported save bytes
      * @throws IOException when the file cannot be read or written
      */
-    public static byte[] ImportSave(ROM rom, Path sourcePath) throws IOException {
+    public static byte[] ImportSave(GBRom rom, Path sourcePath) throws IOException {
         return ImportSaveBundle(rom, sourcePath).primaryData();
     }
 
@@ -355,7 +355,7 @@ public final class SaveFileManager {
      * @return imported save bundle
      * @throws IOException when the file cannot be read or written
      */
-    public static SaveDataBundle ImportSaveBundle(ROM rom, Path sourcePath) throws IOException {
+    public static SaveDataBundle ImportSaveBundle(GBRom rom, Path sourcePath) throws IOException {
         return ImportSaveBundle(SaveIdentity.FromRom(rom), sourcePath);
     }
 
@@ -450,7 +450,7 @@ public final class SaveFileManager {
      * @param destinationPath destination file path
      * @throws IOException when the file cannot be read or written
      */
-    public static void ExportSave(ROM rom, Path destinationPath) throws IOException {
+    public static void ExportSave(GBRom rom, Path destinationPath) throws IOException {
         ExportSave(SaveIdentity.FromRom(rom), destinationPath);
     }
 
@@ -473,7 +473,7 @@ public final class SaveFileManager {
      * @param rom active ROM
      * @return existing save path
      */
-    public static Optional<Path> ResolveExistingSavePath(ROM rom) {
+    public static Optional<Path> ResolveExistingSavePath(GBRom rom) {
         return ResolveExistingSavePath(SaveIdentity.FromRom(rom));
     }
 
@@ -525,7 +525,7 @@ public final class SaveFileManager {
         return null;
     }
 
-    static Path BuildSavePath(ROM rom) {
+    static Path BuildSavePath(GBRom rom) {
         return BuildSavePath(SaveIdentity.FromRom(rom));
     }
 
@@ -536,7 +536,7 @@ public final class SaveFileManager {
         return SaveDirectory().resolve(BuildSaveFileName(ResolvePreferredBaseName(saveIdentity), saveIdentity.patchNames()));
     }
 
-    static Path BuildFallbackSavePath(ROM rom) {
+    static Path BuildFallbackSavePath(GBRom rom) {
         return BuildFallbackSavePath(SaveIdentity.FromRom(rom));
     }
 
@@ -547,7 +547,7 @@ public final class SaveFileManager {
         return SaveDirectory().resolve(BuildSaveFileName(BuildFallbackBaseName(saveIdentity), saveIdentity.patchNames()));
     }
 
-    static String BuildFallbackBaseName(ROM rom) {
+    static String BuildFallbackBaseName(GBRom rom) {
         return BuildFallbackBaseName(SaveIdentity.FromRom(rom));
     }
 

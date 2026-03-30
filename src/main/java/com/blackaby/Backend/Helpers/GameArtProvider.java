@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Platform.EmulatorGame;
 import com.blackaby.Misc.GameArtDisplayMode;
 import com.blackaby.Misc.UiText;
@@ -55,7 +55,7 @@ public final class GameArtProvider {
     }
 
     public record GameArtDescriptor(String sourcePath, String sourceName, String displayName, String headerTitle) {
-        public static GameArtDescriptor FromRom(ROM rom) {
+        public static GameArtDescriptor FromRom(GBRom rom) {
             return FromGame(rom);
         }
 
@@ -73,7 +73,7 @@ public final class GameArtProvider {
      * @param rom active ROM
      * @return fetched art if a source matched
      */
-    public static Optional<GameArtResult> FindGameArt(ROM rom) {
+    public static Optional<GameArtResult> FindGameArt(GBRom rom) {
         return FindGameArt(GameArtDescriptor.FromRom(rom), null);
     }
 
@@ -98,7 +98,7 @@ public final class GameArtProvider {
      * @param displayMode requested art mode, or {@code null} for provider default order
      * @return fetched art if a source matched
      */
-    public static Optional<GameArtResult> FindGameArt(ROM rom, GameArtDisplayMode displayMode) {
+    public static Optional<GameArtResult> FindGameArt(GBRom rom, GameArtDisplayMode displayMode) {
         return FindGameArt(GameArtDescriptor.FromRom(rom), displayMode);
     }
 
@@ -144,7 +144,7 @@ public final class GameArtProvider {
         return Optional.empty();
     }
 
-    static List<String> BuildUrlCandidates(ROM rom) {
+    static List<String> BuildUrlCandidates(GBRom rom) {
         return BuildUrlCandidates(GameArtDescriptor.FromRom(rom));
     }
 
@@ -160,7 +160,7 @@ public final class GameArtProvider {
         return urls;
     }
 
-    static List<GameArtCandidate> BuildArtCandidates(ROM rom) {
+    static List<GameArtCandidate> BuildArtCandidates(GBRom rom) {
         return BuildArtCandidates(GameArtDescriptor.FromRom(rom), null);
     }
 
@@ -189,7 +189,7 @@ public final class GameArtProvider {
         return candidates;
     }
 
-    static List<String> BuildPlaylistOrder(ROM rom) {
+    static List<String> BuildPlaylistOrder(GBRom rom) {
         return BuildPlaylistOrder(GameArtDescriptor.FromRom(rom));
     }
 
@@ -210,7 +210,7 @@ public final class GameArtProvider {
         return List.copyOf(playlistNames);
     }
 
-    static List<String> BuildCandidateNames(ROM rom) {
+    static List<String> BuildCandidateNames(GBRom rom) {
         return BuildCandidateNames(GameArtDescriptor.FromRom(rom));
     }
 

@@ -2,9 +2,9 @@ package com.blackaby.Backend.GB.Graphics;
 
 import java.util.Arrays;
 
-import com.blackaby.Backend.GB.CPU.DuckCPU;
-import com.blackaby.Backend.GB.Memory.DuckAddresses;
-import com.blackaby.Backend.GB.Memory.DuckMemory;
+import com.blackaby.Backend.GB.CPU.GBProcessor;
+import com.blackaby.Backend.GB.Memory.GBMemAddresses;
+import com.blackaby.Backend.GB.Memory.GBMemory;
 import com.blackaby.Frontend.DuckDisplay;
 import com.blackaby.Misc.Settings;
 
@@ -15,7 +15,7 @@ import com.blackaby.Misc.Settings;
  * renders background, window, and sprite pixels, and raises the matching LCD
  * interrupts.
  */
-public class DuckPPU {
+public class GBPPU {
 
     public record PpuState(
             int modeOrdinal,
@@ -37,17 +37,17 @@ public class DuckPPU {
     private static final int maxSpritesPerScanline = 10;
     private static final int noSpritePixel = Integer.MIN_VALUE;
 
-    private static final int regLcdc = DuckAddresses.LCDC;
-    private static final int regStat = DuckAddresses.STAT;
-    private static final int regScy = DuckAddresses.SCY;
-    private static final int regScx = DuckAddresses.SCX;
-    private static final int regLy = DuckAddresses.LY;
-    private static final int regLyc = DuckAddresses.LYC;
-    private static final int regBgp = DuckAddresses.BGP;
-    private static final int regObp0 = DuckAddresses.OBP0;
-    private static final int regObp1 = DuckAddresses.OBP1;
-    private static final int regWy = DuckAddresses.WY;
-    private static final int regWx = DuckAddresses.WX;
+    private static final int regLcdc = GBMemAddresses.LCDC;
+    private static final int regStat = GBMemAddresses.STAT;
+    private static final int regScy = GBMemAddresses.SCY;
+    private static final int regScx = GBMemAddresses.SCX;
+    private static final int regLy = GBMemAddresses.LY;
+    private static final int regLyc = GBMemAddresses.LYC;
+    private static final int regBgp = GBMemAddresses.BGP;
+    private static final int regObp0 = GBMemAddresses.OBP0;
+    private static final int regObp1 = GBMemAddresses.OBP1;
+    private static final int regWy = GBMemAddresses.WY;
+    private static final int regWx = GBMemAddresses.WX;
 
     private enum PpuMode {
         HBLANK(0),
@@ -62,8 +62,8 @@ public class DuckPPU {
         }
     }
 
-    private final DuckCPU cpu;
-    private final DuckMemory memory;
+    private final GBProcessor cpu;
+    private final GBMemory memory;
     private final DuckDisplay display;
     private final int[] backgroundPriorityBuffer = new int[screenWidth];
     private final boolean[] backgroundTilePriorityBuffer = new boolean[screenWidth];
@@ -102,7 +102,7 @@ public class DuckPPU {
      * @param memory  memory bus
      * @param display host display surface
      */
-    public DuckPPU(DuckCPU cpu, DuckMemory memory, DuckDisplay display) {
+    public GBPPU(GBProcessor cpu, GBMemory memory, DuckDisplay display) {
         this.cpu = cpu;
         this.memory = memory;
         this.display = display;
@@ -152,7 +152,7 @@ public class DuckPPU {
 
                     if (scanline == screenHeight) {
                         SetMode(PpuMode.VBLANK);
-                        cpu.RequestInterrupt(DuckCPU.Interrupt.VBLANK);
+                        cpu.RequestInterrupt(GBProcessor.Interrupt.VBLANK);
                         completedFrames++;
                         if (Settings.enableFrameBlending) {
                             if (memory.IsCgbMode()) {
@@ -306,7 +306,7 @@ public class DuckPPU {
                 || (coincidence && (stat & 0x40) != 0);
 
         if (lineHigh && !statInterruptLine) {
-            cpu.RequestInterrupt(DuckCPU.Interrupt.LCD_STAT);
+            cpu.RequestInterrupt(GBProcessor.Interrupt.LCD_STAT);
         }
 
         statInterruptLine = lineHigh;
@@ -487,7 +487,7 @@ public class DuckPPU {
             }
         }
 
-        if ((!memory.IsCgbMode() || memory.ReadRegisterDirect(DuckAddresses.OPRI) != 0) && visibleSpriteCount > 1) {
+        if ((!memory.IsCgbMode() || memory.ReadRegisterDirect(GBMemAddresses.OPRI) != 0) && visibleSpriteCount > 1) {
             SortVisibleSpritesByX(visibleSpriteCount);
         }
         return visibleSpriteCount;

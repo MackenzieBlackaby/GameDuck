@@ -4,7 +4,7 @@ package com.blackaby.Backend.GB.Memory;
  * This file contains constant addresses in memory and descriptors of each.
  * This acts as the central "address book" for the emulator.
  */
-public class DuckAddresses {
+public class GBMemAddresses {
 
     // --- Memory Regions ---
 
@@ -142,4 +142,3 @@ public class DuckAddresses {
     // Misc
     public static final int BOOT_ROM_DISABLE = 0xFF50; // Write 1 to disable boot ROM
 }
-

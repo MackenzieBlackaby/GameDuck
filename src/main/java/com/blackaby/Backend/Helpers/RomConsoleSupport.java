@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.GB.Misc.ROM;
+import com.blackaby.Backend.GB.Misc.GBRom;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,7 +20,7 @@ public final class RomConsoleSupport {
      * @param rom ROM to inspect
      * @return {@code true} when the ROM advertises CGB support
      */
-    public static boolean IsGbc(ROM rom) {
+    public static boolean IsGbc(GBRom rom) {
         return rom != null && rom.IsCgbCompatible();
     }
 
@@ -30,7 +30,7 @@ public final class RomConsoleSupport {
      * @param rom ROM to inspect
      * @return {@code true} when the ROM is CGB-only
      */
-    public static boolean IsCgbOnly(ROM rom) {
+    public static boolean IsCgbOnly(GBRom rom) {
         return rom != null && rom.IsCgbOnly();
     }
 
@@ -44,7 +44,7 @@ public final class RomConsoleSupport {
         if (romPath == null || !Files.isRegularFile(romPath)) {
             return false;
         }
-        return IsGbc(new ROM(romPath.toString()));
+        return IsGbc(new GBRom(romPath.toString()));
     }
 
     /**
@@ -57,7 +57,7 @@ public final class RomConsoleSupport {
         if (romPath == null || !Files.isRegularFile(romPath)) {
             return false;
         }
-        return IsCgbOnly(new ROM(romPath.toString()));
+        return IsCgbOnly(new GBRom(romPath.toString()));
     }
 
     /**

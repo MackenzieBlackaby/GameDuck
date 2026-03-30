@@ -5,9 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import com.blackaby.Backend.GB.CPU.DuckCPU;
-import com.blackaby.Backend.GB.Memory.DuckAddresses;
-import com.blackaby.Backend.GB.Memory.DuckMemory;
+import com.blackaby.Backend.GB.CPU.GBProcessor;
+import com.blackaby.Backend.GB.Memory.GBMemAddresses;
+import com.blackaby.Backend.GB.Memory.GBMemory;
 import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
 import com.blackaby.Frontend.DuckDisplay;
 import com.blackaby.Misc.Settings;
@@ -21,20 +21,21 @@ class DuckPpuTest {
 
     @Test
     void rendersBackgroundPixelsFromTileData() {
-        DuckMemory memory = new DuckMemory();
+        GBMemory memory = new GBMemory();
         memory.LoadRom(EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "ppu.gb", "ppu"), false);
-        DuckCPU cpu = new DuckCPU(memory, null, EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "ppu.gb", "ppu"));
+        GBProcessor cpu = new GBProcessor(memory, null,
+                EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "ppu.gb", "ppu"));
         memory.SetCpu(cpu);
         memory.InitialiseDmgBootState();
-        memory.Write(DuckAddresses.BGP, 0xE4);
+        memory.Write(GBMemAddresses.BGP, 0xE4);
         memory.Write(0x9800, 0x00);
         memory.Write(0x8000, 0x80);
         memory.Write(0x8001, 0x00);
 
         DuckDisplay display = new DuckDisplay();
-        DuckPPU ppu = new DuckPPU(cpu, memory, display);
+        GBPPU ppu = new GBPPU(cpu, memory, display);
 
-        for (int index = 0; index < DuckPPU.oamDuration + DuckPPU.vramDuration; index++) {
+        for (int index = 0; index < GBPPU.oamDuration + GBPPU.vramDuration; index++) {
             ppu.Step();
         }
 
@@ -45,45 +46,47 @@ class DuckPpuTest {
 
     @Test
     void requestsVblankInterruptAtEndOfVisibleFrame() {
-        DuckMemory memory = new DuckMemory();
+        GBMemory memory = new GBMemory();
         memory.LoadRom(EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "ppu.gb", "ppu"), false);
-        DuckCPU cpu = new DuckCPU(memory, null, EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "ppu.gb", "ppu"));
+        GBProcessor cpu = new GBProcessor(memory, null,
+                EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "ppu.gb", "ppu"));
         memory.SetCpu(cpu);
         memory.InitialiseDmgBootState();
-        DuckPPU ppu = new DuckPPU(cpu, memory, new DuckDisplay());
+        GBPPU ppu = new GBPPU(cpu, memory, new DuckDisplay());
 
         for (int index = 0; index < 456 * 144; index++) {
             ppu.Step();
         }
 
-        assertEquals(144, memory.Read(DuckAddresses.LY));
-        assertEquals(DuckCPU.Interrupt.VBLANK.GetMask(), memory.Read(DuckAddresses.INTERRUPT_FLAG) & 0x01);
+        assertEquals(144, memory.Read(GBMemAddresses.LY));
+        assertEquals(GBProcessor.Interrupt.VBLANK.GetMask(), memory.Read(GBMemAddresses.INTERRUPT_FLAG) & 0x01);
         assertEquals(1, ppu.ConsumeCompletedFrames());
     }
 
     @Test
     void midScanlineScrollChangesAffectLaterPixels() {
-        DuckMemory memory = new DuckMemory();
+        GBMemory memory = new GBMemory();
         memory.LoadRom(EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "ppu.gb", "ppu"), false);
-        DuckCPU cpu = new DuckCPU(memory, null, EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "ppu.gb", "ppu"));
+        GBProcessor cpu = new GBProcessor(memory, null,
+                EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "ppu.gb", "ppu"));
         memory.SetCpu(cpu);
         memory.InitialiseDmgBootState();
-        memory.Write(DuckAddresses.BGP, 0xE4);
+        memory.Write(GBMemAddresses.BGP, 0xE4);
         memory.Write(0x9800, 0x00);
         memory.Write(0x9801, 0x01);
         memory.Write(0x8000, 0x00);
         memory.Write(0x8001, 0x00);
         memory.Write(0x8010, 0xFF);
         memory.Write(0x8011, 0x00);
-        memory.Write(DuckAddresses.SCX, 0x00);
+        memory.Write(GBMemAddresses.SCX, 0x00);
 
         DuckDisplay display = new DuckDisplay();
-        DuckPPU ppu = new DuckPPU(cpu, memory, display);
+        GBPPU ppu = new GBPPU(cpu, memory, display);
 
-        for (int index = 0; index < DuckPPU.oamDuration + 1; index++) {
+        for (int index = 0; index < GBPPU.oamDuration + 1; index++) {
             ppu.Step();
         }
-        memory.Write(DuckAddresses.SCX, 0x08);
+        memory.Write(GBMemAddresses.SCX, 0x08);
         for (int index = 0; index < 2; index++) {
             ppu.Step();
         }
@@ -96,45 +99,47 @@ class DuckPpuTest {
 
     @Test
     void rewritingLycToCurrentLineTriggersStatWithoutWaitingForNextScanline() {
-        DuckMemory memory = new DuckMemory();
+        GBMemory memory = new GBMemory();
         memory.LoadRom(EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "ppu.gb", "ppu"), false);
-        DuckCPU cpu = new DuckCPU(memory, null, EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "ppu.gb", "ppu"));
+        GBProcessor cpu = new GBProcessor(memory, null,
+                EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "ppu.gb", "ppu"));
         memory.SetCpu(cpu);
         memory.InitialiseDmgBootState();
-        memory.Write(DuckAddresses.INTERRUPT_FLAG, 0x00);
-        memory.Write(DuckAddresses.STAT, 0x40);
-        memory.Write(DuckAddresses.LYC, 0x01);
+        memory.Write(GBMemAddresses.INTERRUPT_FLAG, 0x00);
+        memory.Write(GBMemAddresses.STAT, 0x40);
+        memory.Write(GBMemAddresses.LYC, 0x01);
 
-        DuckPPU ppu = new DuckPPU(cpu, memory, new DuckDisplay());
+        GBPPU ppu = new GBPPU(cpu, memory, new DuckDisplay());
 
         for (int index = 0; index < 456; index++) {
             ppu.Step();
         }
 
-        assertEquals(1, memory.Read(DuckAddresses.LY));
-        memory.Write(DuckAddresses.INTERRUPT_FLAG, 0x00);
-        memory.Write(DuckAddresses.LYC, 0x02);
+        assertEquals(1, memory.Read(GBMemAddresses.LY));
+        memory.Write(GBMemAddresses.INTERRUPT_FLAG, 0x00);
+        memory.Write(GBMemAddresses.LYC, 0x02);
         ppu.Step();
-        memory.Write(DuckAddresses.INTERRUPT_FLAG, 0x00);
-        memory.Write(DuckAddresses.LYC, 0x01);
+        memory.Write(GBMemAddresses.INTERRUPT_FLAG, 0x00);
+        memory.Write(GBMemAddresses.LYC, 0x01);
 
         ppu.Step();
 
-        assertEquals(0x04, memory.Read(DuckAddresses.STAT) & 0x04);
-        assertEquals(DuckCPU.Interrupt.LCD_STAT.GetMask(), memory.Read(DuckAddresses.INTERRUPT_FLAG) & 0x02);
+        assertEquals(0x04, memory.Read(GBMemAddresses.STAT) & 0x04);
+        assertEquals(GBProcessor.Interrupt.LCD_STAT.GetMask(), memory.Read(GBMemAddresses.INTERRUPT_FLAG) & 0x02);
     }
 
     @Test
     void rendersPureWhiteCgbSpritePixelsInsteadOfTreatingThemAsTransparent() {
-        DuckMemory memory = new DuckMemory();
+        GBMemory memory = new GBMemory();
         memory.LoadRom(EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x80, "ppu.gbc", "ppu"), true);
-        DuckCPU cpu = new DuckCPU(memory, null, EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x80, "ppu.gbc", "ppu"));
+        GBProcessor cpu = new GBProcessor(memory, null,
+                EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x80, "ppu.gbc", "ppu"));
         memory.SetCpu(cpu);
         memory.InitialiseCgbBootState();
 
-        memory.Write(DuckAddresses.BCPS, 0x80);
-        memory.Write(DuckAddresses.BCPD, 0x00);
-        memory.Write(DuckAddresses.BCPD, 0x00);
+        memory.Write(GBMemAddresses.BCPS, 0x80);
+        memory.Write(GBMemAddresses.BCPD, 0x00);
+        memory.Write(GBMemAddresses.BCPD, 0x00);
 
         memory.Write(0x8000, 0x80);
         memory.Write(0x8001, 0x00);
@@ -144,9 +149,9 @@ class DuckPpuTest {
         memory.Write(0xFE03, 0x00);
 
         DuckDisplay display = new DuckDisplay();
-        DuckPPU ppu = new DuckPPU(cpu, memory, display);
+        GBPPU ppu = new GBPPU(cpu, memory, display);
 
-        for (int index = 0; index < DuckPPU.oamDuration + DuckPPU.vramDuration; index++) {
+        for (int index = 0; index < GBPPU.oamDuration + GBPPU.vramDuration; index++) {
             ppu.Step();
         }
 

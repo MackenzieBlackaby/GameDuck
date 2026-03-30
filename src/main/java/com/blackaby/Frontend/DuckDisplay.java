@@ -22,6 +22,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 
 /**
  * A custom JPanel for rendering Game Boy display output.
@@ -73,6 +74,8 @@ public class DuckDisplay extends JPanel {
     private transient long lastPaintNanos;
     private transient double smoothedFrameIntervalNanos;
     private volatile PresentationStats presentationStats = new PresentationStats(0.0, 0.0);
+    private volatile boolean frameReadyForPaint;
+    private final Timer repaintTimer;
     private int pendingShaderFrameVersion;
     private int displayedShaderFrameVersion;
     private int shaderRenderEpoch;
@@ -106,6 +109,15 @@ public class DuckDisplay extends JPanel {
         initializeRenderBuffers(1);
         RefreshShader();
         RefreshBorder();
+
+        repaintTimer = new Timer(1000 / 60, event -> {
+            if (frameReadyForPaint) {
+                frameReadyForPaint = false;
+                repaint();
+            }
+        });
+        repaintTimer.setCoalesce(true);
+        repaintTimer.start();
     }
 
     /**
@@ -240,7 +252,7 @@ public class DuckDisplay extends JPanel {
             return;
         }
 
-        boolean repaintNow;
+        boolean frameUpdated;
         synchronized (frameLock) {
             if (previousFrameWeight <= 0 || currentFrameWeight <= 0) {
                 System.arraycopy(backBuffer, 0, frontBuffer, 0, backBuffer.length);
@@ -250,11 +262,11 @@ public class DuckDisplay extends JPanel {
                             previousFrameWeight, currentFrameWeight);
                 }
             }
-            repaintNow = RenderImageBufferLocked();
+            frameUpdated = RenderImageBufferLocked();
         }
 
-        if (repaintNow) {
-            RequestRepaint();
+        if (frameUpdated) {
+            frameReadyForPaint = true;
         }
     }
 
@@ -530,8 +542,7 @@ public class DuckDisplay extends JPanel {
     private boolean ShouldRenderShaderAsync(LoadedDisplayShader shader) {
         return asyncShaderRenderingEnabled
                 && shader != null
-                && !"none".equals(shader.id())
-                && shader.prefersAsyncRendering();
+                && !"none".equals(shader.id());
     }
 
     private void QueueAsyncShaderRenderLocked() {

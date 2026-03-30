@@ -118,7 +118,9 @@ public final class Settings {
     /** Ordered host-side enhancement chain applied after APU mixing. */
     public static volatile List<AudioEnhancementSetting> audioEnhancementChain = List.of();
 
-    /** Whether the host-side enhancement chain should be applied to audio output. */
+    /**
+     * Whether the host-side enhancement chain should be applied to audio output.
+     */
     public static volatile boolean audioEnhancementChainEnabled = false;
 
     /** Monotonic version used to refresh the live enhancement chain. */
@@ -533,7 +535,8 @@ public final class Settings {
         }
     }
 
-    private static void SetAudioEnhancementChainInternal(List<AudioEnhancementSetting> chain, boolean syncLegacyFields) {
+    private static void SetAudioEnhancementChainInternal(List<AudioEnhancementSetting> chain,
+            boolean syncLegacyFields) {
         audioEnhancementChain = chain == null ? List.of() : List.copyOf(chain);
         audioEnhancementChainVersion++;
         if (syncLegacyFields) {
@@ -541,4 +544,3 @@ public final class Settings {
         }
     }
 }
-

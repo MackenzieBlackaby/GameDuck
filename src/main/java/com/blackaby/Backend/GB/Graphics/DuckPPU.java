@@ -98,8 +98,8 @@ public class DuckPPU {
     /**
      * Creates a PPU bound to the current CPU, memory bus, and display target.
      *
-     * @param cpu CPU for interrupt requests
-     * @param memory memory bus
+     * @param cpu     CPU for interrupt requests
+     * @param memory  memory bus
      * @param display host display surface
      */
     public DuckPPU(DuckCPU cpu, DuckMemory memory, DuckDisplay display) {
@@ -617,4 +617,3 @@ public class DuckPPU {
         backgroundTileCacheValid = false;
     }
 }
-

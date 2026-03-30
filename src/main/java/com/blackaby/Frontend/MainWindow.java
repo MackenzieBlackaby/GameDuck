@@ -81,7 +81,8 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private static final int gameArtPreviewWidth = 280;
     private static final int gameArtPreviewHeight = 220;
     private static final int displayStatsRefreshMillis = 500;
-    private static final DateTimeFormatter saveStateTimestampFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
+    private static final DateTimeFormatter saveStateTimestampFormatter = DateTimeFormatter
+            .ofPattern("dd MMM yyyy HH:mm");
 
     private final EmulatorBackend backend;
     private final DuckDisplay display;
@@ -1072,7 +1073,8 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         recentGamesMenuDirty = false;
         cachedRecentGamesMenuLimit = Settings.loadRecentMenuLimit;
         menu.removeAll();
-        List<GameLibraryStore.LibraryEntry> recentEntries = GameLibraryStore.GetRecentEntries(Settings.loadRecentMenuLimit);
+        List<GameLibraryStore.LibraryEntry> recentEntries = GameLibraryStore
+                .GetRecentEntries(Settings.loadRecentMenuLimit);
         if (recentEntries.isEmpty()) {
             JMenuItem emptyItem = new JMenuItem(UiText.MainWindow.GAME_MENU_LOAD_RECENT_EMPTY);
             ConfigureMenuItem(emptyItem);
@@ -1304,7 +1306,8 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         return ResolveDisplayedRomName(currentLoadedGame, !romNameLookupPending);
     }
 
-    private void ApplyGameArtResult(EmulatorGame game, String cacheKey, int requestVersion, Optional<GameArtResult> result) {
+    private void ApplyGameArtResult(EmulatorGame game, String cacheKey, int requestVersion,
+            Optional<GameArtResult> result) {
         Runnable apply = () -> {
             if (gameArtRequestVersion.get() != requestVersion) {
                 return;
@@ -1465,4 +1468,3 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private record CachedGameArt(ImageIcon icon, String sourceLabel) {
     }
 }
-

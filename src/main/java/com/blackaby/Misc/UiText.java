@@ -632,7 +632,8 @@ public final class UiText {
 
         public static String LibretroImportedMessage(int cheatCount, String gameName) {
             String sourceName = gameName == null || gameName.isBlank() ? "libretro" : gameName;
-            return (cheatCount == 1 ? "Imported 1 libretro cheat from " : "Imported " + cheatCount + " libretro cheats from ")
+            return (cheatCount == 1 ? "Imported 1 libretro cheat from "
+                    : "Imported " + cheatCount + " libretro cheats from ")
                     + sourceName;
         }
 

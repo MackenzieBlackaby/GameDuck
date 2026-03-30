@@ -997,13 +997,15 @@ public class OptionsWindow extends DuckWindow {
             }
             Settings.controllerDeadzonePercent = controllerDeadzoneSlider.getValue();
             if (controllerDeadzoneValueLabel != null) {
-                controllerDeadzoneValueLabel.setText(UiText.OptionsWindow.PercentValue(Settings.controllerDeadzonePercent));
+                controllerDeadzoneValueLabel
+                        .setText(UiText.OptionsWindow.PercentValue(Settings.controllerDeadzonePercent));
             }
             if (!controllerDeadzoneSlider.getValueIsAdjusting()) {
                 Config.Save();
             }
         });
-        controllerDeadzoneValueLabel = createValueLabel(UiText.OptionsWindow.PercentValue(Settings.controllerDeadzonePercent));
+        controllerDeadzoneValueLabel = createValueLabel(
+                UiText.OptionsWindow.PercentValue(Settings.controllerDeadzonePercent));
 
         JPanel grid = createResponsiveGroup(240, 2);
         grid.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_SELECTION_LABEL, controllerSelector));
@@ -1098,7 +1100,8 @@ public class OptionsWindow extends DuckWindow {
         keyboardButton.addActionListener(event -> captureShortcut(shortcut));
         shortcutButtons.put(shortcut, keyboardButton);
 
-        JButton controllerButton = createSecondaryButton(Settings.appShortcutControllerBindings.GetBindingText(shortcut));
+        JButton controllerButton = createSecondaryButton(
+                Settings.appShortcutControllerBindings.GetBindingText(shortcut));
         controllerButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
         controllerButton.setPreferredSize(new Dimension(108, 28));
         controllerButton.addActionListener(event -> captureControllerShortcut(shortcut));
@@ -1138,14 +1141,15 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createActionBindingCard(String title, String helperText, String badgeText,
-                                               boolean wrapHelperText, String buttonText, Dimension buttonSize,
-                                               float buttonFontSize, int verticalPadding, int horizontalPadding,
-                                               Runnable action, Consumer<JButton> buttonRegistrar) {
+            boolean wrapHelperText, String buttonText, Dimension buttonSize,
+            float buttonFontSize, int verticalPadding, int horizontalPadding,
+            Runnable action, Consumer<JButton> buttonRegistrar) {
         JPanel card = new JPanel(new BorderLayout());
         card.setBackground(Styling.cardTintColour);
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(verticalPadding, horizontalPadding, verticalPadding, horizontalPadding)));
+                BorderFactory.createEmptyBorder(verticalPadding, horizontalPadding, verticalPadding,
+                        horizontalPadding)));
 
         JLabel titleLabel = new JLabel(title);
         titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
@@ -1755,7 +1759,8 @@ public class OptionsWindow extends DuckWindow {
 
     private JComponent createChannelMixerKnobTile(int channelIndex, JCheckBox[] channelMuteCheckBoxes,
             AudioKnob[] channelVolumeKnobs) {
-        JCheckBox muteCheckBox = new JCheckBox(UiText.OptionsWindow.MUTE_CHECKBOX, Settings.IsChannelMuted(channelIndex));
+        JCheckBox muteCheckBox = new JCheckBox(UiText.OptionsWindow.MUTE_CHECKBOX,
+                Settings.IsChannelMuted(channelIndex));
         muteCheckBox.setOpaque(false);
         muteCheckBox.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 11f));
         muteCheckBox.setForeground(accentColour);
@@ -1874,11 +1879,13 @@ public class OptionsWindow extends DuckWindow {
                             nextUltraCompact ? 8 : nextCompact ? 10 : 14,
                             nextUltraCompact ? 8 : nextCompact ? 10 : 14,
                             nextUltraCompact ? 8 : nextCompact ? 10 : 14)));
-            effectTitle.setFont(Styling.menuFont.deriveFont(Font.BOLD, nextUltraCompact ? 11f : nextCompact ? 12f : 13f));
-            effectDescription.setFont(Styling.menuFont.deriveFont(Font.PLAIN, nextUltraCompact ? 10f : nextCompact ? 11f : 12f));
+            effectTitle
+                    .setFont(Styling.menuFont.deriveFont(Font.BOLD, nextUltraCompact ? 11f : nextCompact ? 12f : 13f));
+            effectDescription
+                    .setFont(Styling.menuFont.deriveFont(Font.PLAIN, nextUltraCompact ? 10f : nextCompact ? 11f : 12f));
             removeButton.setPreferredSize(nextUltraCompact ? new Dimension(32, 24)
                     : nextCompact ? new Dimension(36, 28)
-                    : new Dimension(42, 32));
+                            : new Dimension(42, 32));
             if (badgeLabel != null) {
                 badgeLabel.setVisible(!nextUltraCompact);
             }
@@ -2252,8 +2259,9 @@ public class OptionsWindow extends DuckWindow {
             double pointerEndX = centreX + Math.cos(angleRadians) * pointerLength;
             double pointerEndY = centreY - Math.sin(angleRadians) * pointerLength;
 
-            graphics2d.setStroke(new BasicStroke(ultraCompactVisuals ? 2f : compactVisuals ? 2.5f : 3f, BasicStroke.CAP_ROUND,
-                    BasicStroke.JOIN_ROUND));
+            graphics2d.setStroke(
+                    new BasicStroke(ultraCompactVisuals ? 2f : compactVisuals ? 2.5f : 3f, BasicStroke.CAP_ROUND,
+                            BasicStroke.JOIN_ROUND));
             graphics2d.setColor(Styling.accentColour);
             graphics2d.draw(new Line2D.Double(centreX, centreY, pointerEndX, pointerEndY));
             graphics2d.fill(new Ellipse2D.Double(
@@ -2302,7 +2310,8 @@ public class OptionsWindow extends DuckWindow {
         JPanel stack = createFillStackPanel();
         int stackRow = 0;
 
-        JCheckBox fillWindowCheckBox = new JCheckBox(UiText.OptionsWindow.WINDOW_FILL_CHECKBOX, Settings.fillWindowOutput);
+        JCheckBox fillWindowCheckBox = new JCheckBox(UiText.OptionsWindow.WINDOW_FILL_CHECKBOX,
+                Settings.fillWindowOutput);
         fillWindowCheckBox.setOpaque(false);
         fillWindowCheckBox.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
         fillWindowCheckBox.setForeground(accentColour);
@@ -2389,7 +2398,8 @@ public class OptionsWindow extends DuckWindow {
                 mainWindow.RefreshWindowPanels();
             }
         });
-        addFillStackRow(stack, createSelectorWindowOptionCard(UiText.OptionsWindow.GAME_ART_MODE_LABEL, gameArtModeSelector),
+        addFillStackRow(stack,
+                createSelectorWindowOptionCard(UiText.OptionsWindow.GAME_ART_MODE_LABEL, gameArtModeSelector),
                 stackRow++, 10);
 
         JComboBox<DisplayBorderChoice> borderSelector = new JComboBox<>();
@@ -2473,7 +2483,8 @@ public class OptionsWindow extends DuckWindow {
             }
         });
 
-        addFillStackRow(stack, createSelectorWindowOptionCard(UiText.OptionsWindow.DISPLAY_BORDER_LABEL, borderSelector),
+        addFillStackRow(stack,
+                createSelectorWindowOptionCard(UiText.OptionsWindow.DISPLAY_BORDER_LABEL, borderSelector),
                 stackRow++, 10);
 
         JPanel borderDetailGrid = createResponsiveGroup(
@@ -2768,15 +2779,15 @@ public class OptionsWindow extends DuckWindow {
                 240,
                 2,
                 createSaveDataDetailCard(
-                UiText.OptionsWindow.SAVE_MANAGER_LAUNCH_TITLE,
-                UiText.OptionsWindow.SAVE_MANAGER_LAUNCH_HELPER,
-                trackedGameCount == 0
-                        ? UiText.OptionsWindow.SAVE_MANAGER_EMPTY_TITLE
-                        : UiText.OptionsWindow.SaveManagerTrackedGamesBadge(trackedGameCount)),
+                        UiText.OptionsWindow.SAVE_MANAGER_LAUNCH_TITLE,
+                        UiText.OptionsWindow.SAVE_MANAGER_LAUNCH_HELPER,
+                        trackedGameCount == 0
+                                ? UiText.OptionsWindow.SAVE_MANAGER_EMPTY_TITLE
+                                : UiText.OptionsWindow.SaveManagerTrackedGamesBadge(trackedGameCount)),
                 createSaveDataDetailCard(
-                UiText.OptionsWindow.SAVE_DATA_MANAGED_PATH_TITLE,
-                UiText.OptionsWindow.SAVE_MANAGER_SUBTITLE,
-                SaveFileManager.SaveDirectoryPath().toString()));
+                        UiText.OptionsWindow.SAVE_DATA_MANAGED_PATH_TITLE,
+                        UiText.OptionsWindow.SAVE_MANAGER_SUBTITLE,
+                        SaveFileManager.SaveDirectoryPath().toString()));
 
         detailsCard.add(detailsGrid, BorderLayout.CENTER);
 
@@ -2942,7 +2953,8 @@ public class OptionsWindow extends DuckWindow {
         detailsCard.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
                 BorderFactory.createEmptyBorder(16, 16, 16, 16)));
-        detailsCard.add(createBootRomStatusRow(spec.statusTitle(), spec.statusHelper(), bootRomInstalled), BorderLayout.NORTH);
+        detailsCard.add(createBootRomStatusRow(spec.statusTitle(), spec.statusHelper(), bootRomInstalled),
+                BorderLayout.NORTH);
         detailsCard.add(createManagedPathCard(spec.pathTitle(), spec.pathSupplier().get()), BorderLayout.CENTER);
         return detailsCard;
     }
@@ -2961,7 +2973,8 @@ public class OptionsWindow extends DuckWindow {
         JLabel badge = createBadgeLabel(installed ? UiText.Common.INSTALLED : UiText.Common.MISSING);
         badge.setBackground(installed ? new Color(220, 239, 222) : new Color(244, 233, 217));
         badge.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(installed ? new Color(126, 170, 132) : new Color(185, 160, 108), 1, true),
+                BorderFactory.createLineBorder(installed ? new Color(126, 170, 132) : new Color(185, 160, 108), 1,
+                        true),
                 BorderFactory.createEmptyBorder(4, 8, 4, 8)));
         return badge;
     }
@@ -3126,7 +3139,8 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private boolean captureBinding(EmulatorButton button) {
-        JDialog dialog = new JDialog(this, UiText.OptionsWindow.RebindDialogTitle(formatControlButtonName(button)), true);
+        JDialog dialog = new JDialog(this, UiText.OptionsWindow.RebindDialogTitle(formatControlButtonName(button)),
+                true);
         dialog.setLayout(new BorderLayout());
         dialog.getContentPane().setBackground(panelBackground);
 
@@ -3294,7 +3308,8 @@ public class OptionsWindow extends DuckWindow {
                 });
     }
 
-    private boolean captureControllerInput(String dialogTitle, String dialogPrompt, Consumer<ControllerBinding> onCapture) {
+    private boolean captureControllerInput(String dialogTitle, String dialogPrompt,
+            Consumer<ControllerBinding> onCapture) {
         if (controllerInputService.GetInitialisationError() != null) {
             JOptionPane.showMessageDialog(this, controllerInputService.GetInitialisationError(),
                     UiText.OptionsWindow.CONTROLLER_WINDOW_TITLE, JOptionPane.WARNING_MESSAGE);
@@ -3391,7 +3406,8 @@ public class OptionsWindow extends DuckWindow {
                 controllerDeadzoneSlider.setValue(Settings.controllerDeadzonePercent);
             }
             if (controllerDeadzoneValueLabel != null) {
-                controllerDeadzoneValueLabel.setText(UiText.OptionsWindow.PercentValue(Settings.controllerDeadzonePercent));
+                controllerDeadzoneValueLabel
+                        .setText(UiText.OptionsWindow.PercentValue(Settings.controllerDeadzonePercent));
             }
         } finally {
             updatingControllerUi = false;
@@ -3407,7 +3423,8 @@ public class OptionsWindow extends DuckWindow {
             return;
         }
 
-        Optional<ControllerInputService.ControllerDevice> activeController = controllerInputService.GetActiveController();
+        Optional<ControllerInputService.ControllerDevice> activeController = controllerInputService
+                .GetActiveController();
         if (activeController.isPresent()) {
             controllerStatusBadgeLabel.setText(Settings.controllerInputEnabled
                     ? UiText.OptionsWindow.CONTROLLER_STATUS_CONNECTED
@@ -3746,11 +3763,11 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private record BootRomSectionSpec(String checkboxText, boolean settingEnabled, BooleanSupplier installedSupplier,
-                                      Consumer<Boolean> settingUpdater, Supplier<String> requiredMessageSupplier,
-                                      String bootTitle, String bootHelper, String statusTitle, String statusHelper,
-                                      String pathTitle, Supplier<Path> pathSupplier, String insertButtonText,
-                                      String removeButtonText, BootRomInstaller installer, BootRomRemover remover,
-                                      boolean embedButtonsInDetailsCard) {
+            Consumer<Boolean> settingUpdater, Supplier<String> requiredMessageSupplier,
+            String bootTitle, String bootHelper, String statusTitle, String statusHelper,
+            String pathTitle, Supplier<Path> pathSupplier, String insertButtonText,
+            String removeButtonText, BootRomInstaller installer, BootRomRemover remover,
+            boolean embedButtonsInDetailsCard) {
     }
 
     private static final class VerticalScrollPanel extends JPanel implements Scrollable {
@@ -3801,4 +3818,3 @@ public class OptionsWindow extends DuckWindow {
         }
     }
 }
-

@@ -17,14 +17,17 @@ import java.util.Properties;
  * <p>
  * The config file keeps host theme values, control bindings, shortcut bindings,
  * sound options, and simple window preferences. Palette data is stored in a
- * separate JSON document, but loaded through the same facade here so the rest of
- * the application can request a load once and then work with in-memory settings.
+ * separate JSON document, but loaded through the same facade here so the rest
+ * of
+ * the application can request a load once and then work with in-memory
+ * settings.
  */
 public final class Config {
 
     private static final Path appDataDirectoryPath = Path.of(System.getProperty("user.home"), ".gameduck");
     private static final Path legacyConfigPath = Path.of(System.getProperty("user.home"), ".gameduck.properties");
-    private static final Path legacyPaletteConfigPath = Path.of(System.getProperty("user.home"), ".gameduck-palettes.json");
+    private static final Path legacyPaletteConfigPath = Path.of(System.getProperty("user.home"),
+            ".gameduck-palettes.json");
     private static final Path configPath = appDataDirectoryPath.resolve("config.properties");
     private static final Path paletteConfigPath = appDataDirectoryPath.resolve("palettes.json");
     private static final String currentPalettePrefix = "palette.current.";
@@ -521,7 +524,8 @@ public final class Config {
             }
         }
 
-        Settings.SetAudioEnhancementChain(ParseAudioEnhancementChain(properties.getProperty(soundEnhancementChainKey, "")));
+        Settings.SetAudioEnhancementChain(
+                ParseAudioEnhancementChain(properties.getProperty(soundEnhancementChainKey, "")));
         Settings.SetAudioEnhancementChainEnabled(
                 Boolean.parseBoolean(properties.getProperty(soundEnhancementEnabledKey, "false")));
     }
@@ -546,7 +550,8 @@ public final class Config {
 
     private static void ApplyLibrarySettings() {
         Settings.ResetLibrary();
-        String configuredMode = properties.getProperty(gameNameBracketDisplayModeKey, GameNameBracketDisplayMode.NONE.name());
+        String configuredMode = properties.getProperty(gameNameBracketDisplayModeKey,
+                GameNameBracketDisplayMode.NONE.name());
         try {
             Settings.gameNameBracketDisplayMode = GameNameBracketDisplayMode.valueOf(configuredMode);
         } catch (IllegalArgumentException exception) {
@@ -640,7 +645,8 @@ public final class Config {
                     String.valueOf(Settings.GetChannelVolume(channelIndex)));
         }
         properties.setProperty(soundEnhancementEnabledKey, String.valueOf(Settings.IsAudioEnhancementChainEnabled()));
-        properties.setProperty(soundEnhancementChainKey, EncodeAudioEnhancementChain(Settings.CurrentAudioEnhancementChain()));
+        properties.setProperty(soundEnhancementChainKey,
+                EncodeAudioEnhancementChain(Settings.CurrentAudioEnhancementChain()));
     }
 
     private static void SyncEmulationSettings() {
@@ -652,9 +658,11 @@ public final class Config {
         properties.setProperty(fillWindowOutputKey, String.valueOf(Settings.fillWindowOutput));
         properties.setProperty(integerScaleWindowOutputKey, String.valueOf(Settings.integerScaleWindowOutput));
         properties.setProperty(displayShaderKey,
-                Settings.displayShaderId == null || Settings.displayShaderId.isBlank() ? "none" : Settings.displayShaderId);
+                Settings.displayShaderId == null || Settings.displayShaderId.isBlank() ? "none"
+                        : Settings.displayShaderId);
         properties.setProperty(displayBorderKey,
-                Settings.displayBorderId == null || Settings.displayBorderId.isBlank() ? "none" : Settings.displayBorderId);
+                Settings.displayBorderId == null || Settings.displayBorderId.isBlank() ? "none"
+                        : Settings.displayBorderId);
         properties.setProperty(showSerialOutputKey, String.valueOf(Settings.showSerialOutput));
         properties.setProperty(displayFrameBlendingKey, String.valueOf(Settings.enableFrameBlending));
         properties.setProperty(showDisplayFpsKey, String.valueOf(Settings.showDisplayFps));
@@ -664,9 +672,11 @@ public final class Config {
     private static void SyncLibrarySettings() {
         properties.setProperty(gameNameBracketDisplayModeKey, Settings.gameNameBracketDisplayMode.name());
         properties.setProperty(libraryViewModeKey,
-                Settings.libraryViewMode == null || Settings.libraryViewMode.isBlank() ? "LIST" : Settings.libraryViewMode);
+                Settings.libraryViewMode == null || Settings.libraryViewMode.isBlank() ? "LIST"
+                        : Settings.libraryViewMode);
         properties.setProperty(libraryFilterModeKey,
-                Settings.libraryFilterMode == null || Settings.libraryFilterMode.isBlank() ? "ALL" : Settings.libraryFilterMode);
+                Settings.libraryFilterMode == null || Settings.libraryFilterMode.isBlank() ? "ALL"
+                        : Settings.libraryFilterMode);
         properties.setProperty(libraryConsoleFilterKey,
                 Settings.libraryConsoleFilter == null || Settings.libraryConsoleFilter.isBlank()
                         ? "ALL"
@@ -784,5 +794,3 @@ public final class Config {
         }
     }
 }
-
-

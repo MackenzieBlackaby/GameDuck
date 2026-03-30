@@ -1,6 +1,5 @@
 package com.blackaby.Backend.GB;
 
-import com.blackaby.Backend.GB.GBButton;
 import com.blackaby.Backend.Platform.EmulatorBackend;
 import com.blackaby.Backend.Platform.EmulatorButton;
 import com.blackaby.Backend.Platform.EmulatorCapabilities;

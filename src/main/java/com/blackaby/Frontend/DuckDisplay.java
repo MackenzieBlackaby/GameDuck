@@ -100,7 +100,8 @@ public class DuckDisplay extends JPanel {
         this.displaySpec = displaySpec;
         this.asyncShaderRenderingEnabled = asyncShaderRenderingEnabled;
         setBackground(displaySpec == null ? Color.BLACK : displaySpec.backgroundColour());
-        setDoubleBuffered(true);
+        setOpaque(true);
+        setDoubleBuffered(false);
         initializeFrameBuffers();
         initializeRenderBuffers(1);
         RefreshShader();
@@ -218,7 +219,8 @@ public class DuckDisplay extends JPanel {
      * Copies the completed emulation back buffer to the image presented on the EDT.
      *
      * @param blendWithPreviousFrame whether to blend the new frame with the
-     * previously displayed image to approximate LCD persistence
+     *                               previously displayed image to approximate LCD
+     *                               persistence
      */
     public void presentFrame(boolean blendWithPreviousFrame) {
         presentFrame(
@@ -305,16 +307,24 @@ public class DuckDisplay extends JPanel {
      */
     @Override
     protected void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        if (image != null) {
-            Graphics2D g2d = (Graphics2D) g.create();
-            LoadedDisplayBorder border = activeBorder == null
-                    ? DisplayBorderManager.Resolve(Settings.displayBorderId)
-                    : activeBorder;
-            DisplayBorderRenderer.paint(g2d, image, prepareBorderFrame(border, getWidth(), getHeight()));
-            g2d.dispose();
-            recordPaintPresentation();
+        if (image == null) {
+            if (isOpaque()) {
+                g.setColor(getBackground());
+                g.fillRect(0, 0, getWidth(), getHeight());
+            }
+            return;
         }
+
+        if (isOpaque()) {
+            g.setColor(getBackground());
+            g.fillRect(0, 0, getWidth(), getHeight());
+        }
+
+        Graphics2D g2d = (Graphics2D) g;
+        LoadedDisplayBorder border = activeBorder != null ? activeBorder
+                : DisplayBorderManager.Resolve(Settings.displayBorderId);
+        DisplayBorderRenderer.paint(g2d, image, prepareBorderFrame(border, getWidth(), getHeight()));
+        recordPaintPresentation();
     }
 
     public PresentationStats SnapshotPresentationStats() {
@@ -436,6 +446,12 @@ public class DuckDisplay extends JPanel {
 
     private void RequestRepaint() {
         if (!repaintQueued.compareAndSet(false, true)) {
+            return;
+        }
+
+        if (SwingUtilities.isEventDispatchThread()) {
+            repaintQueued.set(false);
+            repaint();
             return;
         }
 
@@ -570,7 +586,8 @@ public class DuckDisplay extends JPanel {
                     } else {
                         prepareShaderSource(workerFrameBuffer, workerShaderSourceBuffer, queuedRenderScale);
                         shader.apply(workerShaderSourceBuffer, workerShaderTargetBuffer,
-                                workerShaderScratchBuffer, frameWidth() * queuedRenderScale, frameHeight() * queuedRenderScale);
+                                workerShaderScratchBuffer, frameWidth() * queuedRenderScale,
+                                frameHeight() * queuedRenderScale);
                     }
                 } catch (RuntimeException exception) {
                     exception.printStackTrace();
@@ -672,13 +689,14 @@ public class DuckDisplay extends JPanel {
         displayedShaderFrameVersion = 0;
     }
 
-    private DisplayBorderRenderer.PreparedBorderFrame prepareBorderFrame(LoadedDisplayBorder border, int width, int height) {
+    private DisplayBorderRenderer.PreparedBorderFrame prepareBorderFrame(LoadedDisplayBorder border, int width,
+            int height) {
         String borderId = border == null ? "none" : border.id();
         if (preparedBorderFrame != null
                 && preparedBorderWidth == width
                 && preparedBorderHeight == height
                 && ((preparedBorderId == null && borderId == null)
-                || (preparedBorderId != null && preparedBorderId.equalsIgnoreCase(borderId)))) {
+                        || (preparedBorderId != null && preparedBorderId.equalsIgnoreCase(borderId)))) {
             return preparedBorderFrame;
         }
 
@@ -723,4 +741,3 @@ public class DuckDisplay extends JPanel {
         statsWindowPaintCount = 0;
     }
 }
-

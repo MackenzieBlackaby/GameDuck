@@ -6,7 +6,6 @@ import com.blackaby.Backend.Platform.EmulatorProfile;
 import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Misc.AppShortcut;
 import com.blackaby.Misc.AppShortcutBindings;
-import com.blackaby.Misc.ControllerBinding;
 import com.blackaby.Misc.Settings;
 
 import javax.swing.SwingUtilities;

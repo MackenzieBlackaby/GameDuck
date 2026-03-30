@@ -574,12 +574,10 @@ public final class InputMappingWindow extends JDialog {
 
     private final class MapperCanvas extends JPanel {
 
-        private final InputMode mode;
         private final Map<EmulatorButton, BindingCallout> callouts = new HashMap<>();
         private EmulatorButton highlightedButton;
 
         private MapperCanvas(InputMode mode) {
-            this.mode = mode;
             setOpaque(false);
             setLayout(null);
             setPreferredSize(canvasSize);

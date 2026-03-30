@@ -416,7 +416,6 @@ public class DuckPPU {
             return noSpritePixel;
         }
 
-        boolean use8x16 = (lcdControl & 0x04) != 0;
         boolean bgMasterPriority = cgbMode && (lcdControl & 0x01) != 0;
 
         for (int spriteIndex = 0; spriteIndex < visibleSpriteCount; spriteIndex++) {

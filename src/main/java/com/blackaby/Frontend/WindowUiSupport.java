@@ -365,7 +365,7 @@ final class WindowUiSupport {
             }
 
             Graphics2D graphics2d = (Graphics2D) graphics.create();
-            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
             int width = Math.max(0, component.getWidth() - 1);
             int height = Math.max(0, component.getHeight() - 1);
             Color base = resolveBackground(button);
@@ -483,7 +483,7 @@ final class WindowUiSupport {
             }
 
             Graphics2D graphics2d = (Graphics2D) graphics.create();
-            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
             graphics2d.setColor(Styling.cardTintBorderColour);
             int arc = scrollbar.getOrientation() == Adjustable.VERTICAL ? thumbBounds.width : thumbBounds.height;
             graphics2d.fillRoundRect(thumbBounds.x + 2, thumbBounds.y + 2,
@@ -609,7 +609,7 @@ final class WindowUiSupport {
         protected void paintTabBackground(Graphics graphics, int tabPlacement, int tabIndex,
                                           int x, int y, int w, int h, boolean isSelected) {
             Graphics2D graphics2d = (Graphics2D) graphics.create();
-            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
             int arc = 18;
             int inset = 2;
             int width = Math.max(0, w - (inset * 2));
@@ -626,7 +626,7 @@ final class WindowUiSupport {
         protected void paintTabBorder(Graphics graphics, int tabPlacement, int tabIndex,
                                       int x, int y, int w, int h, boolean isSelected) {
             Graphics2D graphics2d = (Graphics2D) graphics.create();
-            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
             graphics2d.setColor(isSelected ? Styling.sectionHighlightBorderColour : Styling.surfaceBorderColour);
             graphics2d.drawRoundRect(x + 2, y + 2, Math.max(0, w - 5), Math.max(0, h - 5), 18, 18);
             graphics2d.dispose();

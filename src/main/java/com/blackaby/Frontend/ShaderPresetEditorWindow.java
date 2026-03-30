@@ -31,20 +31,15 @@ import javax.swing.Timer;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.BorderLayout;
-import java.awt.Color;
 import java.awt.Component;
 import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FileDialog;
 import java.awt.FlowLayout;
 import java.awt.Font;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
-import java.awt.RenderingHints;
-import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -260,7 +255,8 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     }
 
     private JComponent buildEditorSplitPane() {
-        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, buildChainEditorCard(), buildInspectorCard());
+        JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, buildChainEditorCard(),
+                buildInspectorCard());
         splitPane.setResizeWeight(0.48);
         splitPane.setBorder(BorderFactory.createEmptyBorder());
         splitPane.setOpaque(false);
@@ -290,7 +286,8 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
                     boolean cellHasFocus) {
-                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected,
+                        cellHasFocus);
                 if (value instanceof ShaderPassType passType) {
                     label.setText(passType.label());
                 }
@@ -352,7 +349,8 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
             @Override
             public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
                     boolean cellHasFocus) {
-                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected,
+                        cellHasFocus);
                 if (value instanceof ShaderPassConfig passConfig) {
                     label.setText(UiText.ShaderEditorWindow.PassChainItemLabel(index, passConfig.type().label()));
                 }
@@ -646,7 +644,7 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
             Files.createDirectories(shaderDirectory);
             try (var files = Files.walk(shaderDirectory)) {
                 files.filter(path -> Files.isRegularFile(path)
-                                && path.getFileName().toString().toLowerCase().endsWith(".json"))
+                        && path.getFileName().toString().toLowerCase().endsWith(".json"))
                         .sorted(Comparator.comparing(path -> shaderDirectory.relativize(path).toString().toLowerCase()))
                         .forEach(path -> entries.add(new PresetFileEntry(
                                 shaderDirectory.relativize(path).toString().replace('\\', '/'),
@@ -1158,7 +1156,7 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     }
 
     private record PreviewRenderResult(ShaderPresetDocument document,
-                                       ShaderPreviewRenderer.PreviewImages previewImages,
-                                       String errorText) {
+            ShaderPreviewRenderer.PreviewImages previewImages,
+            String errorText) {
     }
 }

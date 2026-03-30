@@ -163,9 +163,9 @@ public class DuckWindow extends JFrame {
     /**
      * Creates a window with explicit dimensions and resize behaviour.
      *
-     * @param title window title
-     * @param width initial width in pixels
-     * @param height initial height in pixels
+     * @param title     window title
+     * @param width     initial width in pixels
+     * @param height    initial height in pixels
      * @param resizable whether the frame can be resized by the user
      */
     public DuckWindow(String title, int width, int height, boolean resizable) {
@@ -261,8 +261,8 @@ public class DuckWindow extends JFrame {
     /**
      * Creates a standard resizable window with a custom size.
      *
-     * @param title window title
-     * @param width initial width in pixels
+     * @param title  window title
+     * @param width  initial width in pixels
      * @param height initial height in pixels
      */
     public DuckWindow(String title, int width, int height) {
@@ -660,8 +660,6 @@ public class DuckWindow extends JFrame {
         titleDragWindowLocation = getLocation();
         titleDragMoved = true;
         updateWindowChromeState();
-        revalidate();
-        repaint();
     }
 
     private SnapZone ResolveSnapZone(Point screenPoint) {
@@ -721,8 +719,6 @@ public class DuckWindow extends JFrame {
         snappedZone = snapZone;
         setBounds(snapBounds);
         updateWindowChromeState();
-        revalidate();
-        repaint();
     }
 
     private void storeRestoreBounds(Rectangle bounds) {
@@ -752,8 +748,6 @@ public class DuckWindow extends JFrame {
         snapPreviewWindow.setBounds(previewBounds);
         if (!snapPreviewWindow.isVisible()) {
             snapPreviewWindow.setVisible(true);
-        } else {
-            snapPreviewWindow.repaint();
         }
     }
 
@@ -853,7 +847,6 @@ public class DuckWindow extends JFrame {
         }
 
         setBounds(nextBounds);
-        revalidate();
     }
 
     private static final class WindowControlButton extends JButton {

@@ -9,7 +9,6 @@ import com.blackaby.Backend.GB.Memory.DuckMemory;
 import com.blackaby.Backend.GB.Misc.ROM;
 import com.blackaby.Backend.GB.Misc.Specifics;
 import com.blackaby.Backend.GB.Peripherals.DuckAPU;
-import com.blackaby.Backend.GB.GBButton;
 import com.blackaby.Backend.GB.Peripherals.DuckJoypad;
 import com.blackaby.Backend.GB.Peripherals.DuckTimer;
 import com.blackaby.Backend.Platform.EmulatorGame;

@@ -1,6 +1,5 @@
 package com.blackaby.Backend.GB.Peripherals;
 
-import com.blackaby.Misc.AudioEnhancementPreset;
 import com.blackaby.Misc.AudioEnhancementSetting;
 
 import java.util.ArrayList;

@@ -8,7 +8,8 @@ import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 
 /**
- * Renders gameplay with an optional border frame around the maximized Game Boy viewport.
+ * Renders gameplay with an optional border frame around the maximized Game Boy
+ * viewport.
  */
 public final class DisplayBorderRenderer {
 
@@ -85,7 +86,8 @@ public final class DisplayBorderRenderer {
     }
 
     private static void paintGameplay(Graphics2D graphics, BufferedImage gameplayImage, Rectangle gameplayRect) {
-        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
         graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
         graphics.drawImage(
                 gameplayImage,
@@ -113,9 +115,11 @@ public final class DisplayBorderRenderer {
         int targetBottom = targetHeight - (targetGameplayRect.y + targetGameplayRect.height);
 
         Graphics2D borderGraphics = (Graphics2D) graphics.create();
-        borderGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-        borderGraphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        borderGraphics.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+        borderGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        borderGraphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
+        borderGraphics.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION,
+                RenderingHints.VALUE_ALPHA_INTERPOLATION_SPEED);
 
         drawSlice(borderGraphics, borderImage,
                 0, 0, sourceLeft, sourceTop,

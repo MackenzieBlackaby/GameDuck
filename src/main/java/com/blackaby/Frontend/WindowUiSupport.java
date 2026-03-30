@@ -382,7 +382,7 @@ final class WindowUiSupport {
 
         @Override
         protected void paintFocus(Graphics graphics, AbstractButton button, Rectangle viewRect,
-                                  Rectangle textRect, Rectangle iconRect) {
+                Rectangle textRect, Rectangle iconRect) {
             // Border + background contrast is enough for these controls.
         }
 
@@ -607,7 +607,7 @@ final class WindowUiSupport {
 
         @Override
         protected void paintTabBackground(Graphics graphics, int tabPlacement, int tabIndex,
-                                          int x, int y, int w, int h, boolean isSelected) {
+                int x, int y, int w, int h, boolean isSelected) {
             Graphics2D graphics2d = (Graphics2D) graphics.create();
             graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
             int arc = 18;
@@ -624,7 +624,7 @@ final class WindowUiSupport {
 
         @Override
         protected void paintTabBorder(Graphics graphics, int tabPlacement, int tabIndex,
-                                      int x, int y, int w, int h, boolean isSelected) {
+                int x, int y, int w, int h, boolean isSelected) {
             Graphics2D graphics2d = (Graphics2D) graphics.create();
             graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_OFF);
             graphics2d.setColor(isSelected ? Styling.sectionHighlightBorderColour : Styling.surfaceBorderColour);
@@ -634,13 +634,13 @@ final class WindowUiSupport {
 
         @Override
         protected void paintFocusIndicator(Graphics graphics, int tabPlacement, Rectangle[] rects,
-                                           int tabIndex, Rectangle iconRect, Rectangle textRect, boolean isSelected) {
+                int tabIndex, Rectangle iconRect, Rectangle textRect, boolean isSelected) {
             // Intentionally no focus ring; selected border is enough in this theme.
         }
 
         @Override
         protected void paintText(Graphics graphics, int tabPlacement, Font font, FontMetrics metrics,
-                                 int tabIndex, String title, Rectangle textRect, boolean isSelected) {
+                int tabIndex, String title, Rectangle textRect, boolean isSelected) {
             graphics.setFont(font);
             graphics.setColor(isSelected ? Styling.accentColour : Styling.mutedTextColour);
             int mnemonicIndex = tabPane.getDisplayedMnemonicIndexAt(tabIndex);
@@ -654,28 +654,28 @@ final class WindowUiSupport {
 
         @Override
         protected void paintContentBorderTopEdge(Graphics graphics, int tabPlacement, int selectedIndex,
-                                                 int x, int y, int w, int h) {
+                int x, int y, int w, int h) {
             graphics.setColor(Styling.surfaceBorderColour);
             graphics.drawLine(x, y, x + w - 1, y);
         }
 
         @Override
         protected void paintContentBorderLeftEdge(Graphics graphics, int tabPlacement, int selectedIndex,
-                                                  int x, int y, int w, int h) {
+                int x, int y, int w, int h) {
             graphics.setColor(Styling.surfaceBorderColour);
             graphics.drawLine(x, y, x, y + h - 1);
         }
 
         @Override
         protected void paintContentBorderRightEdge(Graphics graphics, int tabPlacement, int selectedIndex,
-                                                   int x, int y, int w, int h) {
+                int x, int y, int w, int h) {
             graphics.setColor(Styling.surfaceBorderColour);
             graphics.drawLine(x + w - 1, y, x + w - 1, y + h - 1);
         }
 
         @Override
         protected void paintContentBorderBottomEdge(Graphics graphics, int tabPlacement, int selectedIndex,
-                                                    int x, int y, int w, int h) {
+                int x, int y, int w, int h) {
             graphics.setColor(Styling.surfaceBorderColour);
             graphics.drawLine(x, y + h - 1, x + w - 1, y + h - 1);
         }
@@ -736,10 +736,11 @@ final class WindowUiSupport {
     }
 
     static String escapeHtml(String value) {
-        return value == null ? "" : value
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;");
+        return value == null ? ""
+                : value
+                        .replace("&", "&amp;")
+                        .replace("<", "&lt;")
+                        .replace(">", "&gt;");
     }
 
     private static Color blend(Color base, Color overlay, float overlayWeight) {

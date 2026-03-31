@@ -8,6 +8,7 @@ import com.blackaby.Backend.Helpers.SaveFileManager;
 import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Misc.RomConsoleFilter;
 import com.blackaby.Misc.UiText;
+import com.blackaby.Misc.RomDataFilter;
 
 import javax.swing.JButton;
 import javax.swing.JComponent;
@@ -64,6 +65,12 @@ public final class SaveDataManagerWindow extends AbstractSaveManagerWindow<Store
 
     @Override
     protected List<StoredGame> loadEntries() {
+        List<StoredGame> allGames = ManagedGameRegistry.GetKnownGames();
+        if (dataFilter == RomDataFilter.HAS_DATA) {
+            return allGames.stream()
+                    .filter(game -> SaveFileManager.DescribeSaveFiles(game.saveIdentity()).HasExistingFiles())
+                    .toList();
+        }
         return ManagedGameRegistry.GetKnownGames();
     }
 
@@ -118,8 +125,10 @@ public final class SaveDataManagerWindow extends AbstractSaveManagerWindow<Store
         if (game == null) {
             detailGameNameLabel.setText(asTitleHtml(currentEmptyTitle(), 280));
             managedPathValueLabel.setText(asHtml(currentEmptyHelper(), 240, UiText.LibraryWindow.EMPTY));
-            saveSizesValueLabel.setText(asHtml(UiText.OptionsWindow.SAVE_DETAILS_NONE, 240, UiText.LibraryWindow.EMPTY));
-            saveFilesValueLabel.setText(asHtml(UiText.OptionsWindow.SAVE_DETAILS_NONE, 240, UiText.LibraryWindow.EMPTY));
+            saveSizesValueLabel
+                    .setText(asHtml(UiText.OptionsWindow.SAVE_DETAILS_NONE, 240, UiText.LibraryWindow.EMPTY));
+            saveFilesValueLabel
+                    .setText(asHtml(UiText.OptionsWindow.SAVE_DETAILS_NONE, 240, UiText.LibraryWindow.EMPTY));
             updateArtLabel(detailArtLabel, null, DETAIL_ART_WIDTH - 16, DETAIL_ART_HEIGHT - 16, 12f);
             setActionButtonsEnabled(false, false);
             return;
@@ -131,7 +140,8 @@ public final class SaveDataManagerWindow extends AbstractSaveManagerWindow<Store
         long liveSizeBytes = liveSession ? currentEmulation().SnapshotSaveData().length : -1L;
 
         detailGameNameLabel.setText(asTitleHtml(resolveGameDisplayName(saveIdentity), 280));
-        managedPathValueLabel.setText(asHtml(SaveFileManager.PreferredSavePath(saveIdentity).toString(), 240, UiText.LibraryWindow.EMPTY));
+        managedPathValueLabel.setText(
+                asHtml(SaveFileManager.PreferredSavePath(saveIdentity).toString(), 240, UiText.LibraryWindow.EMPTY));
         saveSizesValueLabel.setText(asHtml(liveSession
                 ? UiText.OptionsWindow.SaveManagerLiveSizeSummary(
                         UiText.OptionsWindow.FormatByteSize(liveSizeBytes),
@@ -228,7 +238,8 @@ public final class SaveDataManagerWindow extends AbstractSaveManagerWindow<Store
                     ? currentEmulation().ImportSaveData(importFile.toPath())
                     : SaveFileManager.ImportSave(game.saveIdentity(), importFile.toPath()).length;
             JOptionPane.showMessageDialog(this,
-                    UiText.OptionsWindow.SaveImportSuccessMessage(resolveGameDisplayName(game.saveIdentity()), importedBytes));
+                    UiText.OptionsWindow.SaveImportSuccessMessage(resolveGameDisplayName(game.saveIdentity()),
+                            importedBytes));
             refreshGameList();
         } catch (IOException | IllegalArgumentException | IllegalStateException exception) {
             JOptionPane.showMessageDialog(this, exception.getMessage(), UiText.OptionsWindow.SAVE_IMPORT_FAILED_TITLE,
@@ -254,7 +265,8 @@ public final class SaveDataManagerWindow extends AbstractSaveManagerWindow<Store
                 SaveFileManager.ExportSave(game.saveIdentity(), exportFile.toPath());
             }
 
-            JOptionPane.showMessageDialog(this, UiText.OptionsWindow.SaveExportSuccessMessage(exportFile.getAbsolutePath()));
+            JOptionPane.showMessageDialog(this,
+                    UiText.OptionsWindow.SaveExportSuccessMessage(exportFile.getAbsolutePath()));
             refreshGameList();
         } catch (IOException | IllegalArgumentException | IllegalStateException exception) {
             JOptionPane.showMessageDialog(this, exception.getMessage(), UiText.OptionsWindow.SAVE_EXPORT_FAILED_TITLE,

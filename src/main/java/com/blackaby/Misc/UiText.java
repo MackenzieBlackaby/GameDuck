@@ -27,6 +27,9 @@ public final class UiText {
         public static final String WARNING_TITLE = "Warning";
         public static final String SEARCH_TITLE = "Search";
         public static final String CONSOLE_TITLE = "Console";
+        public static final String STATUS = "Data Status";
+        public static final String STATUS_ALL = "All games";
+        public static final String STATUS_TRACKED = "Tracked games";
 
         // Shared console filter labels.
         public static final String CONSOLE_FILTER_ALL = "ALL";

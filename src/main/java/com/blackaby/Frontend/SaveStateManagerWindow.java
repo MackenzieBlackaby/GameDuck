@@ -8,6 +8,7 @@ import com.blackaby.Backend.Helpers.GameMetadataStore;
 import com.blackaby.Backend.Helpers.QuickStateManager;
 import com.blackaby.Misc.RomConsoleFilter;
 import com.blackaby.Misc.UiText;
+import com.blackaby.Misc.RomDataFilter;
 
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListModel;
@@ -56,7 +57,7 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
     private JComboBox<Integer> moveTargetCombo;
 
     public SaveStateManagerWindow(MainWindow mainWindow) {
-        super(UiText.OptionsWindow.SAVE_STATE_MANAGER_WINDOW_TITLE, 1120, 760, mainWindow);
+        super(UiText.OptionsWindow.SAVE_STATE_MANAGER_WINDOW_TITLE, 1120, 860, mainWindow);
         initialiseWindow(UiText.OptionsWindow.SAVE_STATE_MANAGER_WINDOW_TITLE,
                 UiText.OptionsWindow.SAVE_STATE_MANAGER_SUBTITLE,
                 buildBody());
@@ -69,7 +70,13 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
 
     @Override
     protected List<LibraryEntry> loadEntries() {
-        return GameLibraryStore.GetEntries();
+        List<LibraryEntry> entries = GameLibraryStore.GetEntries();
+        if (dataFilter == RomDataFilter.HAS_DATA) {
+            return entries.stream()
+                    .filter(entry -> countFilledSlots(entry) > 0)
+                    .toList();
+        }
+        return entries;
     }
 
     @Override
@@ -142,7 +149,8 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
         JPanel headerText = new JPanel(new BorderLayout(0, 10));
         headerText.setOpaque(false);
         headerText.add(detailGameNameLabel, BorderLayout.NORTH);
-        headerText.add(createDetailRow(UiText.OptionsWindow.SAVE_STATE_MANAGER_SLOT_SUMMARY_TITLE, slotSummaryValueLabel),
+        headerText.add(
+                createDetailRow(UiText.OptionsWindow.SAVE_STATE_MANAGER_SLOT_SUMMARY_TITLE, slotSummaryValueLabel),
                 BorderLayout.CENTER);
 
         JPanel detailsHeader = new JPanel(new BorderLayout(16, 0));
@@ -200,6 +208,8 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
 
         moveTargetCombo = new JComboBox<>(moveSlotModel);
         moveTargetCombo.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+        moveTargetCombo.setBackground(Styling.cardTintColour);
+        moveTargetCombo.setForeground(accentColour);
 
         moveButton = createPrimaryButton(UiText.OptionsWindow.SAVE_STATE_MANAGER_MOVE_BUTTON);
         moveButton.addActionListener(event -> moveSelectedState());
@@ -271,7 +281,8 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
         }
 
         slotPathValueLabel.setText(asHtml(
-                slotInfo.exists() ? slotInfo.path().toString() : UiText.OptionsWindow.SAVE_STATE_MANAGER_SLOT_PATH_MISSING,
+                slotInfo.exists() ? slotInfo.path().toString()
+                        : UiText.OptionsWindow.SAVE_STATE_MANAGER_SLOT_PATH_MISSING,
                 320,
                 UiText.OptionsWindow.SAVE_STATE_MANAGER_SLOT_PATH_MISSING));
 
@@ -283,11 +294,12 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
         }
 
         boolean hasSlotFile = slotInfo.exists();
-        setActionButtonsEnabled(true, hasSlotFile, countFilledSlots(entry) > 0, hasSlotFile && moveSlotModel.getSize() > 0);
+        setActionButtonsEnabled(true, hasSlotFile, countFilledSlots(entry) > 0,
+                hasSlotFile && moveSlotModel.getSize() > 0);
     }
 
     private void setActionButtonsEnabled(boolean allowImport, boolean allowExistingStateActions,
-                                         boolean allowDeleteAll, boolean allowMove) {
+            boolean allowDeleteAll, boolean allowMove) {
         if (importButton != null) {
             importButton.setEnabled(allowImport);
         }
@@ -323,7 +335,8 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
         try {
             QuickStateManager.ImportState(identityFor(entry), slotInfo.slot(), importFile.toPath());
             JOptionPane.showMessageDialog(this,
-                    UiText.OptionsWindow.SaveStateImportSuccessMessage(resolveGameDisplayName(entry), slotLabel(slotInfo.slot())));
+                    UiText.OptionsWindow.SaveStateImportSuccessMessage(resolveGameDisplayName(entry),
+                            slotLabel(slotInfo.slot())));
             updateSlotList(entry, slotInfo.slot());
             repaintGameList();
         } catch (IOException | IllegalArgumentException exception) {
@@ -544,10 +557,10 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
 
         @Override
         public Component getListCellRendererComponent(JList<? extends QuickStateManager.StateSlotInfo> list,
-                                                      QuickStateManager.StateSlotInfo value,
-                                                      int index,
-                                                      boolean isSelected,
-                                                      boolean cellHasFocus) {
+                QuickStateManager.StateSlotInfo value,
+                int index,
+                boolean isSelected,
+                boolean cellHasFocus) {
             removeAll();
 
             Color background = isSelected ? Styling.listSelectionColour : Styling.cardTintColour;
@@ -573,4 +586,3 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
         }
     }
 }
-

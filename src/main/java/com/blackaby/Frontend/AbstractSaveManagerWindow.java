@@ -2,6 +2,7 @@ package com.blackaby.Frontend;
 
 import com.blackaby.Backend.Helpers.GameArtProvider;
 import com.blackaby.Misc.RomConsoleFilter;
+import com.blackaby.Misc.RomDataFilter;
 import com.blackaby.Misc.UiText;
 
 import javax.swing.BorderFactory;
@@ -68,6 +69,8 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
     private JLabel trackedGamesBadgeLabel;
     private RomConsoleFilter consoleFilter = RomConsoleFilter.ALL;
     private String searchQuery = "";
+
+    protected RomDataFilter dataFilter = RomDataFilter.ALL;
 
     protected AbstractSaveManagerWindow(String windowTitle, int width, int height, MainWindow mainWindow) {
         super(windowTitle, width, height, true);
@@ -404,12 +407,13 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
 
         @Override
         public Component getListCellRendererComponent(JList<? extends T> list, T value, int index,
-                                                      boolean isSelected, boolean cellHasFocus) {
+                boolean isSelected, boolean cellHasFocus) {
             removeAll();
 
             setBackground(isSelected ? Styling.listSelectionColour : Styling.cardTintColour);
             setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(isSelected ? Styling.sectionHighlightBorderColour : cardBorder, 1, true),
+                    BorderFactory.createLineBorder(isSelected ? Styling.sectionHighlightBorderColour : cardBorder, 1,
+                            true),
                     BorderFactory.createEmptyBorder(8, 8, 8, 8)));
 
             updateArtLabel(artLabel, value, LIST_ART_SIZE, LIST_ART_SIZE, 10f);
@@ -491,6 +495,19 @@ abstract class AbstractSaveManagerWindow<T> extends DuckWindow {
             }
         });
         filterRow.add(consoleSelector);
+
+        filterRow.add(createSectionLabel(UiText.Common.STATUS, true));
+        JComboBox<RomDataFilter> hasDataSelector = new JComboBox<>(RomDataFilter.values());
+        hasDataSelector.setSelectedItem(dataFilter);
+        hasDataSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+        hasDataSelector.addActionListener(event -> {
+            Object selectedItem = hasDataSelector.getSelectedItem();
+            if (selectedItem instanceof RomDataFilter selectedDataFilter) {
+                dataFilter = selectedDataFilter;
+                refreshGameList();
+            }
+        });
+        filterRow.add(hasDataSelector);
 
         filterRow.add(createSectionLabel(UiText.Common.SEARCH_TITLE, true));
 

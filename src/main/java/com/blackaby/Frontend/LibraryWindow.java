@@ -1209,7 +1209,7 @@ public final class LibraryWindow extends DuckWindow {
         return "<html><body style='width: 220px'>" + WindowUiSupport.escapeHtml(value) + "</body></html>";
     }
 
-    // Note: Slightly hack-y table workaround to get the text to wrap :)
+    // Note: Slightly hack-y table workaround to get the text to wrap :P
     // Swing html formatting still uses 3.2, and as such div and bodies are not as
     // respected as a table layout
     private String asHeadingHtml(String value, int width) {
@@ -1219,10 +1219,12 @@ public final class LibraryWindow extends DuckWindow {
         return "<html><table width='" + width + "'><tr><td>" + text + "</td></tr></table></html>";
     }
 
+    // Same thing here for the game tiles
+    // Interesting note if you're looking through this code as a dev
     private String asRendererHtml(String value, int width) {
-        return "<html><div style='width:" + Math.max(60, width) + "px; text-align:center;'>"
+        return "<html><table width='" + Math.max(60, width) + "'><tr><td align='center'>"
                 + WindowUiSupport.escapeHtml(value == null ? "" : value)
-                + "</div></html>";
+                + "</td></tr></table></html>";
     }
 
     private String truncateToWidth(String value, FontMetrics metrics, int maxWidth) {

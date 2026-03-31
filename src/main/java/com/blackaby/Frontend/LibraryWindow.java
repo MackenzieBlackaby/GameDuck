@@ -380,10 +380,12 @@ public final class LibraryWindow extends DuckWindow {
         JPanel detailContent = new JPanel();
         detailContent.setOpaque(false);
         detailContent.setLayout(new javax.swing.BoxLayout(detailContent, javax.swing.BoxLayout.Y_AXIS));
+        detailContent.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         detailTitleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 20f));
         detailTitleLabel.setForeground(accentColour);
         detailTitleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        detailTitleLabel.setMaximumSize(new Dimension(240, Integer.MAX_VALUE));
 
         JPanel previewPanel = new JPanel(new BorderLayout());
         previewPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -559,7 +561,8 @@ public final class LibraryWindow extends DuckWindow {
             emulation.StartEmulation(entry.LoadRom());
             dispose();
         } catch (IOException | IllegalArgumentException exception) {
-            JOptionPane.showMessageDialog(mainWindow, exception.getMessage(), UiText.GuiActions.LIBRARY_LOAD_ERROR_TITLE,
+            JOptionPane.showMessageDialog(mainWindow, exception.getMessage(),
+                    UiText.GuiActions.LIBRARY_LOAD_ERROR_TITLE,
                     JOptionPane.ERROR_MESSAGE);
         }
     }
@@ -737,7 +740,8 @@ public final class LibraryWindow extends DuckWindow {
                 .thenAccept(result -> {
                     result.ifPresent(gameArtResult -> {
                         if (gameArtResult.matchedGameName() != null && !gameArtResult.matchedGameName().isBlank()) {
-                            GameMetadataStore.RememberLibretroTitle(entry.SaveIdentity(), gameArtResult.matchedGameName());
+                            GameMetadataStore.RememberLibretroTitle(entry.SaveIdentity(),
+                                    gameArtResult.matchedGameName());
                         }
                         artCache.put(entry.key(), gameArtResult.image());
                         invalidateScaledArt(entry.key());
@@ -795,7 +799,8 @@ public final class LibraryWindow extends DuckWindow {
                 .thenAccept(result -> {
                     result.ifPresent(gameArtResult -> {
                         if (gameArtResult.matchedGameName() != null && !gameArtResult.matchedGameName().isBlank()) {
-                            GameMetadataStore.RememberLibretroTitle(entry.SaveIdentity(), gameArtResult.matchedGameName());
+                            GameMetadataStore.RememberLibretroTitle(entry.SaveIdentity(),
+                                    gameArtResult.matchedGameName());
                         }
                         titleScreenCache.put(entry.key(), gameArtResult.image());
                         titleScreenPreviewIconCache.remove(entry.key());
@@ -924,7 +929,8 @@ public final class LibraryWindow extends DuckWindow {
                     graphics2d.fillRect(0, 0, getWidth(), getHeight());
                 }
                 if (selectedState || hovered[0]) {
-                    graphics2d.setColor(selectedState ? Styling.sectionHighlightBorderColour : new Color(255, 255, 255, 90));
+                    graphics2d.setColor(
+                            selectedState ? Styling.sectionHighlightBorderColour : new Color(255, 255, 255, 90));
                     graphics2d.setStroke(new BasicStroke(selectedState ? 3f : 1.5f));
                     int inset = selectedState ? 2 : 1;
                     int width = Math.max(0, getWidth() - (inset * 2) - 1);
@@ -1031,7 +1037,8 @@ public final class LibraryWindow extends DuckWindow {
         return titleScreenPreviewIconCache.computeIfAbsent(
                 entry.key(),
                 key -> {
-                    BufferedImage scaled = GameArtScaler.ScaleToFit(image, detailPreviewWidth, detailPreviewHeight, true);
+                    BufferedImage scaled = GameArtScaler.ScaleToFit(image, detailPreviewWidth, detailPreviewHeight,
+                            true);
                     return scaled == null ? null : new ImageIcon(scaled);
                 });
     }
@@ -1202,11 +1209,14 @@ public final class LibraryWindow extends DuckWindow {
         return "<html><body style='width: 220px'>" + WindowUiSupport.escapeHtml(value) + "</body></html>";
     }
 
+    // Note: Slightly hack-y table workaround to get the text to wrap :)
+    // Swing html formatting still uses 3.2, and as such div and bodies are not as
+    // respected as a table layout
     private String asHeadingHtml(String value, int width) {
-        if (value == null || value.isBlank()) {
-            return "<html><body style='width: " + width + "px'>" + UiText.LibraryWindow.EMPTY + "</body></html>";
-        }
-        return "<html><body style='width: " + width + "px'>" + WindowUiSupport.escapeHtml(value) + "</body></html>";
+        String text = (value == null || value.isBlank())
+                ? UiText.LibraryWindow.EMPTY
+                : WindowUiSupport.escapeHtml(value);
+        return "<html><table width='" + width + "'><tr><td>" + text + "</td></tr></table></html>";
     }
 
     private String asRendererHtml(String value, int width) {
@@ -1307,7 +1317,8 @@ public final class LibraryWindow extends DuckWindow {
     }
 
     private Comparator<LibraryEntry> resolveSortComparator() {
-        Comparator<LibraryEntry> nameComparator = Comparator.comparing(this::resolveDisplayName, String.CASE_INSENSITIVE_ORDER);
+        Comparator<LibraryEntry> nameComparator = Comparator.comparing(this::resolveDisplayName,
+                String.CASE_INSENSITIVE_ORDER);
         return switch (sortMode) {
             case RECENTLY_PLAYED -> Comparator.comparingLong(LibraryEntry::lastPlayedMillis)
                     .reversed()
@@ -1327,7 +1338,7 @@ public final class LibraryWindow extends DuckWindow {
         return WindowUiSupport.createPrimaryButton(text, accentColour);
     }
 
-    private JButton createPrimaryIconButton(String text){
+    private JButton createPrimaryIconButton(String text) {
         return WindowUiSupport.createIconButton(text, accentColour);
     }
 
@@ -1360,18 +1371,20 @@ public final class LibraryWindow extends DuckWindow {
 
         @Override
         public Component getListCellRendererComponent(JList<? extends LibraryEntry> list, LibraryEntry value, int index,
-                                                      boolean isSelected, boolean cellHasFocus) {
+                boolean isSelected, boolean cellHasFocus) {
             removeAll();
 
             Color background = isSelected ? Styling.listSelectionColour : Styling.cardTintColour;
             setBackground(background);
             setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(isSelected ? Styling.sectionHighlightBorderColour : cardBorder, 1, true),
+                    BorderFactory.createLineBorder(isSelected ? Styling.sectionHighlightBorderColour : cardBorder, 1,
+                            true),
                     BorderFactory.createEmptyBorder(8, 8, 8, 8)));
 
             String gameTitle = resolveDisplayName(value);
             String helperText = value.favourite()
-                    ? UiText.LibraryWindow.FAVOURITE_BADGE + " | " + UiText.LibraryWindow.VariantLabel(value.patchNames())
+                    ? UiText.LibraryWindow.FAVOURITE_BADGE + " | "
+                            + UiText.LibraryWindow.VariantLabel(value.patchNames())
                     : UiText.LibraryWindow.VariantLabel(value.patchNames());
 
             int availableTextWidth = Math.max(120, list.getWidth()

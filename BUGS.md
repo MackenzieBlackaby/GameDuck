@@ -9,6 +9,8 @@ This is a list of known bugs in the current version of GameDuck. If you encounte
 ## Performance
 
 - General stuttering and slowdowns.
+- Some frame drops.
+- Known visual glitches with Samus' power suit in Metroid 2: Return of Samus
 
 ## UI/UX
 

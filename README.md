@@ -2,18 +2,37 @@
 
 ## Overview
 
-GameDuck is my Game Boy / Colour emulator and desktop frontend, written in Java with Swing.
+GameDuck is a Game Boy / Colour emulator suite, complete with a fully featured emulator and desktop frontend, written in Java with Swing.
 
 It started as my final year project at Lancaster University and evolved past that into a fully fledged Game Boy emulation suite. The repo contains the emulator core itself, the desktop UI wrapped around it, save-data and save-state management, ROM library features, ROM-hack loading tools, boot ROM support, palette and theme customisation, serial output logging, and a duck name and logo in honour of the Lancaster University ducks :)
 
-The project is aimed at original Game Boy and Game Boy Color software. The desktop UI is deliberately designed to be easy to use and feature-rich in a convenient way. I know swing UI looks somewhat archaic compared to RetroArch, but the defining feature of this is that it runs on Java, and therefore can run natively on any device that can run a JVM.
+The project is currently aimed at original Game Boy and Game Boy Color software. The desktop UI is deliberately designed to be easy to use and feature-rich in a convenient way. I know swing UI looks somewhat archaic compared to RetroArch, but the defining feature of this is that it runs on Java, and therefore can run natively on any device that can run a JVM.
 
 ## Changelog
 
+### V 0.3.0
+
+- Support for game cheats! Cheats can be automatically downloaded for each ROM, toggled, and edited.
+- Complete redesign of the user interface for a more modern visual appeal.
+- Implementation of a proper dark mode.
+- Smooth visuals via frame blending and a toggleable FPS counter in options.
+- New dedicated button and view for opening ROM hacks with intro screens.
+- Map application shortcuts directly to controller buttons.
+
+### V 0.2.0
+
+- Full implementation of CGB double-speed logic.
+- Proper hardware-accurate DMA behavior.
+- Edit and save custom GBC-style palettes.
+- Palettes now live in JSON files for easy sharing and backup.
+- Added support for external palette files and a bundled sample library.
+- "Get Artwork" retry button and direct ROM deletion from the info window.
+- Added full test suite for major emulator subsystems.
+
 ### V 0.1.1
 
-- Basic controller support has been added. 
-- It supports a variety of controllers using standard input systems such as XInput and DirectInput on Windows, and the standard input APIs on Linux and Mac. 
+- Basic controller support has been added.
+- It supports a variety of controllers using standard input systems such as XInput and DirectInput on Windows, and the standard input APIs on Linux and Mac.
 - The controller configuration UI allows you to map buttons to the Game Boy buttons.
 - The emulator can detect connected controllers and switch between them seamlessly.
 - Shortcut mapping and "map all" functionality is coming soon.
@@ -27,31 +46,10 @@ The project is aimed at original Game Boy and Game Boy Color software. The deskt
 
 ## What is planned by the time of V 1.0
 
-- ROM deletion from library
 - SGB Support
-- Controller support
 - Library and Config migration (To make updating easy)
-- Prettier UI (Hopefully)
 - 2 Emulations running simultaneously with link cable support between them.
 - Dual controller support for split-screen style play
-- Shaders and overlays
-- Fixes for certain effects that relied on hardware screen ghosting
-
-## Main features
-
-- Runs `.gb`, `.gbc`, and compatible patched ROMs.
-- Loads IPS patches on top of a base ROM WITHOUT needing to modify the original ROM to run the ROMhack (Both the ROM and IPS file are stored separately in the library, with separate save data. The ROMhack is patched onto the ROM at launch)
-- Supports save data management for compatible carts.
-- Supports managed quick saves and numbered save-state slots.
-- Copies and tracks played ROMs to a local library with a "favourites" playlist
-- Pulls box art, title screens, and screenshots from libretro and caches them locally.
-- Lets you switch palettes, edit colours, and save custom GB palettes.
-- Allows for GB -> GBC colourisation and GBC -> GB emulation (For ROMs that worked on both models).
-- Full feature switching between 
-- Theme customisation.
-- Supports configurable controls and application shortcuts.
-- Can use installed GB and GBC boot ROMs (Not provided here for copyright reasons).
-- Shows live serial output and writes debug logs to disk.
 
 ## Project layout
 
@@ -73,6 +71,24 @@ At the top level there are also a few working directories used by the app itself
 ## Build and run
 
 GameDuck currently targets Java 22 and builds with Maven.
+
+### Building with powershell
+
+Building with powershell is straightforward thanks to the `tools.ps1` script. To load the commands in the script, run in the root dir of the project:
+
+```powershell
+. ./tools.ps1
+```
+
+From there, you can use the commands:
+
+- `clean` to perform a complete clean, compile and run cycle.
+- `run` to run the desktop app without cleaning or recompiling first.
+- `release` to build a windows exe package of the app with a built in JRE.
+
+### Building with bash
+
+To build the project, run:
 
 ```bash
 mvn compile
@@ -121,9 +137,3 @@ If you want the emulator to boot through the original startup sequence, you need
 ## License
 
 GameDuck source code is licensed under MPL-2.0.
-
-Third-party components and generated runtime/legal materials in this repository may remain under their own separate licenses.
-
-## Why the code looks like this
-
-This codebase is split between emulator logic and desktop application code because that is how I actually use it. I wanted a project that is usable and a bit different to other emulators out there. That is why there is as much attention on the Front End as there is on the CPU and memory implementation.

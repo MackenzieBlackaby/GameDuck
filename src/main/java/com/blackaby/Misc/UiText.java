@@ -397,9 +397,9 @@ public final class UiText {
         public static final String FILTER_BASE_ROMS = "Standard ROMs";
 
         // List controls: view options.
-        public static final String VIEW_LIST = "List View";
-        public static final String VIEW_SMALL_ICONS = "Small Icons";
-        public static final String VIEW_LARGE_ICONS = "Large Icons";
+        public static final String VIEW_LIST = "List";
+        public static final String VIEW_SMALL_ICONS = "Icon List";
+        public static final String VIEW_LARGE_ICONS = "Large Art";
         public static final String SORT_ALPHABETICAL = "Alphabetical";
         public static final String SORT_RECENTLY_PLAYED = "Recently Played";
         public static final String SORT_NOT_PLAYED_FOR_A_WHILE = "Not Played for a While";

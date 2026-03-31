@@ -53,6 +53,12 @@ final class WindowUiSupport {
     private WindowUiSupport() {
     }
 
+    static JButton createIconButton(String text, Color accentColour) {
+        JButton button = new JButton(text);
+        stylePrimaryButton(button, accentColour, true);
+        return button;
+    }
+
     static JButton createPrimaryButton(String text, Color accentColour) {
         JButton button = new JButton(text);
         stylePrimaryButton(button, accentColour);
@@ -60,6 +66,10 @@ final class WindowUiSupport {
     }
 
     static void stylePrimaryButton(JButton button, Color accentColour) {
+        stylePrimaryButton(button, accentColour, false);
+    }
+
+    static void stylePrimaryButton(JButton button, Color accentColour, boolean isSymbolButton) {
         button.setFocusPainted(false);
         button.setOpaque(false);
         button.setContentAreaFilled(false);
@@ -67,7 +77,10 @@ final class WindowUiSupport {
         button.setRolloverEnabled(true);
         button.setBackground(accentColour);
         button.setForeground(Color.WHITE);
-        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12.5f));
+        if (isSymbolButton)
+            button.setFont(Styling.unicodeFont.deriveFont(Font.PLAIN, 14f));
+        else
+            button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12.5f));
         button.setBorder(BorderFactory.createEmptyBorder(10, 19, 10, 19));
         if (!(button.getUI() instanceof ThemedButtonUI)) {
             button.setUI(new ThemedButtonUI());

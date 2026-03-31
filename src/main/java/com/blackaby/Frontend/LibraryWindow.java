@@ -417,12 +417,12 @@ public final class LibraryWindow extends DuckWindow {
         loadButton.setEnabled(false);
         loadButton.addActionListener(event -> loadSelectedEntry(selectedEntry()));
 
-        favouriteButton = createPrimaryButton(UiText.LibraryWindow.FAVOURITE_BUTTON);
+        favouriteButton = createPrimaryIconButton(UiText.LibraryWindow.FAVOURITE_BUTTON);
         favouriteButton.setEnabled(false);
         favouriteButton.setToolTipText(UiText.LibraryWindow.FAVOURITE_BUTTON_TOOLTIP);
         favouriteButton.addActionListener(event -> toggleFavourite(selectedEntry()));
 
-        infoButton = createPrimaryButton(UiText.LibraryWindow.INFO_BUTTON);
+        infoButton = createPrimaryIconButton(UiText.LibraryWindow.INFO_BUTTON);
         infoButton.setEnabled(false);
         infoButton.setToolTipText(UiText.LibraryWindow.INFO_BUTTON_TOOLTIP);
         infoButton.addActionListener(event -> openInfoWindow(selectedEntry()));
@@ -1325,6 +1325,10 @@ public final class LibraryWindow extends DuckWindow {
 
     private JButton createPrimaryButton(String text) {
         return WindowUiSupport.createPrimaryButton(text, accentColour);
+    }
+
+    private JButton createPrimaryIconButton(String text){
+        return WindowUiSupport.createIconButton(text, accentColour);
     }
 
     private JButton createSecondaryButton(String text) {

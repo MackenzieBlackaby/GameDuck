@@ -39,6 +39,7 @@ public final class Styling {
     public static Color listSelectionColour;
 
     public static final Font menuFont = resolveFont(12f, Font.PLAIN, "Bahnschrift", "Trebuchet MS", Font.DIALOG);
+    public static final Font unicodeFont = resolveFont(12f, Font.PLAIN, "Segoe UI Symbol", "Arial Unicode MS", Font.DIALOG);
     public static final Font titleFont = resolveFont(34f, Font.BOLD, "Bahnschrift", "Trebuchet MS", Font.DIALOG);
     public static final Color menuBackgroundColour = new Color(0, 0, 0, 0);
     public static final Color menuForegroundColour = Color.BLACK;

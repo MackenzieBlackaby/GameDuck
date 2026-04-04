@@ -43,6 +43,7 @@ public class DuckDisplay extends JPanel {
     private final EmulatorDisplaySpec displaySpec;
     private final Object frameLock = new Object();
     private final Object shaderQueueLock = new Object();
+    private final Object shaderExecutionLock = new Object();
     private final AtomicBoolean repaintQueued = new AtomicBoolean();
     private final AtomicBoolean shaderRenderQueued = new AtomicBoolean();
     private final boolean asyncShaderRenderingEnabled;
@@ -523,14 +524,11 @@ public class DuckDisplay extends JPanel {
         LoadedDisplayShader shader = ResolveActiveShader();
         EnsureRenderBuffersForShader(shader);
         if (ShouldRenderShaderAsync(shader)) {
-            QueueAsyncShaderRenderLocked();
-            synchronized (shaderQueueLock) {
-                if (displayedShaderFrameVersion > 0) {
-                    return false;
-                }
+            if (RenderInitialAsyncShaderFrameLocked(shader)) {
+                return true;
             }
-            prepareShaderSource(frontBuffer, paintBuffer);
-            return true;
+            QueueAsyncShaderRenderLocked();
+            return false;
         }
 
         try {
@@ -538,7 +536,7 @@ public class DuckDisplay extends JPanel {
                 prepareShaderSource(frontBuffer, paintBuffer);
             } else {
                 prepareShaderSource(frontBuffer, shaderSourceBuffer);
-                shader.apply(shaderSourceBuffer, paintBuffer, shaderScratchBuffer, renderWidth(), renderHeight());
+                ApplyShader(shader, shaderSourceBuffer, paintBuffer, shaderScratchBuffer, renderWidth(), renderHeight());
             }
         } catch (RuntimeException exception) {
             exception.printStackTrace();
@@ -611,7 +609,7 @@ public class DuckDisplay extends JPanel {
                         prepareWorkerShaderSource(workerFrame, workerShaderTargetBuffer, queuedRenderScale);
                     } else {
                         prepareWorkerShaderSource(workerFrame, workerShaderSourceBuffer, queuedRenderScale);
-                        shader.apply(workerShaderSourceBuffer, workerShaderTargetBuffer,
+                        ApplyShader(shader, workerShaderSourceBuffer, workerShaderTargetBuffer,
                                 workerShaderScratchBuffer, frameWidth() * queuedRenderScale,
                                 frameHeight() * queuedRenderScale);
                     }
@@ -624,7 +622,6 @@ public class DuckDisplay extends JPanel {
                 synchronized (shaderQueueLock) {
                     if (!shutdown
                             && epoch == shaderRenderEpoch
-                            && frameVersion == pendingShaderFrameVersion
                             && frameVersion > displayedShaderFrameVersion
                             && paintBuffer != null
                             && workerShaderTargetBuffer.length == paintBuffer.length) {
@@ -711,6 +708,31 @@ public class DuckDisplay extends JPanel {
             }
         }
         return scaleRowBuffer;
+    }
+
+    private boolean RenderInitialAsyncShaderFrameLocked(LoadedDisplayShader shader) {
+        synchronized (shaderQueueLock) {
+            if (shutdown || displayedShaderFrameVersion > 0) {
+                return false;
+            }
+            pendingShaderFrameVersion = Math.max(1, pendingShaderFrameVersion);
+            displayedShaderFrameVersion = pendingShaderFrameVersion;
+        }
+
+        try {
+            prepareShaderSource(frontBuffer, shaderSourceBuffer);
+            ApplyShader(shader, shaderSourceBuffer, paintBuffer, shaderScratchBuffer, renderWidth(), renderHeight());
+        } catch (RuntimeException exception) {
+            exception.printStackTrace();
+            prepareShaderSource(frontBuffer, paintBuffer);
+        }
+        return true;
+    }
+
+    private void ApplyShader(LoadedDisplayShader shader, int[] source, int[] target, int[] scratch, int width, int height) {
+        synchronized (shaderExecutionLock) {
+            shader.apply(source, target, scratch, width, height);
+        }
     }
 
     private LoadedDisplayShader ResolveActiveShader() {

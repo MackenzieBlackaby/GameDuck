@@ -117,7 +117,7 @@ class DuckDisplayTest {
     }
 
     @Test
-    void asyncShaderShowsLatestUpscaledFrameImmediatelyAndDropsStaleResults() throws Exception {
+    void asyncShaderKeepsSeededShadedFrameWhileWorkerRendersNextFrame() throws Exception {
         ControlledAsyncShader shader = new ControlledAsyncShader();
         DuckDisplay display = new DuckDisplay(null, true);
         installShader(display, shader.loadedShader(2));
@@ -125,24 +125,43 @@ class DuckDisplayTest {
         display.setPixel(0, 0, Color.RED.getRGB(), false);
         display.presentFrame();
 
-        assertEquals(Color.RED.getRGB(), paintBuffer(display)[0]);
-        waitForLatch(shader.firstApplyStarted);
-
-        display.clear();
+        assertEquals(Color.GREEN.getRGB(), paintBuffer(display)[0]);
         display.setPixel(0, 0, Color.BLUE.getRGB(), false);
         display.presentFrame();
 
-        assertEquals(Color.BLUE.getRGB(), paintBuffer(display)[0]);
-
-        shader.releaseFirstApply.countDown();
         waitForLatch(shader.secondApplyStarted);
-
-        assertEquals(Color.BLUE.getRGB(), paintBuffer(display)[0]);
-
+        assertEquals(Color.GREEN.getRGB(), paintBuffer(display)[0]);
         shader.releaseSecondApply.countDown();
 
         waitForPaint(display, Color.YELLOW.getRGB());
         assertEquals(Color.YELLOW.getRGB(), paintBuffer(display)[0]);
+    }
+
+    @Test
+    void asyncShaderPublishesCompletedFrameEvenWhenNewerFrameIsQueued() throws Exception {
+        ControlledAsyncShader shader = new ControlledAsyncShader();
+        DuckDisplay display = new DuckDisplay(null, true);
+        installShader(display, shader.loadedShader(2));
+
+        display.setPixel(0, 0, Color.RED.getRGB(), false);
+        display.presentFrame();
+        assertEquals(Color.GREEN.getRGB(), paintBuffer(display)[0]);
+
+        display.setPixel(0, 0, Color.BLUE.getRGB(), false);
+        display.presentFrame();
+        waitForLatch(shader.secondApplyStarted);
+        assertEquals(Color.GREEN.getRGB(), paintBuffer(display)[0]);
+
+        display.setPixel(0, 0, Color.WHITE.getRGB(), false);
+        display.presentFrame();
+
+        shader.releaseSecondApply.countDown();
+        waitForPaint(display, Color.YELLOW.getRGB());
+        waitForLatch(shader.thirdApplyStarted);
+
+        shader.releaseThirdApply.countDown();
+        waitForPaint(display, Color.MAGENTA.getRGB());
+        assertEquals(Color.MAGENTA.getRGB(), paintBuffer(display)[0]);
     }
 
     @Test
@@ -197,10 +216,10 @@ class DuckDisplayTest {
 
     private static final class ControlledAsyncShader implements DisplayShader {
         private final AtomicInteger applyCount = new AtomicInteger();
-        private final CountDownLatch firstApplyStarted = new CountDownLatch(1);
         private final CountDownLatch secondApplyStarted = new CountDownLatch(1);
-        private final CountDownLatch releaseFirstApply = new CountDownLatch(1);
+        private final CountDownLatch thirdApplyStarted = new CountDownLatch(1);
         private final CountDownLatch releaseSecondApply = new CountDownLatch(1);
+        private final CountDownLatch releaseThirdApply = new CountDownLatch(1);
 
         LoadedDisplayShader loadedShader(int renderScale) {
             return new LoadedDisplayShader(this, "test", null, renderScale);
@@ -235,8 +254,6 @@ class DuckDisplayTest {
         public void Apply(int[] source, int[] target, int[] scratch, int width, int height) {
             int invocation = applyCount.incrementAndGet();
             if (invocation == 1) {
-                firstApplyStarted.countDown();
-                await(releaseFirstApply);
                 Arrays.fill(target, Color.GREEN.getRGB());
                 return;
             }
@@ -244,6 +261,12 @@ class DuckDisplayTest {
                 secondApplyStarted.countDown();
                 await(releaseSecondApply);
                 Arrays.fill(target, Color.YELLOW.getRGB());
+                return;
+            }
+            if (invocation == 3) {
+                thirdApplyStarted.countDown();
+                await(releaseThirdApply);
+                Arrays.fill(target, Color.MAGENTA.getRGB());
                 return;
             }
             Arrays.fill(target, Color.MAGENTA.getRGB());

@@ -14,6 +14,7 @@ import java.awt.image.BufferedImage;
 import java.lang.reflect.Field;
 import java.time.Duration;
 import java.util.Arrays;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -144,6 +145,29 @@ class DuckDisplayTest {
         assertEquals(Color.YELLOW.getRGB(), paintBuffer(display)[0]);
     }
 
+    @Test
+    void nonAsyncShaderRendersInlineEvenWhenAsyncDisplaySupportIsEnabled() throws Exception {
+        DuckDisplay display = new DuckDisplay(null, true);
+        installShader(display, new InlineShader().loadedShader(1));
+
+        display.setPixel(0, 0, Color.RED.getRGB(), false);
+        display.presentFrame();
+
+        assertEquals(Color.CYAN.getRGB(), paintBuffer(display)[0]);
+    }
+
+    @Test
+    void shutdownStopsShaderExecutor() throws Exception {
+        DuckDisplay display = new DuckDisplay(null, true);
+
+        display.Shutdown();
+
+        Field executorField = DuckDisplay.class.getDeclaredField("shaderRenderExecutor");
+        executorField.setAccessible(true);
+        ExecutorService executor = (ExecutorService) executorField.get(display);
+        assertTrue(executor.isShutdown());
+    }
+
     private static void installShader(DuckDisplay display, LoadedDisplayShader shader) throws Exception {
         Field activeShaderField = DuckDisplay.class.getDeclaredField("activeShader");
         activeShaderField.setAccessible(true);
@@ -234,6 +258,37 @@ class DuckDisplayTest {
                 Thread.currentThread().interrupt();
                 throw new AssertionError("Interrupted while waiting for test shader latch.", exception);
             }
+        }
+    }
+
+    private static final class InlineShader implements DisplayShader {
+        LoadedDisplayShader loadedShader(int renderScale) {
+            return new LoadedDisplayShader(this, "test", null, renderScale);
+        }
+
+        @Override
+        public String Id() {
+            return "inline_test";
+        }
+
+        @Override
+        public String DisplayName() {
+            return "Inline Test";
+        }
+
+        @Override
+        public String Description() {
+            return "Inline shader";
+        }
+
+        @Override
+        public boolean PreferAsyncRendering() {
+            return false;
+        }
+
+        @Override
+        public void Apply(int[] source, int[] target, int[] scratch, int width, int height) {
+            Arrays.fill(target, Color.CYAN.getRGB());
         }
     }
 }

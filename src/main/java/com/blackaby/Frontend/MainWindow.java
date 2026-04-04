@@ -210,6 +210,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
                 inputRouter.Uninstall();
                 DebugLogger.Shutdown();
                 emulation.StopEmulation();
+                display.Shutdown();
                 dispose();
                 System.exit(0);
             }

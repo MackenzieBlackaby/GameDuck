@@ -103,6 +103,9 @@ public final class Settings {
     /** Controller deadzone as a percentage from 0 to 100. */
     public static int controllerDeadzonePercent = 45;
 
+    /** Fixed controller polling preset used by the host UI and router. */
+    public static ControllerPollingMode controllerPollingMode = ControllerPollingMode.BALANCED;
+
     /** Whether host audio output is enabled. */
     public static volatile boolean soundEnabled = true;
 
@@ -236,6 +239,7 @@ public final class Settings {
         controllerInputEnabled = true;
         preferredControllerId = "";
         controllerDeadzonePercent = 45;
+        controllerPollingMode = ControllerPollingMode.BALANCED;
     }
 
     /**

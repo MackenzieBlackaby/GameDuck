@@ -19,12 +19,14 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.LongSupplier;
 
 /**
  * Discovers, polls, and rescans generic host controllers.
@@ -43,19 +45,59 @@ public final class ControllerInputService {
     public record ControllerPollSnapshot(EnumSet<GBButton> boundButtons, EnumSet<AppShortcut> pressedShortcuts) {
     }
 
-    private enum ComponentKind {
+    public record ControllerLiveSnapshot(Optional<ControllerDevice> activeController, List<ControllerBinding> activeInputs,
+            EnumSet<GBButton> boundButtons, EnumSet<AppShortcut> pressedShortcuts) {
+        static ControllerLiveSnapshot Empty(Optional<ControllerDevice> activeController) {
+            return new ControllerLiveSnapshot(activeController, List.of(),
+                    EnumSet.noneOf(GBButton.class),
+                    EnumSet.noneOf(AppShortcut.class));
+        }
+    }
+
+    enum ComponentKind {
         BUTTON,
         AXIS,
         POV
     }
 
-    private enum ControllerBackend {
-        JINPUT,
-        XINPUT
+    @FunctionalInterface
+    interface ControllerPoller {
+        boolean poll();
+    }
+
+    @FunctionalInterface
+    interface ComponentSnapshotPoller {
+        void pollInto(Map<String, Float> componentValues);
+    }
+
+    @FunctionalInterface
+    interface ControllerScanner {
+        ScanResult scan();
+    }
+
+    static record ComponentHandle(String id, ComponentKind kind) {
+    }
+
+    static record ControllerHandle(ControllerDevice device, ControllerPoller poller,
+            ComponentSnapshotPoller componentPoller, List<ComponentHandle> components) {
+    }
+
+    static record ScanResult(List<ControllerHandle> controllers, String initialisationError) {
+    }
+
+    private record CachedLiveSnapshot(String controllerId, long capturedAtMillis, ControllerLiveSnapshot snapshot) {
+    }
+
+    private record JInputComponentReader(String id, Object component, Method getPollDataMethod) {
+    }
+
+    private record IndexedComponents(List<ComponentHandle> handles, List<JInputComponentReader> readers) {
     }
 
     private static final ControllerInputService instance = new ControllerInputService();
     private static final long rescanIntervalMillis = 2000L;
+    private static final long uiSnapshotMaxAgeMillis = 60L;
+    private static final long mapperSnapshotMaxAgeMillis = 20L;
     private static final String nativeVersion = "2.0.10";
     private static final String controllerEnvironmentClassName = "net.java.games.input.ControllerEnvironment";
     private static final String directInputPluginClassName = "net.java.games.input.DirectInputEnvironmentPlugin";
@@ -74,34 +116,48 @@ public final class ControllerInputService {
     private static final float povDownLeft = 0.875f;
     private static final float povLeft = 1.0f;
     private static final List<ComponentHandle> xInputComponents = List.of(
-            new ComponentHandle(null, "0", ComponentKind.BUTTON),
-            new ComponentHandle(null, "1", ComponentKind.BUTTON),
-            new ComponentHandle(null, "2", ComponentKind.BUTTON),
-            new ComponentHandle(null, "3", ComponentKind.BUTTON),
-            new ComponentHandle(null, "4", ComponentKind.BUTTON),
-            new ComponentHandle(null, "5", ComponentKind.BUTTON),
-            new ComponentHandle(null, "6", ComponentKind.BUTTON),
-            new ComponentHandle(null, "7", ComponentKind.BUTTON),
-            new ComponentHandle(null, "8", ComponentKind.BUTTON),
-            new ComponentHandle(null, "9", ComponentKind.BUTTON),
-            new ComponentHandle(null, povComponentId, ComponentKind.POV),
-            new ComponentHandle(null, "x", ComponentKind.AXIS),
-            new ComponentHandle(null, "y", ComponentKind.AXIS),
-            new ComponentHandle(null, "rx", ComponentKind.AXIS),
-            new ComponentHandle(null, "ry", ComponentKind.AXIS),
-            new ComponentHandle(null, "z", ComponentKind.AXIS),
-            new ComponentHandle(null, "rz", ComponentKind.AXIS));
+            new ComponentHandle("0", ComponentKind.BUTTON),
+            new ComponentHandle("1", ComponentKind.BUTTON),
+            new ComponentHandle("2", ComponentKind.BUTTON),
+            new ComponentHandle("3", ComponentKind.BUTTON),
+            new ComponentHandle("4", ComponentKind.BUTTON),
+            new ComponentHandle("5", ComponentKind.BUTTON),
+            new ComponentHandle("6", ComponentKind.BUTTON),
+            new ComponentHandle("7", ComponentKind.BUTTON),
+            new ComponentHandle("8", ComponentKind.BUTTON),
+            new ComponentHandle("9", ComponentKind.BUTTON),
+            new ComponentHandle(povComponentId, ComponentKind.POV),
+            new ComponentHandle("x", ComponentKind.AXIS),
+            new ComponentHandle("y", ComponentKind.AXIS),
+            new ComponentHandle("rx", ComponentKind.AXIS),
+            new ComponentHandle("ry", ComponentKind.AXIS),
+            new ComponentHandle("z", ComponentKind.AXIS),
+            new ComponentHandle("rz", ComponentKind.AXIS));
 
     private final Object pollLock = new Object();
+    private final LongSupplier currentTimeMillis;
+    private final ControllerScanner testScanner;
+    private final Map<String, Float> polledComponentValues = new HashMap<>();
+    private final EnumMap<GBButton, ControllerBinding> cachedControllerBindings = new EnumMap<>(GBButton.class);
+    private final EnumMap<AppShortcut, ControllerBinding> cachedShortcutBindings = new EnumMap<>(AppShortcut.class);
     private volatile long lastScanTimestamp;
     private volatile String initialisationError;
     private boolean nativeLibrariesReady;
     private boolean missingRuntimeReported;
-    private final Map<String, Float> polledComponentValues = new HashMap<>();
+    private boolean initialScanComplete;
+    private long cachedControllerBindingsVersion = -1L;
+    private long cachedShortcutBindingsVersion = -1L;
     private List<ControllerHandle> controllerHandles = List.of();
     private ControllerHandle activeController;
+    private CachedLiveSnapshot cachedLiveSnapshot;
 
     private ControllerInputService() {
+        this(System::currentTimeMillis, null);
+    }
+
+    ControllerInputService(LongSupplier currentTimeMillis, ControllerScanner testScanner) {
+        this.currentTimeMillis = currentTimeMillis == null ? System::currentTimeMillis : currentTimeMillis;
+        this.testScanner = testScanner;
     }
 
     /**
@@ -133,9 +189,8 @@ public final class ControllerInputService {
     public Optional<ControllerDevice> GetActiveController() {
         synchronized (pollLock) {
             EnsureRecentScanLocked();
-            return activeController == null
-                    ? Optional.empty()
-                    : Optional.of(activeController.device());
+            ControllerHandle handle = SelectActiveControllerLocked();
+            return handle == null ? Optional.empty() : Optional.of(handle.device());
         }
     }
 
@@ -166,11 +221,10 @@ public final class ControllerInputService {
      */
     public EnumSet<GBButton> PollBoundButtons() {
         synchronized (pollLock) {
-            EnsureRecentScanLocked();
             if (!Settings.controllerInputEnabled) {
                 return EnumSet.noneOf(GBButton.class);
             }
-            return PollBoundButtonsLocked();
+            return CopyButtons(GetLiveSnapshotLocked(uiSnapshotMaxAgeMillis).boundButtons());
         }
     }
 
@@ -182,18 +236,16 @@ public final class ControllerInputService {
                         EnumSet.noneOf(AppShortcut.class));
             }
 
-            EnsureInitialScanLocked();
-            ControllerHandle handle = PollHotPathControllerLocked();
-            if (handle == null) {
-                return new ControllerPollSnapshot(
-                        EnumSet.noneOf(GBButton.class),
-                        EnumSet.noneOf(AppShortcut.class));
-            }
-
-            Map<String, Float> componentValues = PollComponentValues(handle, polledComponentValues);
+            ControllerLiveSnapshot liveSnapshot = GetLiveSnapshotLocked(0L);
             return new ControllerPollSnapshot(
-                    ResolvePressedButtons(componentValues),
-                    ResolvePressedShortcuts(componentValues));
+                    CopyButtons(liveSnapshot.boundButtons()),
+                    CopyShortcuts(liveSnapshot.pressedShortcuts()));
+        }
+    }
+
+    public ControllerLiveSnapshot PollLiveSnapshot() {
+        synchronized (pollLock) {
+            return CopyLiveSnapshot(GetLiveSnapshotLocked(uiSnapshotMaxAgeMillis));
         }
     }
 
@@ -204,69 +256,47 @@ public final class ControllerInputService {
      */
     public List<ControllerBinding> PollActiveInputs() {
         synchronized (pollLock) {
-            EnsureRecentScanLocked();
-            ControllerHandle handle = PollActiveControllerLocked();
-            if (handle == null) {
-                return List.of();
-            }
-
-            Map<String, Float> componentValues = PollComponentValues(handle, polledComponentValues);
-            List<ControllerBinding> activeInputs = new ArrayList<>();
-            for (ComponentHandle component : handle.components()) {
-                Float value = componentValues.get(component.id());
-                if (value == null) {
-                    continue;
-                }
-
-                if (component.kind() == ComponentKind.BUTTON && value >= 0.5f) {
-                    activeInputs.add(ControllerBinding.Button(component.id()));
-                    continue;
-                }
-
-                if (component.kind() == ComponentKind.POV) {
-                    AddPovBindings(activeInputs, value);
-                    continue;
-                }
-
-                float deadzone = Math.max(Settings.controllerDeadzonePercent / 100f, 0.35f);
-                if (value >= deadzone) {
-                    activeInputs.add(ControllerBinding.Axis(component.id(), true));
-                } else if (value <= -deadzone) {
-                    activeInputs.add(ControllerBinding.Axis(component.id(), false));
-                }
-            }
-
-            activeInputs.sort(Comparator.comparing(ControllerBinding::ToDisplayText));
-            return activeInputs;
+            return List.copyOf(GetLiveSnapshotLocked(mapperSnapshotMaxAgeMillis).activeInputs());
         }
     }
 
-    private EnumSet<GBButton> PollBoundButtonsLocked() {
-        ControllerHandle handle = PollActiveControllerLocked();
+    private ControllerLiveSnapshot GetLiveSnapshotLocked(long maxAgeMillis) {
+        EnsureInitialScanLocked();
+        ControllerHandle selectedHandle = SelectActiveControllerLocked();
+        Optional<ControllerDevice> selectedDevice = selectedHandle == null
+                ? Optional.empty()
+                : Optional.of(selectedHandle.device());
+
+        if (!Settings.controllerInputEnabled || selectedHandle == null) {
+            return ControllerLiveSnapshot.Empty(selectedDevice);
+        }
+
+        RefreshBindingCachesIfNeededLocked();
+        long now = currentTimeMillis.getAsLong();
+        if (cachedLiveSnapshot != null
+                && selectedHandle.device().id().equals(cachedLiveSnapshot.controllerId())
+                && (now - cachedLiveSnapshot.capturedAtMillis()) <= maxAgeMillis) {
+            return cachedLiveSnapshot.snapshot();
+        }
+
+        ControllerHandle handle = PollHotPathControllerLocked();
+        Optional<ControllerDevice> activeDevice = handle == null
+                ? Optional.empty()
+                : Optional.of(handle.device());
         if (handle == null) {
-            return EnumSet.noneOf(GBButton.class);
+            ControllerLiveSnapshot emptySnapshot = ControllerLiveSnapshot.Empty(activeDevice);
+            cachedLiveSnapshot = new CachedLiveSnapshot("", now, emptySnapshot);
+            return emptySnapshot;
         }
 
         Map<String, Float> componentValues = PollComponentValues(handle, polledComponentValues);
-        return ResolvePressedButtons(componentValues);
-    }
-
-    private ControllerHandle PollActiveControllerLocked() {
-        ControllerHandle handle = SelectActiveControllerLocked();
-        if (handle == null) {
-            return null;
-        }
-
-        if (PollController(handle)) {
-            return handle;
-        }
-
-        ScanControllersLocked();
-        handle = SelectActiveControllerLocked();
-        if (handle == null || !PollController(handle)) {
-            return null;
-        }
-        return handle;
+        ControllerLiveSnapshot liveSnapshot = new ControllerLiveSnapshot(
+                activeDevice,
+                ResolveActiveInputs(handle.components(), componentValues),
+                ResolvePressedButtons(componentValues),
+                ResolvePressedShortcuts(componentValues));
+        cachedLiveSnapshot = new CachedLiveSnapshot(handle.device().id(), now, liveSnapshot);
+        return liveSnapshot;
     }
 
     private ControllerHandle PollHotPathControllerLocked() {
@@ -285,20 +315,39 @@ public final class ControllerInputService {
         if (activeController == handle) {
             activeController = null;
         }
+        InvalidateLiveSnapshotLocked();
 
         handle = SelectActiveControllerLocked();
         return handle != null && PollController(handle) ? handle : null;
     }
 
     private void EnsureInitialScanLocked() {
-        if (lastScanTimestamp == 0L) {
+        if (!initialScanComplete) {
             ScanControllersLocked();
         }
     }
 
     private void EnsureRecentScanLocked() {
-        if ((System.currentTimeMillis() - lastScanTimestamp) >= rescanIntervalMillis) {
+        if ((currentTimeMillis.getAsLong() - lastScanTimestamp) >= rescanIntervalMillis) {
             ScanControllersLocked();
+        }
+    }
+
+    private void RefreshBindingCachesIfNeededLocked() {
+        long controllerBindingsVersion = Settings.controllerBindings.Version();
+        if (controllerBindingsVersion != cachedControllerBindingsVersion) {
+            cachedControllerBindings.clear();
+            cachedControllerBindings.putAll(Settings.controllerBindings.SnapshotBindings());
+            cachedControllerBindingsVersion = controllerBindingsVersion;
+            InvalidateLiveSnapshotLocked();
+        }
+
+        long shortcutBindingsVersion = Settings.appShortcutControllerBindings.Version();
+        if (shortcutBindingsVersion != cachedShortcutBindingsVersion) {
+            cachedShortcutBindings.clear();
+            cachedShortcutBindings.putAll(Settings.appShortcutControllerBindings.SnapshotBindings());
+            cachedShortcutBindingsVersion = shortcutBindingsVersion;
+            InvalidateLiveSnapshotLocked();
         }
     }
 
@@ -306,7 +355,7 @@ public final class ControllerInputService {
         float deadzone = Settings.controllerDeadzonePercent / 100f;
         EnumSet<GBButton> pressedButtons = EnumSet.noneOf(GBButton.class);
         for (GBButton button : GBButton.values()) {
-            ControllerBinding binding = Settings.controllerBindings.GetBinding(button);
+            ControllerBinding binding = cachedControllerBindings.get(button);
             if (binding != null && binding.Matches(componentValues, deadzone)) {
                 pressedButtons.add(button);
             }
@@ -318,7 +367,7 @@ public final class ControllerInputService {
         float deadzone = Math.max(Settings.controllerDeadzonePercent / 100f, 0.35f);
         EnumSet<AppShortcut> pressedShortcuts = EnumSet.noneOf(AppShortcut.class);
         for (AppShortcut shortcut : AppShortcut.values()) {
-            ControllerBinding binding = Settings.appShortcutControllerBindings.GetBinding(shortcut);
+            ControllerBinding binding = cachedShortcutBindings.get(shortcut);
             if (binding != null && binding.Matches(componentValues, deadzone)) {
                 pressedShortcuts.add(shortcut);
             }
@@ -326,7 +375,51 @@ public final class ControllerInputService {
         return pressedShortcuts;
     }
 
+    private List<ControllerBinding> ResolveActiveInputs(List<ComponentHandle> components, Map<String, Float> componentValues) {
+        List<ControllerBinding> activeInputs = new ArrayList<>();
+        float deadzone = Math.max(Settings.controllerDeadzonePercent / 100f, 0.35f);
+        for (ComponentHandle component : components) {
+            Float value = componentValues.get(component.id());
+            if (value == null) {
+                continue;
+            }
+
+            if (component.kind() == ComponentKind.BUTTON && value >= 0.5f) {
+                activeInputs.add(ControllerBinding.Button(component.id()));
+                continue;
+            }
+
+            if (component.kind() == ComponentKind.POV) {
+                AddPovBindings(activeInputs, value);
+                continue;
+            }
+
+            if (value >= deadzone) {
+                activeInputs.add(ControllerBinding.Axis(component.id(), true));
+            } else if (value <= -deadzone) {
+                activeInputs.add(ControllerBinding.Axis(component.id(), false));
+            }
+        }
+
+        activeInputs.sort(Comparator.comparing(ControllerBinding::ToDisplayText));
+        return List.copyOf(activeInputs);
+    }
+
     private void ScanControllersLocked() {
+        if (testScanner != null) {
+            ScanResult scanResult = testScanner.scan();
+            controllerHandles = scanResult == null || scanResult.controllers() == null
+                    ? List.of()
+                    : List.copyOf(scanResult.controllers());
+            activeController = null;
+            SelectActiveControllerLocked();
+            initialisationError = scanResult == null ? null : scanResult.initialisationError();
+            lastScanTimestamp = currentTimeMillis.getAsLong();
+            initialScanComplete = true;
+            InvalidateLiveSnapshotLocked();
+            return;
+        }
+
         List<ControllerHandle> discoveredControllers = new ArrayList<>();
         List<String> backendErrors = new ArrayList<>();
 
@@ -337,7 +430,9 @@ public final class ControllerInputService {
         activeController = null;
         SelectActiveControllerLocked();
         initialisationError = DetermineInitialisationError(backendErrors, discoveredControllers.isEmpty());
-        lastScanTimestamp = System.currentTimeMillis();
+        lastScanTimestamp = currentTimeMillis.getAsLong();
+        initialScanComplete = true;
+        InvalidateLiveSnapshotLocked();
     }
 
     private void DiscoverXInputControllers(List<ControllerHandle> discoveredControllers, List<String> backendErrors) {
@@ -358,11 +453,7 @@ public final class ControllerInputService {
 
                 try {
                     if (device.poll() && device.isConnected()) {
-                        discoveredControllers.add(new ControllerHandle(
-                                ControllerBackend.XINPUT,
-                                device,
-                                BuildXInputDevice(device),
-                                xInputComponents));
+                        discoveredControllers.add(BuildXInputHandle(device));
                     }
                 } catch (RuntimeException ignored) {
                     // Skip one broken XInput slot without breaking the rest of the scan.
@@ -375,18 +466,28 @@ public final class ControllerInputService {
         }
     }
 
+    private ControllerHandle BuildXInputHandle(XInputDevice device) {
+        return new ControllerHandle(
+                BuildXInputDevice(device),
+                () -> device.poll() && device.isConnected(),
+                componentValues -> PollXInputComponentValues(device, componentValues),
+                xInputComponents);
+    }
+
     private void DiscoverJInputControllers(List<ControllerHandle> discoveredControllers, List<String> backendErrors) {
         List<String> scanWarnings = new ArrayList<>();
         try {
             EnsureRuntimeAvailable();
             EnsureNativeLibrariesLocked();
             Object environment = ResetEnvironmentCacheAndGetEnvironment();
-            for (Object controller : AsObjectList(Invoke(environment, "getControllers"))) {
+            Method getControllersMethod = ResolveNoArgMethod(environment.getClass(), "getControllers");
+            for (Object controller : AsObjectList(Invoke(environment, getControllersMethod))) {
                 TryCollectController(controller, discoveredControllers, scanWarnings);
             }
         } catch (ClassNotFoundException | NoClassDefFoundError exception) {
             missingRuntimeReported = true;
-            backendErrors.add("Generic controller runtime not found on the classpath. Reload the project dependencies and restart GameDuck.");
+            backendErrors.add(
+                    "Generic controller runtime not found on the classpath. Reload the project dependencies and restart GameDuck.");
             return;
         } catch (Exception exception) {
             backendErrors.add(exception.getMessage() == null
@@ -417,20 +518,36 @@ public final class ControllerInputService {
             return;
         }
 
+        Method getTypeMethod = ResolveNoArgMethod(controller.getClass(), "getType");
+        Method getPortTypeMethod = ResolveNoArgMethod(controller.getClass(), "getPortType");
+        Method getPortNumberMethod = ResolveNoArgMethod(controller.getClass(), "getPortNumber");
+        Method getNameMethod = ResolveNoArgMethod(controller.getClass(), "getName");
+        Method getControllersMethod = ResolveNoArgMethod(controller.getClass(), "getControllers");
+        Method getComponentsMethod = ResolveNoArgMethod(controller.getClass(), "getComponents");
+        Method pollMethod = ResolveNoArgMethod(controller.getClass(), "poll");
+
         try {
-            String controllerTypeName = String.valueOf(Invoke(controller, "getType"));
-            List<ComponentHandle> components = IndexComponents(controller, scanWarnings);
-            if (ShouldIncludeController(controllerTypeName, components)) {
-                discoveredControllers.add(new ControllerHandle(ControllerBackend.JINPUT,
-                        controller,
-                        BuildDevice(controller),
-                        components));
+            String controllerTypeName = String.valueOf(Invoke(controller, getTypeMethod));
+            IndexedComponents indexedComponents = IndexComponents(controller, getComponentsMethod, scanWarnings);
+            if (ShouldIncludeController(controllerTypeName, indexedComponents.handles())) {
+                String portType = String.valueOf(Invoke(controller, getPortTypeMethod));
+                String portNumber = String.valueOf(Invoke(controller, getPortNumberMethod));
+                String controllerName = String.valueOf(Invoke(controller, getNameMethod));
+                discoveredControllers.add(new ControllerHandle(
+                        BuildDevice(controllerTypeName, portType, portNumber, controllerName),
+                        () -> {
+                            Object result = Invoke(controller, pollMethod);
+                            return result instanceof Boolean pollResult && pollResult;
+                        },
+                        componentValues -> PollJInputComponentValues(indexedComponents.readers(), componentValues),
+                        indexedComponents.handles()));
             }
         } catch (RuntimeException exception) {
-            scanWarnings.add("Skipped " + SafeControllerName(controller) + " because it could not be inspected.");
+            scanWarnings.add(
+                    "Skipped " + SafeControllerName(controller, getNameMethod) + " because it could not be inspected.");
         }
 
-        for (Object child : AsObjectList(Invoke(controller, "getControllers"))) {
+        for (Object child : AsObjectList(Invoke(controller, getControllersMethod))) {
             TryCollectController(child, discoveredControllers, scanWarnings);
         }
     }
@@ -569,11 +686,7 @@ public final class ControllerInputService {
         return false;
     }
 
-    private ControllerDevice BuildDevice(Object controller) {
-        String typeName = String.valueOf(Invoke(controller, "getType"));
-        String portType = String.valueOf(Invoke(controller, "getPortType"));
-        String portNumber = String.valueOf(Invoke(controller, "getPortNumber"));
-        String controllerName = String.valueOf(Invoke(controller, "getName"));
+    private ControllerDevice BuildDevice(String typeName, String portType, String portNumber, String controllerName) {
         String identifier = typeName + "|" + portType + "|" + portNumber + "|" + controllerName;
         String prettyTypeName = PrettyTypeName(typeName);
         String displayName = prettyTypeName.isBlank()
@@ -588,25 +701,32 @@ public final class ControllerInputService {
         return new ControllerDevice(identifier, "XInput Controller " + (playerIndex + 1));
     }
 
-    private List<ComponentHandle> IndexComponents(Object controller, List<String> scanWarnings) {
-        List<ComponentHandle> components = new ArrayList<>();
-        for (Object component : AsObjectList(Invoke(controller, "getComponents"))) {
+    private IndexedComponents IndexComponents(Object controller, Method getComponentsMethod, List<String> scanWarnings) {
+        List<ComponentHandle> handles = new ArrayList<>();
+        List<JInputComponentReader> readers = new ArrayList<>();
+        for (Object component : AsObjectList(Invoke(controller, getComponentsMethod))) {
             try {
-                if (component == null || Boolean.TRUE.equals(Invoke(component, "isRelative"))) {
+                Method isRelativeMethod = ResolveNoArgMethod(component.getClass(), "isRelative");
+                if (Boolean.TRUE.equals(Invoke(component, isRelativeMethod))) {
                     continue;
                 }
 
-                Object identifier = Invoke(component, "getIdentifier");
-                String componentId = String.valueOf(Invoke(identifier, "getName"));
+                Method getIdentifierMethod = ResolveNoArgMethod(component.getClass(), "getIdentifier");
+                Object identifier = Invoke(component, getIdentifierMethod);
+                Method getNameMethod = ResolveNoArgMethod(identifier.getClass(), "getName");
+                String componentId = String.valueOf(Invoke(identifier, getNameMethod));
                 ComponentKind componentKind = DetermineComponentKind(identifier, componentId);
-                components.add(new ComponentHandle(component, componentId, componentKind));
+                Method getPollDataMethod = ResolveNoArgMethod(component.getClass(), "getPollData");
+
+                handles.add(new ComponentHandle(componentId, componentKind));
+                readers.add(new JInputComponentReader(componentId, component, getPollDataMethod));
             } catch (RuntimeException exception) {
                 if (scanWarnings != null) {
                     scanWarnings.add("Skipped a controller component because it could not be read.");
                 }
             }
         }
-        return List.copyOf(components);
+        return new IndexedComponents(List.copyOf(handles), List.copyOf(readers));
     }
 
     private ComponentKind DetermineComponentKind(Object identifier, String componentId) {
@@ -631,34 +751,25 @@ public final class ControllerInputService {
     }
 
     private boolean PollController(ControllerHandle handle) {
-        if (handle == null) {
-            return false;
-        }
-
-        if (handle.backend() == ControllerBackend.XINPUT && handle.controller() instanceof XInputDevice xInputDevice) {
-            return xInputDevice.poll() && xInputDevice.isConnected();
-        }
-
-        Object result = Invoke(handle.controller(), "poll");
-        return result instanceof Boolean pollResult && pollResult;
+        return handle != null && handle.poller().poll();
     }
 
     private Map<String, Float> PollComponentValues(ControllerHandle handle, Map<String, Float> componentValues) {
         componentValues.clear();
-        if (handle.backend() == ControllerBackend.XINPUT && handle.controller() instanceof XInputDevice xInputDevice) {
-            return PollXInputComponentValues(xInputDevice, componentValues);
-        }
-
-        for (ComponentHandle component : handle.components()) {
-            Object value = Invoke(component.component(), "getPollData");
-            if (value instanceof Float floatValue) {
-                componentValues.put(component.id(), floatValue);
-            }
-        }
+        handle.componentPoller().pollInto(componentValues);
         return componentValues;
     }
 
-    private Map<String, Float> PollXInputComponentValues(XInputDevice device, Map<String, Float> componentValues) {
+    private void PollJInputComponentValues(List<JInputComponentReader> readers, Map<String, Float> componentValues) {
+        for (JInputComponentReader reader : readers) {
+            Object value = Invoke(reader.component(), reader.getPollDataMethod());
+            if (value instanceof Float floatValue) {
+                componentValues.put(reader.id(), floatValue);
+            }
+        }
+    }
+
+    private void PollXInputComponentValues(XInputDevice device, Map<String, Float> componentValues) {
         XInputComponents components = device.getComponents();
         XInputButtons buttons = components.getButtons();
         XInputAxes axes = components.getAxes();
@@ -680,7 +791,6 @@ public final class ControllerInputService {
         componentValues.put("ry", -axes.ry);
         componentValues.put("z", axes.lt);
         componentValues.put("rz", axes.rt);
-        return componentValues;
     }
 
     private void AddPovBindings(List<ControllerBinding> activeInputs, float value) {
@@ -707,17 +817,26 @@ public final class ControllerInputService {
         }
     }
 
-    private Object Invoke(Object target, String methodName) {
-        if (target == null) {
+    private Method ResolveNoArgMethod(Class<?> type, String methodName) {
+        try {
+            Method method = type.getMethod(methodName);
+            method.setAccessible(true);
+            return method;
+        } catch (ReflectiveOperationException exception) {
+            throw new IllegalStateException("Failed to access controller runtime method " + methodName + ".", exception);
+        }
+    }
+
+    private Object Invoke(Object target, Method method) {
+        if (target == null || method == null) {
             return null;
         }
 
         try {
-            Method method = target.getClass().getMethod(methodName);
-            method.setAccessible(true);
             return method.invoke(target);
         } catch (ReflectiveOperationException exception) {
-            throw new IllegalStateException("Failed to access controller runtime method " + methodName + ".", exception);
+            throw new IllegalStateException(
+                    "Failed to access controller runtime method " + method.getName() + ".", exception);
         }
     }
 
@@ -805,9 +924,9 @@ public final class ControllerInputService {
         return supportedField.getBoolean(null);
     }
 
-    private String SafeControllerName(Object controller) {
+    private String SafeControllerName(Object controller, Method getNameMethod) {
         try {
-            Object name = Invoke(controller, "getName");
+            Object name = Invoke(controller, getNameMethod);
             if (name instanceof String stringValue && !stringValue.isBlank()) {
                 return stringValue;
             }
@@ -834,12 +953,30 @@ public final class ControllerInputService {
         return values;
     }
 
-    private record ControllerHandle(ControllerBackend backend, Object controller, ControllerDevice device,
-                                    List<ComponentHandle> components) {
+    private EnumSet<GBButton> CopyButtons(EnumSet<GBButton> buttons) {
+        return buttons == null || buttons.isEmpty()
+                ? EnumSet.noneOf(GBButton.class)
+                : EnumSet.copyOf(buttons);
     }
 
-    private record ComponentHandle(Object component, String id, ComponentKind kind) {
+    private EnumSet<AppShortcut> CopyShortcuts(EnumSet<AppShortcut> shortcuts) {
+        return shortcuts == null || shortcuts.isEmpty()
+                ? EnumSet.noneOf(AppShortcut.class)
+                : EnumSet.copyOf(shortcuts);
+    }
+
+    private ControllerLiveSnapshot CopyLiveSnapshot(ControllerLiveSnapshot snapshot) {
+        if (snapshot == null) {
+            return ControllerLiveSnapshot.Empty(Optional.empty());
+        }
+        return new ControllerLiveSnapshot(
+                snapshot.activeController(),
+                List.copyOf(snapshot.activeInputs()),
+                CopyButtons(snapshot.boundButtons()),
+                CopyShortcuts(snapshot.pressedShortcuts()));
+    }
+
+    private void InvalidateLiveSnapshotLocked() {
+        cachedLiveSnapshot = null;
     }
 }
-
-

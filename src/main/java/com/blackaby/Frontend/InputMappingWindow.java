@@ -251,6 +251,9 @@ public final class InputMappingWindow extends JDialog {
                 refreshKeyboardBindingButtons();
             } else {
                 Settings.ResetControllerControls();
+                if (mainWindow != null) {
+                    mainWindow.RefreshControllerInputRouting();
+                }
                 refreshControllerBindingButtons();
             }
             Config.Save();

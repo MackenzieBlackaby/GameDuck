@@ -33,11 +33,7 @@ public final class DebugLogger {
     private static final StringBuilder serialBuffer = new StringBuilder();
     private static final StringBuilder pendingSerialDispatch = new StringBuilder();
     private static final List<SerialListener> serialListeners = new ArrayList<>();
-    private static final ScheduledExecutorService serialDispatchExecutor = Executors.newSingleThreadScheduledExecutor(run -> {
-        Thread thread = new Thread(run, "gameduck-serial-dispatch");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private static ScheduledExecutorService serialDispatchExecutor;
     private static final AtomicBoolean serialDispatchScheduled = new AtomicBoolean();
     private static PrintWriter serialWriter;
 
@@ -147,6 +143,19 @@ public final class DebugLogger {
         serialListeners.remove(listener);
     }
 
+    /**
+     * Stops live serial dispatch and closes the current serial writer.
+     */
+    public static synchronized void Shutdown() {
+        serialDispatchScheduled.set(false);
+        pendingSerialDispatch.setLength(0);
+        CloseSerialWriter();
+        if (serialDispatchExecutor != null) {
+            serialDispatchExecutor.shutdownNow();
+            serialDispatchExecutor = null;
+        }
+    }
+
     private static void EnsureSerialWriter(boolean append) {
         if (serialWriter != null) {
             return;
@@ -174,7 +183,18 @@ public final class DebugLogger {
             return;
         }
 
-        serialDispatchExecutor.schedule(DebugLogger::FlushPendingSerialDispatch, delayMillis, TimeUnit.MILLISECONDS);
+        EnsureSerialDispatchExecutor().schedule(DebugLogger::FlushPendingSerialDispatch, delayMillis, TimeUnit.MILLISECONDS);
+    }
+
+    private static ScheduledExecutorService EnsureSerialDispatchExecutor() {
+        if (serialDispatchExecutor == null || serialDispatchExecutor.isShutdown()) {
+            serialDispatchExecutor = Executors.newSingleThreadScheduledExecutor(run -> {
+                Thread thread = new Thread(run, "gameduck-serial-dispatch");
+                thread.setDaemon(true);
+                return thread;
+            });
+        }
+        return serialDispatchExecutor;
     }
 
     private static void FlushPendingSerialDispatch() {

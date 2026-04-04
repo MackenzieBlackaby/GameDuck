@@ -43,6 +43,7 @@ public final class Config {
     private static final String controllerEnabledKey = "controller.enabled";
     private static final String controllerPreferredIdKey = "controller.preferred_id";
     private static final String controllerDeadzoneKey = "controller.deadzone_percent";
+    private static final String controllerPollingModeKey = "controller.polling_mode";
     private static final String soundEnabledKey = "sound.enabled";
     private static final String soundVolumeKey = "sound.volume";
     private static final String soundChannelMutedPrefix = "sound.channel.muted.";
@@ -492,6 +493,13 @@ public final class Config {
             Settings.controllerDeadzonePercent = 45;
         }
 
+        try {
+            Settings.controllerPollingMode = ControllerPollingMode
+                    .valueOf(properties.getProperty(controllerPollingModeKey, ControllerPollingMode.BALANCED.name()));
+        } catch (IllegalArgumentException exception) {
+            Settings.controllerPollingMode = ControllerPollingMode.BALANCED;
+        }
+
         for (GBButton button : GBButton.values()) {
             ControllerBinding binding = ControllerBinding.FromConfigValue(
                     properties.getProperty(controllerInputPrefix + button.name()));
@@ -619,6 +627,7 @@ public final class Config {
         properties.setProperty(controllerPreferredIdKey,
                 Settings.preferredControllerId == null ? "" : Settings.preferredControllerId);
         properties.setProperty(controllerDeadzoneKey, String.valueOf(Settings.controllerDeadzonePercent));
+        properties.setProperty(controllerPollingModeKey, Settings.controllerPollingMode.name());
         for (GBButton button : GBButton.values()) {
             ControllerBinding binding = Settings.controllerBindings.GetBinding(button);
             properties.setProperty(controllerInputPrefix + button.name(),

@@ -890,6 +890,7 @@ public final class UiText {
         public static final String CONTROLLER_ACTIVE_LABEL = "Active Controller";
         public static final String CONTROLLER_STATUS_LABEL = "Connection Status";
         public static final String CONTROLLER_DEADZONE_LABEL = "Stick Deadzone";
+        public static final String CONTROLLER_POLLING_MODE_LABEL = "Polling Mode";
         public static final String CONTROLLER_REFRESH_BUTTON = "Refresh Controllers";
         public static final String CONTROLLER_RESET_BUTTON = "Reset Controller Bindings";
         public static final String CONTROLLER_REBIND_ALL_BUTTON = "Rebind All";
@@ -901,6 +902,7 @@ public final class UiText {
         public static final String CONTROLLER_STATUS_DISCONNECTED = "Disconnected";
         public static final String CONTROLLER_STATUS_UNAVAILABLE = "Unavailable";
         public static final String CONTROLLER_STATUS_HELPER = "Generic gamepads, joysticks, and D-pads are supported.";
+        public static final String CONTROLLER_POLLING_MODE_HELPER = "Balanced is the default. Low Latency polls more often; Power Saver polls less.";
         public static final String CONTROLLER_CAPTURE_HELPER = "Press any controller button, D-pad direction, or stick direction. Press Escape to cancel.";
         public static final String CONTROLLER_NO_ACTIVE_DEVICE_MESSAGE = "Connect a controller or pick a detected device first.";
         public static final String CONTROLLER_LIVE_INPUTS_LABEL = "Live Raw Inputs";

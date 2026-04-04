@@ -206,6 +206,9 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             @Override
             public void windowClosing(WindowEvent event) {
                 displayStatsTimer.stop();
+                DebugLogger.RemoveSerialListener(serialOutputListener);
+                inputRouter.Uninstall();
+                DebugLogger.Shutdown();
                 emulation.StopEmulation();
                 dispose();
                 System.exit(0);
@@ -666,6 +669,12 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             refresh.run();
         } else {
             SwingUtilities.invokeLater(refresh);
+        }
+    }
+
+    public void RefreshControllerInputRouting() {
+        if (inputRouter != null) {
+            inputRouter.RefreshControllerPollingState();
         }
     }
 

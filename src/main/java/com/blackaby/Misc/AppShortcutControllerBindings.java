@@ -8,6 +8,7 @@ import java.util.EnumMap;
 public final class AppShortcutControllerBindings {
 
     private final EnumMap<AppShortcut, ControllerBinding> bindings = new EnumMap<>(AppShortcut.class);
+    private volatile long version = 1L;
 
     /**
      * Creates a controller shortcut binding set initialised with default values.
@@ -24,6 +25,7 @@ public final class AppShortcutControllerBindings {
         for (AppShortcut shortcut : AppShortcut.values()) {
             bindings.put(shortcut, null);
         }
+        version++;
     }
 
     /**
@@ -65,6 +67,7 @@ public final class AppShortcutControllerBindings {
         if (existingShortcut != null && existingShortcut != shortcut) {
             bindings.put(existingShortcut, currentBinding);
         }
+        version++;
     }
 
     /**
@@ -108,5 +111,13 @@ public final class AppShortcutControllerBindings {
         if (shortcut != null && binding != null) {
             SetBinding(shortcut, binding);
         }
+    }
+
+    public synchronized EnumMap<AppShortcut, ControllerBinding> SnapshotBindings() {
+        return new EnumMap<>(bindings);
+    }
+
+    public long Version() {
+        return version;
     }
 }

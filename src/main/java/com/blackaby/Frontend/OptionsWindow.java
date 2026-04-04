@@ -20,6 +20,7 @@ import com.blackaby.Misc.AudioEnhancementSetting;
 import com.blackaby.Misc.BootRomManager;
 import com.blackaby.Misc.Config;
 import com.blackaby.Misc.ControllerBinding;
+import com.blackaby.Misc.ControllerPollingMode;
 import com.blackaby.Misc.GameArtDisplayMode;
 import com.blackaby.Misc.GameNameBracketDisplayMode;
 import com.blackaby.Misc.Settings;
@@ -176,6 +177,7 @@ public class OptionsWindow extends DuckWindow {
     private JComboBox<DmgPaletteModeOption> dmgPaletteModeSelector;
     private JComboBox<GbcCompatiblePaletteModeOption> gbcCompatiblePaletteModeSelector;
     private JComboBox<ControllerChoice> controllerSelector;
+    private JComboBox<ControllerPollingMode> controllerPollingModeSelector;
     private JCheckBox controllerEnabledCheckBox;
     private JLabel controllerActiveValueLabel;
     private JLabel controllerStatusBadgeLabel;
@@ -953,6 +955,9 @@ public class OptionsWindow extends DuckWindow {
             }
             Settings.controllerInputEnabled = controllerEnabledCheckBox.isSelected();
             Config.Save();
+            if (mainWindow != null) {
+                mainWindow.RefreshControllerInputRouting();
+            }
             refreshControllerStatus();
         });
 
@@ -977,6 +982,26 @@ public class OptionsWindow extends DuckWindow {
                 Config.Save();
                 controllerInputService.RefreshControllers();
                 refreshControllerStatus();
+            }
+        });
+
+        controllerPollingModeSelector = new JComboBox<>(ControllerPollingMode.values());
+        controllerPollingModeSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+        controllerPollingModeSelector.setSelectedItem(Settings.controllerPollingMode);
+        controllerPollingModeSelector.addActionListener(event -> {
+            if (updatingControllerUi) {
+                return;
+            }
+
+            ControllerPollingMode selectedMode = (ControllerPollingMode) controllerPollingModeSelector.getSelectedItem();
+            if (selectedMode == null || selectedMode == Settings.controllerPollingMode) {
+                return;
+            }
+
+            Settings.controllerPollingMode = selectedMode;
+            Config.Save();
+            if (mainWindow != null) {
+                mainWindow.RefreshControllerInputRouting();
             }
         });
 
@@ -1007,6 +1032,7 @@ public class OptionsWindow extends DuckWindow {
         JPanel grid = createResponsiveGroup(240, 2);
         grid.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_SELECTION_LABEL, controllerSelector));
         grid.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_ACTIVE_LABEL, controllerActiveValueLabel));
+        grid.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_POLLING_MODE_LABEL, wrapControllerPollingModeControls()));
         grid.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_DEADZONE_LABEL, wrapControllerDeadzoneControls()));
         grid.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_STATUS_LABEL, wrapControllerStatusControls()));
 
@@ -3414,6 +3440,10 @@ public class OptionsWindow extends DuckWindow {
                 controllerDeadzoneValueLabel
                         .setText(UiText.OptionsWindow.PercentValue(Settings.controllerDeadzonePercent));
             }
+            if (controllerPollingModeSelector != null
+                    && controllerPollingModeSelector.getSelectedItem() != Settings.controllerPollingMode) {
+                controllerPollingModeSelector.setSelectedItem(Settings.controllerPollingMode);
+            }
         } finally {
             updatingControllerUi = false;
         }
@@ -3428,8 +3458,8 @@ public class OptionsWindow extends DuckWindow {
             return;
         }
 
-        Optional<ControllerInputService.ControllerDevice> activeController = controllerInputService
-                .GetActiveController();
+        ControllerInputService.ControllerLiveSnapshot liveSnapshot = controllerInputService.PollLiveSnapshot();
+        Optional<ControllerInputService.ControllerDevice> activeController = liveSnapshot.activeController();
         if (activeController.isPresent()) {
             controllerStatusBadgeLabel.setText(Settings.controllerInputEnabled
                     ? UiText.OptionsWindow.CONTROLLER_STATUS_CONNECTED
@@ -3443,7 +3473,7 @@ public class OptionsWindow extends DuckWindow {
         }
 
         List<ControllerBinding> activeInputs = activeController.isPresent()
-                ? controllerInputService.PollActiveInputs()
+                ? liveSnapshot.activeInputs()
                 : List.of();
         setCompactReadout(controllerLiveInputsArea, activeInputs.isEmpty()
                 ? UiText.OptionsWindow.CONTROLLER_LIVE_NONE
@@ -3455,7 +3485,7 @@ public class OptionsWindow extends DuckWindow {
         }
 
         Map<String, String> mappedPressedButtons = new java.util.LinkedHashMap<>();
-        for (EmulatorButton button : controllerInputService.PollBoundButtons()) {
+        for (EmulatorButton button : liveSnapshot.boundButtons()) {
             mappedPressedButtons.put(button.id(), formatControlButtonName(button));
         }
         setCompactReadout(controllerMappedButtonsArea, mappedPressedButtons.isEmpty()
@@ -3597,6 +3627,18 @@ public class OptionsWindow extends DuckWindow {
         panel.setOpaque(false);
         panel.add(controllerDeadzoneSlider, BorderLayout.CENTER);
         panel.add(controllerDeadzoneValueLabel, BorderLayout.EAST);
+        return panel;
+    }
+
+    private JComponent wrapControllerPollingModeControls() {
+        JPanel panel = new JPanel(new BorderLayout(0, 6));
+        panel.setOpaque(false);
+        panel.add(controllerPollingModeSelector, BorderLayout.NORTH);
+
+        JLabel helperLabel = new JLabel(UiText.OptionsWindow.CONTROLLER_POLLING_MODE_HELPER);
+        helperLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 11f));
+        helperLabel.setForeground(mutedText);
+        panel.add(helperLabel, BorderLayout.CENTER);
         return panel;
     }
 

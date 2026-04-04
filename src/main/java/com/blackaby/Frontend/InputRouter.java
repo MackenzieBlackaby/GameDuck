@@ -1,5 +1,6 @@
 package com.blackaby.Frontend;
 
+import com.blackaby.Backend.GB.GBButton;
 import com.blackaby.Backend.Helpers.GUIActions;
 import com.blackaby.Backend.Platform.EmulatorButton;
 import com.blackaby.Backend.Platform.EmulatorProfile;
@@ -8,21 +9,24 @@ import com.blackaby.Misc.AppShortcut;
 import com.blackaby.Misc.AppShortcutBindings;
 import com.blackaby.Misc.Settings;
 
-import javax.swing.SwingUtilities;
 import javax.swing.KeyStroke;
-import java.awt.event.ActionEvent;
+import javax.swing.SwingUtilities;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.Window;
+import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.Set;
 
 /**
  * Routes host keyboard input to the emulated joypad while the main window has
@@ -30,23 +34,58 @@ import java.util.Set;
  */
 public final class InputRouter implements KeyEventDispatcher {
 
+    private static final long shutdownAwaitMillis = 200L;
+
+    private record ControlButtonState(String buttonId, GBButton gameBoyButton) {
+    }
+
     private final MainWindow mainWindow;
     private final EmulatorRuntime emulation;
     private final EmulatorProfile profile;
-    private final ControllerInputService controllerInputService = ControllerInputService.Shared();
+    private final ControllerInputService controllerInputService;
     private final Object inputStateLock = new Object();
+    private final Object controllerPollingLock = new Object();
     private final Set<Integer> pressedKeyCodes = new HashSet<>();
     private final Set<Integer> consumedShortcutKeyCodes = new HashSet<>();
     private final Set<String> keyboardPressedButtons = new HashSet<>();
     private final Set<String> controllerPressedButtons = new HashSet<>();
-    private final Set<String> polledControllerButtonIds = new HashSet<>();
     private final EnumSet<AppShortcut> controllerPressedShortcuts = EnumSet.noneOf(AppShortcut.class);
+    private final List<ControlButtonState> controlButtons;
     private final ScheduledExecutorService controllerPollingExecutor = Executors.newSingleThreadScheduledExecutor(run -> {
         Thread thread = new Thread(run, "gameduck-controller-input");
         thread.setDaemon(true);
         return thread;
     });
+    private final WindowAdapter windowLifecycleListener = new WindowAdapter() {
+        @Override
+        public void windowGainedFocus(WindowEvent event) {
+            windowFocused = true;
+            RefreshControllerPollingState();
+        }
+
+        @Override
+        public void windowLostFocus(WindowEvent event) {
+            windowFocused = false;
+            RefreshControllerPollingState();
+        }
+
+        @Override
+        public void windowClosing(WindowEvent event) {
+            windowFocused = false;
+            RefreshControllerPollingState();
+        }
+
+        @Override
+        public void windowClosed(WindowEvent event) {
+            windowFocused = false;
+            RefreshControllerPollingState();
+        }
+    };
+    private ScheduledFuture<?> controllerPollingTask;
     private volatile boolean routedInputActive;
+    private volatile boolean installed;
+    private volatile boolean uninstalled;
+    private volatile boolean windowFocused;
 
     /**
      * Creates an input router bound to the main window and emulator instance.
@@ -58,14 +97,87 @@ public final class InputRouter implements KeyEventDispatcher {
         this.mainWindow = mainWindow;
         this.emulation = emulation;
         this.profile = profile;
-        controllerPollingExecutor.scheduleAtFixedRate(this::PollControllerInput, 0L, 8L, TimeUnit.MILLISECONDS);
+        this.controllerInputService = ControllerInputService.Shared();
+        this.windowFocused = mainWindow != null && mainWindow.isActive();
+
+        List<ControlButtonState> buttonStates = new ArrayList<>();
+        for (EmulatorButton button : profile.controlButtons()) {
+            buttonStates.add(new ControlButtonState(button.id(), GBButton.FromId(button.id())));
+        }
+        this.controlButtons = List.copyOf(buttonStates);
     }
 
     /**
      * Registers the router with the current keyboard focus manager.
      */
     public void Install() {
+        if (installed || uninstalled) {
+            return;
+        }
+
+        installed = true;
         KeyboardFocusManager.getCurrentKeyboardFocusManager().addKeyEventDispatcher(this);
+        mainWindow.addWindowFocusListener(windowLifecycleListener);
+        mainWindow.addWindowListener(windowLifecycleListener);
+        RefreshControllerPollingState();
+    }
+
+    /**
+     * Removes the router from host input routing and stops controller polling.
+     */
+    public void Uninstall() {
+        if (uninstalled) {
+            return;
+        }
+
+        uninstalled = true;
+        installed = false;
+        windowFocused = false;
+        KeyboardFocusManager.getCurrentKeyboardFocusManager().removeKeyEventDispatcher(this);
+        mainWindow.removeWindowFocusListener(windowLifecycleListener);
+        mainWindow.removeWindowListener(windowLifecycleListener);
+
+        synchronized (controllerPollingLock) {
+            if (controllerPollingTask != null) {
+                controllerPollingTask.cancel(false);
+                controllerPollingTask = null;
+            }
+        }
+
+        ClearAllInputStates();
+        controllerPollingExecutor.shutdownNow();
+        try {
+            controllerPollingExecutor.awaitTermination(shutdownAwaitMillis, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    /**
+     * Re-evaluates whether controller polling should be running.
+     */
+    public void RefreshControllerPollingState() {
+        boolean shouldPoll = ShouldPollControllerInput();
+        synchronized (controllerPollingLock) {
+            if (uninstalled || controllerPollingExecutor.isShutdown()) {
+                return;
+            }
+
+            if (!shouldPoll) {
+                if (controllerPollingTask != null) {
+                    controllerPollingTask.cancel(false);
+                    controllerPollingTask = null;
+                }
+            } else if (controllerPollingTask == null || controllerPollingTask.isDone()) {
+                controllerPollingTask = controllerPollingExecutor.schedule(this::RunControllerPollingCycle, 0L,
+                        TimeUnit.MILLISECONDS);
+            }
+        }
+
+        if (!shouldPoll && routedInputActive) {
+            ClearAllInputStates();
+            routedInputActive = false;
+        }
     }
 
     @Override
@@ -145,9 +257,28 @@ public final class InputRouter implements KeyEventDispatcher {
         }
     }
 
+    private void RunControllerPollingCycle() {
+        synchronized (controllerPollingLock) {
+            controllerPollingTask = null;
+        }
+
+        if (!ShouldPollControllerInput()) {
+            return;
+        }
+
+        PollControllerInput();
+
+        synchronized (controllerPollingLock) {
+            if (uninstalled || controllerPollingExecutor.isShutdown() || !ShouldPollControllerInput()) {
+                return;
+            }
+            controllerPollingTask = controllerPollingExecutor.schedule(this::RunControllerPollingCycle,
+                    Settings.controllerPollingMode.PollIntervalMillis(), TimeUnit.MILLISECONDS);
+        }
+    }
+
     private void PollControllerInput() {
-        boolean shouldRouteInput = ShouldRouteInput();
-        if (!shouldRouteInput) {
+        if (!ShouldRouteInput()) {
             if (routedInputActive) {
                 ClearAllInputStates();
                 routedInputActive = false;
@@ -157,37 +288,37 @@ public final class InputRouter implements KeyEventDispatcher {
 
         routedInputActive = true;
         ControllerInputService.ControllerPollSnapshot controllerPollSnapshot = controllerInputService.PollInputSnapshot();
-        ApplyControllerState(profile.controlButtons(), PollControllerButtonIds(controllerPollSnapshot));
+        ApplyControllerState(controllerPollSnapshot.boundButtons());
         ApplyControllerShortcutState(controllerPollSnapshot.pressedShortcuts());
     }
 
     private void SetKeyboardButtonState(EmulatorButton button, boolean pressed) {
         String buttonId = button.id();
         synchronized (inputStateLock) {
-            if (pressed) {
-                keyboardPressedButtons.add(buttonId);
-            } else {
-                keyboardPressedButtons.remove(buttonId);
+            boolean changed = pressed
+                    ? keyboardPressedButtons.add(buttonId)
+                    : keyboardPressedButtons.remove(buttonId);
+            if (!changed) {
+                return;
             }
             ApplyCombinedState(buttonId);
         }
     }
 
-    private void ApplyControllerState(List<? extends EmulatorButton> buttons, Set<String> pressedButtons) {
+    private void ApplyControllerState(EnumSet<GBButton> pressedButtons) {
         synchronized (inputStateLock) {
-            for (EmulatorButton button : buttons) {
-                String buttonId = button.id();
-                boolean nextPressed = pressedButtons.contains(buttonId);
-                boolean currentlyPressed = controllerPressedButtons.contains(buttonId);
+            for (ControlButtonState button : controlButtons) {
+                boolean nextPressed = button.gameBoyButton() != null && pressedButtons.contains(button.gameBoyButton());
+                boolean currentlyPressed = controllerPressedButtons.contains(button.buttonId());
                 if (nextPressed == currentlyPressed) {
                     continue;
                 }
                 if (nextPressed) {
-                    controllerPressedButtons.add(buttonId);
+                    controllerPressedButtons.add(button.buttonId());
                 } else {
-                    controllerPressedButtons.remove(buttonId);
+                    controllerPressedButtons.remove(button.buttonId());
                 }
-                ApplyCombinedState(buttonId);
+                ApplyCombinedState(button.buttonId());
             }
         }
     }
@@ -204,21 +335,10 @@ public final class InputRouter implements KeyEventDispatcher {
             keyboardPressedButtons.clear();
             controllerPressedButtons.clear();
             controllerPressedShortcuts.clear();
-            for (EmulatorButton button : profile.controlButtons()) {
-                emulation.SetButtonPressed(button.id(), false);
+            for (ControlButtonState button : controlButtons) {
+                emulation.SetButtonPressed(button.buttonId(), false);
             }
         }
-    }
-
-    private Set<String> PollControllerButtonIds(ControllerInputService.ControllerPollSnapshot controllerPollSnapshot) {
-        polledControllerButtonIds.clear();
-        if (controllerPollSnapshot == null) {
-            return polledControllerButtonIds;
-        }
-        for (EmulatorButton button : controllerPollSnapshot.boundButtons()) {
-            polledControllerButtonIds.add(button.id());
-        }
-        return polledControllerButtonIds;
     }
 
     private void ApplyControllerShortcutState(EnumSet<AppShortcut> pressedShortcuts) {
@@ -252,6 +372,18 @@ public final class InputRouter implements KeyEventDispatcher {
      */
     private boolean ShouldRouteInput() {
         Window activeWindow = KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
-        return activeWindow == mainWindow;
+        return installed
+                && !uninstalled
+                && windowFocused
+                && mainWindow.isDisplayable()
+                && activeWindow == mainWindow;
+    }
+
+    private boolean ShouldPollControllerInput() {
+        return installed
+                && !uninstalled
+                && Settings.controllerInputEnabled
+                && windowFocused
+                && mainWindow.isDisplayable();
     }
 }

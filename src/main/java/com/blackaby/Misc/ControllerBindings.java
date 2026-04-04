@@ -11,6 +11,7 @@ import java.util.EnumMap;
 public final class ControllerBindings {
 
     private final EnumMap<GBButton, ControllerBinding> bindings = new EnumMap<>(GBButton.class);
+    private volatile long version = 1L;
 
     /**
      * Creates a binding set initialised with the default controller map.
@@ -32,6 +33,7 @@ public final class ControllerBindings {
         bindings.put(GBButton.B, ControllerBinding.Button("1"));
         bindings.put(GBButton.START, ControllerBinding.Button("7"));
         bindings.put(GBButton.SELECT, ControllerBinding.Button("6"));
+        version++;
     }
 
     /**
@@ -82,6 +84,7 @@ public final class ControllerBindings {
         if (existingButton != null && existingButton != button) {
             bindings.put(existingButton, currentBinding);
         }
+        version++;
     }
 
     public synchronized void SetBinding(EmulatorButton button, ControllerBinding binding) {
@@ -107,6 +110,14 @@ public final class ControllerBindings {
             }
         }
         return null;
+    }
+
+    public synchronized EnumMap<GBButton, ControllerBinding> SnapshotBindings() {
+        return new EnumMap<>(bindings);
+    }
+
+    public long Version() {
+        return version;
     }
 }
 

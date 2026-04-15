@@ -26,7 +26,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
+
+import javax.swing.SwingUtilities;
 
 /**
  * Discovers, polls, and rescans generic host controllers.
@@ -140,6 +145,7 @@ public final class ControllerInputService {
     private final Map<String, Float> polledComponentValues = new HashMap<>();
     private final EnumMap<GBButton, ControllerBinding> cachedControllerBindings = new EnumMap<>(GBButton.class);
     private final EnumMap<AppShortcut, ControllerBinding> cachedShortcutBindings = new EnumMap<>(AppShortcut.class);
+    private final AtomicBoolean uiRescanQueued = new AtomicBoolean();
     private volatile long lastScanTimestamp;
     private volatile String initialisationError;
     private boolean nativeLibrariesReady;
@@ -150,6 +156,7 @@ public final class ControllerInputService {
     private List<ControllerHandle> controllerHandles = List.of();
     private ControllerHandle activeController;
     private CachedLiveSnapshot cachedLiveSnapshot;
+    private ExecutorService uiRescanExecutor;
 
     private ControllerInputService() {
         this(System::currentTimeMillis, null);
@@ -328,9 +335,48 @@ public final class ControllerInputService {
     }
 
     private void EnsureRecentScanLocked() {
-        if ((currentTimeMillis.getAsLong() - lastScanTimestamp) >= rescanIntervalMillis) {
+        if ((currentTimeMillis.getAsLong() - lastScanTimestamp) < rescanIntervalMillis) {
+            return;
+        }
+
+        if (shouldDeferUiRescan(SwingUtilities.isEventDispatchThread(), testScanner != null)) {
+            ScheduleUiRescanLocked();
+        } else {
             ScanControllersLocked();
         }
+    }
+
+    static boolean shouldDeferUiRescan(boolean onEdt, boolean testScannerPresent) {
+        return onEdt && !testScannerPresent;
+    }
+
+    private void ScheduleUiRescanLocked() {
+        if (!uiRescanQueued.compareAndSet(false, true)) {
+            return;
+        }
+
+        EnsureUiRescanExecutorLocked().execute(() -> {
+            synchronized (pollLock) {
+                try {
+                    if ((currentTimeMillis.getAsLong() - lastScanTimestamp) >= rescanIntervalMillis) {
+                        ScanControllersLocked();
+                    }
+                } finally {
+                    uiRescanQueued.set(false);
+                }
+            }
+        });
+    }
+
+    private ExecutorService EnsureUiRescanExecutorLocked() {
+        if (uiRescanExecutor == null || uiRescanExecutor.isShutdown()) {
+            uiRescanExecutor = Executors.newSingleThreadExecutor(run -> {
+                Thread thread = new Thread(run, "gameduck-controller-ui-scan");
+                thread.setDaemon(true);
+                return thread;
+            });
+        }
+        return uiRescanExecutor;
     }
 
     private void RefreshBindingCachesIfNeededLocked() {

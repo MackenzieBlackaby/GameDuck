@@ -117,6 +117,8 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private volatile String lastDisplayStatsText = UiText.MainWindow.DISPLAY_HINT;
     private volatile boolean recentGamesMenuDirty = true;
     private volatile int cachedRecentGamesMenuLimit = -1;
+    private volatile boolean serialOutputStreamingActive;
+    private volatile boolean serialOutputDirty;
 
     private JMenuBar menuBar;
     private JLabel romLabel;
@@ -727,6 +729,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             boolean fillWindow = Settings.fillWindowOutput;
             boolean showSerial = Settings.showSerialOutput;
             boolean showGameArt = Settings.gameArtDisplayMode != GameArtDisplayMode.NONE;
+            boolean serialVisible = !fillWindow && showSerial;
             SyncFullViewActionState(fillWindow);
 
             getContentPane().setBackground(fillWindow ? Styling.displayBackgroundColour : Styling.appBackgroundColour);
@@ -766,6 +769,13 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             if (displayFrame != null) {
                 displayFrame.setBackground(Styling.displayFrameColour);
                 displayFrame.setBorder(fillWindow ? BorderFactory.createEmptyBorder() : createDisplayFrameBorder());
+            }
+            serialOutputStreamingActive = serialVisible;
+            if (serialVisible) {
+                syncSerialOutputFromLoggerIfNeeded();
+            } else {
+                serialOutputDirty = true;
+                clearPendingSerialUiBuffer();
             }
             updateDisplayStage();
             revalidate();
@@ -1004,6 +1014,10 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         if (serialOutputArea == null || text == null || text.isEmpty()) {
             return;
         }
+        if (!serialOutputStreamingActive) {
+            serialOutputDirty = true;
+            return;
+        }
 
         synchronized (pendingSerialAppend) {
             pendingSerialAppend.append(text);
@@ -1023,6 +1037,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             }
             serialOutputArea.setText(text == null ? "" : text);
             serialOutputArea.setCaretPosition(serialOutputArea.getDocument().getLength());
+            serialOutputDirty = false;
         };
 
         if (SwingUtilities.isEventDispatchThread()) {
@@ -1033,10 +1048,8 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     }
 
     private void ClearSerialOutput() {
-        synchronized (pendingSerialAppend) {
-            pendingSerialAppend.setLength(0);
-        }
-        serialAppendQueued.set(false);
+        clearPendingSerialUiBuffer();
+        serialOutputDirty = false;
         SetSerialOutput("");
     }
 
@@ -1049,6 +1062,10 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
         serialAppendQueued.set(false);
         if (serialOutputArea == null || text.isEmpty()) {
+            return;
+        }
+        if (!serialOutputStreamingActive) {
+            serialOutputDirty = true;
             return;
         }
 
@@ -1496,5 +1513,19 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         private static PreparedGameArtResult empty() {
             return new PreparedGameArtResult(null, null);
         }
+    }
+
+    private void clearPendingSerialUiBuffer() {
+        synchronized (pendingSerialAppend) {
+            pendingSerialAppend.setLength(0);
+        }
+        serialAppendQueued.set(false);
+    }
+
+    private void syncSerialOutputFromLoggerIfNeeded() {
+        if (!serialOutputStreamingActive || !serialOutputDirty) {
+            return;
+        }
+        SetSerialOutput(DebugLogger.GetSerialOutput());
     }
 }

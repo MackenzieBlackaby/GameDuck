@@ -136,6 +136,13 @@ class ControllerInputServiceTest {
         assertTrue(pollCount.get() >= 2);
     }
 
+    @Test
+    void uiRescansAreDeferredOnlyForLiveEdtQueries() {
+        assertTrue(ControllerInputService.shouldDeferUiRescan(true, false));
+        assertFalse(ControllerInputService.shouldDeferUiRescan(false, false));
+        assertFalse(ControllerInputService.shouldDeferUiRescan(true, true));
+    }
+
     private ControllerInputService.ControllerHandle controllerHandle(String deviceId, AtomicInteger pollCount,
             AtomicInteger componentPollCount, Map<String, Float> values) {
         List<ControllerInputService.ComponentHandle> components = values.keySet().stream()

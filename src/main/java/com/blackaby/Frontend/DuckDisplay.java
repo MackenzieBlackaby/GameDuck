@@ -866,7 +866,13 @@ public class DuckDisplay extends JPanel {
                 return presentationCompositeImage;
             }
 
-            BufferedImage nextComposite = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            BufferedImage nextComposite = presentationCompositeImage;
+            if (nextComposite == null
+                    || nextComposite.getWidth() != width
+                    || nextComposite.getHeight() != height
+                    || nextComposite.getType() != BufferedImage.TYPE_INT_RGB) {
+                nextComposite = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            }
             Graphics2D graphics = nextComposite.createGraphics();
             try {
                 graphics.setColor(getBackground());
@@ -884,7 +890,6 @@ public class DuckDisplay extends JPanel {
 
     private void invalidatePresentationComposite() {
         synchronized (presentationCompositeLock) {
-            presentationCompositeImage = null;
             presentationCompositeKey = null;
         }
     }
@@ -897,7 +902,6 @@ public class DuckDisplay extends JPanel {
 
     private void MarkVisibleFrameChangedLocked() {
         visibleFrameVersion++;
-        presentationCompositeImage = null;
         presentationCompositeKey = null;
     }
 

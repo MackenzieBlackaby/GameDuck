@@ -2,7 +2,6 @@ package com.blackaby.Frontend;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -219,11 +218,16 @@ class DuckDisplayTest {
             display.presentFrame();
 
             BufferedImage firstComposite = resolvePresentationComposite(display, 560, 432);
+            DuckDisplay.PresentationCompositeKey firstKey = presentationCompositeKey(display);
 
             display.setPixel(1, 0, Color.BLUE.getRGB(), false);
             display.presentFrame();
+            BufferedImage secondComposite = resolvePresentationComposite(display, 560, 432);
+            DuckDisplay.PresentationCompositeKey secondKey = presentationCompositeKey(display);
 
-            assertNotSame(firstComposite, resolvePresentationComposite(display, 560, 432));
+            assertSame(firstComposite, secondComposite);
+            assertSame(presentationComposite(display), secondComposite);
+            assertNotEquals(firstKey.frameVersion(), secondKey.frameVersion());
         } finally {
             Settings.displayBorderId = originalBorderId;
             Settings.displayShaderId = originalShaderId;
@@ -244,20 +248,29 @@ class DuckDisplayTest {
             display.presentFrame();
 
             BufferedImage baselineComposite = resolvePresentationComposite(display, 560, 432);
+            DuckDisplay.PresentationCompositeKey baselineKey = presentationCompositeKey(display);
 
             Settings.displayBorderId = "none";
             display.RefreshBorder();
             BufferedImage borderComposite = resolvePresentationComposite(display, 560, 432);
-            assertNotSame(baselineComposite, borderComposite);
+            DuckDisplay.PresentationCompositeKey borderKey = presentationCompositeKey(display);
+            assertSame(baselineComposite, borderComposite);
+            assertNotEquals(baselineKey.borderId(), borderKey.borderId());
 
             Settings.displayShaderId = "amber_monitor";
             display.RefreshShader();
             BufferedImage shaderComposite = resolvePresentationComposite(display, 560, 432);
-            assertNotSame(borderComposite, shaderComposite);
+            DuckDisplay.PresentationCompositeKey shaderKey = presentationCompositeKey(display);
+            assertSame(borderComposite, shaderComposite);
+            assertNotEquals(borderKey.frameVersion(), shaderKey.frameVersion());
 
             display.setSize(640, 480);
             flushEdt();
-            assertNotSame(shaderComposite, resolvePresentationComposite(display, 640, 480));
+            BufferedImage resizedComposite = resolvePresentationComposite(display, 640, 480);
+            DuckDisplay.PresentationCompositeKey resizedKey = presentationCompositeKey(display);
+            assertNotEquals(shaderComposite, resizedComposite);
+            assertNotEquals(shaderKey.width(), resizedKey.width());
+            assertNotEquals(shaderKey.height(), resizedKey.height());
         } finally {
             Settings.displayBorderId = originalBorderId;
             Settings.displayShaderId = originalShaderId;
@@ -292,6 +305,12 @@ class DuckDisplayTest {
         Field presentationCompositeField = DuckDisplay.class.getDeclaredField("presentationCompositeImage");
         presentationCompositeField.setAccessible(true);
         return (BufferedImage) presentationCompositeField.get(display);
+    }
+
+    private static DuckDisplay.PresentationCompositeKey presentationCompositeKey(DuckDisplay display) throws Exception {
+        Field presentationCompositeKeyField = DuckDisplay.class.getDeclaredField("presentationCompositeKey");
+        presentationCompositeKeyField.setAccessible(true);
+        return (DuckDisplay.PresentationCompositeKey) presentationCompositeKeyField.get(display);
     }
 
     private static BufferedImage resolvePresentationComposite(DuckDisplay display, int width, int height) throws Exception {

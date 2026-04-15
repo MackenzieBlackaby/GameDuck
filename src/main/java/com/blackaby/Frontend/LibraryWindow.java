@@ -52,6 +52,7 @@ import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -138,12 +139,16 @@ public final class LibraryWindow extends DuckWindow {
     private final Map<String, BufferedImage> artCache = new ConcurrentHashMap<>();
     private final Map<String, ImageIcon> scaledArtIconCache = new ConcurrentHashMap<>();
     private final Set<String> artLoadingKeys = ConcurrentHashMap.newKeySet();
+    private final Set<String> scaledArtLoadingKeys = ConcurrentHashMap.newKeySet();
     private final Map<String, BufferedImage> titleScreenCache = new ConcurrentHashMap<>();
     private final Map<String, ImageIcon> titleScreenPreviewIconCache = new ConcurrentHashMap<>();
     private final Set<String> titleScreenLoadingKeys = ConcurrentHashMap.newKeySet();
+    private final Set<String> titleScreenPreviewLoadingKeys = ConcurrentHashMap.newKeySet();
     private final LibraryEntryRenderer entryRenderer;
     private final JPanel largeIconWrapperPanel = new JPanel(new BorderLayout());
     private final JPanel largeIconGridPanel = new JPanel();
+    private final Map<String, LargeIconTile> largeIconTilesByKey = new LinkedHashMap<>();
+    private final LargeIconGridState largeIconGridState = new LargeIconGridState();
     private final Timer searchRefreshTimer;
     private final Font detailPreviewPlaceholderFont = Styling.menuFont.deriveFont(Font.PLAIN, 12f);
     private final Font largePlaceholderFont = Styling.menuFont.deriveFont(Font.BOLD, 11f);
@@ -159,6 +164,7 @@ public final class LibraryWindow extends DuckWindow {
     private RomConsoleFilter consoleFilter = RomConsoleFilter.ALL;
     private String searchQuery = "";
     private String selectedEntryKey = "";
+    private volatile int currentLargeIconContentSize = largeArtSize;
 
     public LibraryWindow(MainWindow mainWindow, EmulatorRuntime emulation) {
         super(UiText.LibraryWindow.WINDOW_TITLE, 920, 620, true);
@@ -366,7 +372,7 @@ public final class LibraryWindow extends DuckWindow {
             @Override
             public void componentResized(ComponentEvent event) {
                 if (viewMode == ViewMode.LARGE_ICONS) {
-                    rebuildLargeIconGrid();
+                    refreshLargeIconGrid();
                 }
             }
         });
@@ -481,7 +487,7 @@ public final class LibraryWindow extends DuckWindow {
             if (entryList != null) {
                 entryList.clearSelection();
             }
-            rebuildLargeIconGrid();
+            refreshLargeIconGrid();
             return;
         }
 
@@ -502,7 +508,7 @@ public final class LibraryWindow extends DuckWindow {
             if (entryList != null) {
                 entryList.clearSelection();
             }
-            rebuildLargeIconGrid();
+            refreshLargeIconGrid();
             updateSelectionDetails(selectedEntry);
         } else if (entryList != null) {
             entryList.setSelectedIndex(selectedIndex);
@@ -613,7 +619,7 @@ public final class LibraryWindow extends DuckWindow {
             }
             case LARGE_ICONS -> {
                 listScrollPane.setViewportView(largeIconWrapperPanel);
-                rebuildLargeIconGrid();
+                refreshLargeIconGrid();
                 revalidateVisibleSelection();
                 return;
             }
@@ -717,6 +723,7 @@ public final class LibraryWindow extends DuckWindow {
         invalidateScaledArt(entry.key());
         titleScreenCache.remove(entry.key());
         titleScreenPreviewIconCache.remove(entry.key());
+        titleScreenPreviewLoadingKeys.remove(entry.key());
         artLoadingKeys.remove(entry.key());
         titleScreenLoadingKeys.remove(entry.key());
         requestArt(entry);
@@ -724,9 +731,9 @@ public final class LibraryWindow extends DuckWindow {
             updateDetailPreview(entry);
         }
         if (viewMode == ViewMode.LARGE_ICONS) {
-            rebuildLargeIconGrid();
+            refreshLargeIconTile(entry.key());
         } else if (entryList != null) {
-            entryList.repaint();
+            repaintEntryCell(entry.key());
         }
     }
 
@@ -745,25 +752,14 @@ public final class LibraryWindow extends DuckWindow {
                         }
                         artCache.put(entry.key(), gameArtResult.image());
                         invalidateScaledArt(entry.key());
+                        warmArtIconCaches(entry.key(), gameArtResult.image());
                     });
                     artLoadingKeys.remove(entry.key());
-                    SwingUtilities.invokeLater(() -> {
-                        if (viewMode == ViewMode.LARGE_ICONS) {
-                            rebuildLargeIconGrid();
-                        } else if (entryList != null) {
-                            repaintEntryCell(entry.key());
-                        }
-                    });
+                    SwingUtilities.invokeLater(() -> refreshArtPresentation(entry.key()));
                 })
                 .exceptionally(exception -> {
                     artLoadingKeys.remove(entry.key());
-                    SwingUtilities.invokeLater(() -> {
-                        if (viewMode == ViewMode.LARGE_ICONS) {
-                            rebuildLargeIconGrid();
-                        } else if (entryList != null) {
-                            repaintEntryCell(entry.key());
-                        }
-                    });
+                    SwingUtilities.invokeLater(() -> refreshArtPresentation(entry.key()));
                     return null;
                 });
     }
@@ -804,6 +800,8 @@ public final class LibraryWindow extends DuckWindow {
                         }
                         titleScreenCache.put(entry.key(), gameArtResult.image());
                         titleScreenPreviewIconCache.remove(entry.key());
+                        titleScreenPreviewLoadingKeys.remove(entry.key());
+                        cacheTitleScreenPreviewIcon(entry.key(), gameArtResult.image());
                     });
                     titleScreenLoadingKeys.remove(entry.key());
                     SwingUtilities.invokeLater(() -> refreshDetailPreview(entry));
@@ -836,7 +834,11 @@ public final class LibraryWindow extends DuckWindow {
     private void setDetailPreviewImage(LibraryEntry entry, BufferedImage image) {
         ImageIcon previewIcon = detailPreviewIcon(entry, image);
         detailPreviewLabel.setIcon(previewIcon);
-        detailPreviewLabel.setText(previewIcon == null ? UiText.LibraryWindow.TITLE_SCREEN_MISSING : "");
+        detailPreviewLabel.setText(previewIcon == null
+                ? titleScreenPreviewLoadingKeys.contains(entry.key())
+                        ? UiText.LibraryWindow.TITLE_SCREEN_LOADING
+                        : UiText.LibraryWindow.TITLE_SCREEN_MISSING
+                : "");
         detailPreviewLabel.setForeground(mutedTextColour);
     }
 
@@ -849,34 +851,19 @@ public final class LibraryWindow extends DuckWindow {
             return null;
         }
 
-        String entryKey = entry.key();
-        BufferedImage source = artCache.get(entryKey);
-        if (source == null) {
-            return null;
-        }
-
-        return scaledArtIconCache.computeIfAbsent(
-                entryKey + "|" + maxWidth + "x" + maxHeight,
-                cacheKey -> {
-                    BufferedImage scaled = GameArtScaler.ScaleToFit(source, maxWidth, maxHeight, true);
-                    return scaled == null ? null : new ImageIcon(scaled);
-                });
+        return scaledArtIconCache.get(scaledArtCacheKey(entry.key(), maxWidth, maxHeight));
     }
 
-    private void rebuildLargeIconGrid() {
+    private void refreshLargeIconGrid() {
         if (largeIconGridPanel == null) {
             return;
         }
 
-        largeIconGridPanel.removeAll();
         largeIconGridPanel.setBackground(Styling.cardTintColour);
         largeIconWrapperPanel.setBackground(Styling.cardTintColour);
 
         if (viewMode != ViewMode.LARGE_ICONS) {
-            largeIconGridPanel.revalidate();
-            largeIconGridPanel.repaint();
-            largeIconWrapperPanel.revalidate();
-            largeIconWrapperPanel.repaint();
+            clearLargeIconGrid();
             return;
         }
 
@@ -888,128 +875,47 @@ public final class LibraryWindow extends DuckWindow {
         int columns = resolveLargeIconColumnCount(availableWidth);
         int cellWidth = Math.max(1, availableWidth / columns);
         int tileSize = largeTileSize(cellWidth);
-        int rows = Math.max(1, (int) Math.ceil(entryListModel.size() / (double) columns));
+        currentLargeIconContentSize = Math.max(80, tileSize - 16);
+
+        List<LibraryEntry> entries = currentEntries();
+        List<String> entryKeys = entries.stream().map(LibraryEntry::key).toList();
+        LargeIconGridUpdate gridUpdate = largeIconGridState.update(entryKeys, columns, tileSize, availableWidth);
 
         largeIconGridPanel.setLayout(new GridLayout(0, columns, 0, 0));
-        largeIconGridPanel.setPreferredSize(new Dimension(availableWidth, rows * tileSize));
+        int rows = entries.isEmpty() ? 0 : (int) Math.ceil(entries.size() / (double) columns);
+        Dimension preferredSize = new Dimension(availableWidth, rows * tileSize);
+        boolean preferredSizeChanged = !preferredSize.equals(largeIconGridPanel.getPreferredSize());
+        largeIconGridPanel.setPreferredSize(preferredSize);
 
-        for (int index = 0; index < entryListModel.size(); index++) {
-            LibraryEntry entry = entryListModel.get(index);
-            largeIconGridPanel.add(createLargeIconTile(entry, tileSize));
+        if (gridUpdate.rebuild()) {
+            rebuildLargeIconGridTiles(entries, tileSize);
+        } else if (gridUpdate.resizeTiles()) {
+            for (LibraryEntry entry : entries) {
+                LargeIconTile tile = largeIconTilesByKey.get(entry.key());
+                if (tile != null) {
+                    tile.updateTileSize(tileSize);
+                }
+            }
         }
 
-        largeIconGridPanel.revalidate();
-        largeIconGridPanel.repaint();
-        largeIconWrapperPanel.revalidate();
-        largeIconWrapperPanel.repaint();
-        if (listScrollPane != null) {
-            listScrollPane.revalidate();
-            listScrollPane.repaint();
+        if (gridUpdate.rebuild() || gridUpdate.resizeTiles()) {
+            primeLargeIconArtIcons(entries, currentLargeIconContentSize);
         }
-    }
 
-    private JPanel createLargeIconTile(LibraryEntry entry, int tileSize) {
-        final boolean[] hovered = { false };
-        JPanel tile = new JPanel(new BorderLayout());
-        tile.setOpaque(false);
-        tile.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
-        tile.setPreferredSize(new Dimension(tileSize, tileSize));
-        tile.setToolTipText(resolveDisplayName(entry));
-
-        int contentSize = Math.max(80, tileSize - 16);
-        ImageIcon artIcon = iconFor(entry, contentSize, contentSize);
-        JPanel contentPanel = new JPanel(new BorderLayout()) {
-            @Override
-            public void paint(Graphics graphics) {
-                super.paint(graphics);
-                Graphics2D graphics2d = (Graphics2D) graphics.create();
-                boolean selectedState = isSelectedEntry(entry);
-                if (hovered[0]) {
-                    graphics2d.setColor(new Color(0, 0, 0, 70));
-                    graphics2d.fillRect(0, 0, getWidth(), getHeight());
-                }
-                if (selectedState || hovered[0]) {
-                    graphics2d.setColor(
-                            selectedState ? Styling.sectionHighlightBorderColour : new Color(255, 255, 255, 90));
-                    graphics2d.setStroke(new BasicStroke(selectedState ? 3f : 1.5f));
-                    int inset = selectedState ? 2 : 1;
-                    int width = Math.max(0, getWidth() - (inset * 2) - 1);
-                    int height = Math.max(0, getHeight() - (inset * 2) - 1);
-                    graphics2d.drawRect(inset, inset, width, height);
-                }
-                graphics2d.dispose();
+        if (gridUpdate.rebuild() || gridUpdate.resizeTiles() || gridUpdate.widthChanged() || preferredSizeChanged) {
+            largeIconGridPanel.revalidate();
+            largeIconGridPanel.repaint();
+            largeIconWrapperPanel.revalidate();
+            largeIconWrapperPanel.repaint();
+            if (listScrollPane != null) {
+                listScrollPane.revalidate();
+                listScrollPane.repaint();
             }
-        };
-        contentPanel.setOpaque(false);
-        contentPanel.setPreferredSize(new Dimension(contentSize, contentSize));
-
-        JComponent contentComponent;
-        if (artIcon != null) {
-            JLabel artLabel = new JLabel("", SwingConstants.CENTER);
-            artLabel.setOpaque(false);
-            artLabel.setHorizontalAlignment(SwingConstants.CENTER);
-            artLabel.setVerticalAlignment(SwingConstants.CENTER);
-            artLabel.setIcon(artIcon);
-            artLabel.setText("");
-            contentComponent = artLabel;
-        } else {
-            JPanel placeholderPanel = new JPanel(new BorderLayout());
-            placeholderPanel.setOpaque(true);
-            placeholderPanel.setBackground(Styling.displayFrameColour);
-            placeholderPanel.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1),
-                    BorderFactory.createEmptyBorder(12, 10, 12, 10)));
-            placeholderPanel.setPreferredSize(new Dimension(contentSize, contentSize));
-
-            JLabel placeholderLabel = new JLabel("", SwingConstants.CENTER);
-            placeholderLabel.setHorizontalAlignment(SwingConstants.CENTER);
-            placeholderLabel.setVerticalAlignment(SwingConstants.CENTER);
-            placeholderLabel.setForeground(mutedTextColour);
-            placeholderLabel.setFont(largePlaceholderFont);
-            String placeholderTitle = truncateToWidth(
-                    resolveDisplayName(entry),
-                    placeholderLabel.getFontMetrics(largePlaceholderFont),
-                    Math.max(60, contentSize - 28));
-            placeholderLabel.setText(artLoadingKeys.contains(entry.key())
-                    ? UiText.LibraryWindow.ART_LOADING
-                    : asRendererHtml(placeholderTitle, Math.max(60, contentSize - 28)));
-            placeholderPanel.add(placeholderLabel, BorderLayout.CENTER);
-            contentComponent = placeholderPanel;
         }
-        contentPanel.add(contentComponent, BorderLayout.CENTER);
-
-        MouseAdapter tileInteractionHandler = new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent event) {
-                selectEntry(entry);
-                if (event.getClickCount() == 2) {
-                    loadSelectedEntry(entry);
-                }
-            }
-
-            @Override
-            public void mouseEntered(MouseEvent event) {
-                hovered[0] = true;
-                contentPanel.repaint();
-            }
-
-            @Override
-            public void mouseExited(MouseEvent event) {
-                if (event.getSource() instanceof Component source
-                        && isPointerInsideTile(source, event, tile)) {
-                    return;
-                }
-                hovered[0] = false;
-                contentPanel.repaint();
-            }
-        };
-        installMouseListenerRecursively(tile, tileInteractionHandler);
-
-        tile.add(contentPanel, BorderLayout.CENTER);
-        return tile;
     }
 
     private void selectEntry(LibraryEntry entry) {
+        String previousSelectedKey = selectedEntryKey;
         selectedEntryKey = entry == null ? "" : entry.key();
         if (viewMode != ViewMode.LARGE_ICONS && entryList != null) {
             if (entry == null) {
@@ -1024,7 +930,8 @@ public final class LibraryWindow extends DuckWindow {
                 }
             }
         } else {
-            largeIconGridPanel.repaint();
+            refreshLargeIconTile(previousSelectedKey);
+            refreshLargeIconTile(selectedEntryKey);
             updateSelectionDetails(entry);
         }
     }
@@ -1034,13 +941,12 @@ public final class LibraryWindow extends DuckWindow {
             return null;
         }
 
-        return titleScreenPreviewIconCache.computeIfAbsent(
-                entry.key(),
-                key -> {
-                    BufferedImage scaled = GameArtScaler.ScaleToFit(image, detailPreviewWidth, detailPreviewHeight,
-                            true);
-                    return scaled == null ? null : new ImageIcon(scaled);
-                });
+        ImageIcon previewIcon = titleScreenPreviewIconCache.get(entry.key());
+        if (previewIcon != null) {
+            return previewIcon;
+        }
+        ensureTitleScreenPreviewIconAsync(entry.key(), image);
+        return null;
     }
 
     private void invalidateScaledArt(String entryKey) {
@@ -1048,6 +954,7 @@ public final class LibraryWindow extends DuckWindow {
             return;
         }
         scaledArtIconCache.keySet().removeIf(cacheKey -> cacheKey.startsWith(entryKey + "|"));
+        scaledArtLoadingKeys.removeIf(cacheKey -> cacheKey.startsWith(entryKey + "|"));
     }
 
     private void repaintEntryCell(String entryKey) {
@@ -1163,6 +1070,199 @@ public final class LibraryWindow extends DuckWindow {
         return Math.max(largeTileMinWidth, tileWidth);
     }
 
+    static final class LargeIconGridState {
+        private List<String> entryKeys = List.of();
+        private int columns = -1;
+        private int tileSize = -1;
+        private int availableWidth = -1;
+
+        LargeIconGridUpdate update(List<String> nextEntryKeys, int nextColumns, int nextTileSize, int nextAvailableWidth) {
+            boolean rebuild = !entryKeys.equals(nextEntryKeys) || columns != nextColumns;
+            boolean resizeTiles = tileSize != nextTileSize;
+            boolean widthChanged = availableWidth != nextAvailableWidth;
+            entryKeys = List.copyOf(nextEntryKeys);
+            columns = nextColumns;
+            tileSize = nextTileSize;
+            availableWidth = nextAvailableWidth;
+            return new LargeIconGridUpdate(rebuild, resizeTiles, widthChanged);
+        }
+
+        void clear() {
+            entryKeys = List.of();
+            columns = -1;
+            tileSize = -1;
+            availableWidth = -1;
+        }
+    }
+
+    record LargeIconGridUpdate(boolean rebuild, boolean resizeTiles, boolean widthChanged) {
+    }
+
+    record LargeIconRefreshPlan(boolean rebuildGrid, String targetEntryKey) {
+        static LargeIconRefreshPlan none() {
+            return new LargeIconRefreshPlan(false, null);
+        }
+    }
+
+    static LargeIconRefreshPlan planSingleArtRefresh(String entryKey, boolean tilePresent) {
+        if (entryKey == null || entryKey.isBlank()) {
+            return LargeIconRefreshPlan.none();
+        }
+        return new LargeIconRefreshPlan(false, tilePresent ? entryKey : null);
+    }
+
+    private List<LibraryEntry> currentEntries() {
+        return java.util.Collections.list(entryListModel.elements());
+    }
+
+    private void clearLargeIconGrid() {
+        largeIconGridState.clear();
+        currentLargeIconContentSize = largeArtSize;
+        if (!largeIconTilesByKey.isEmpty() || largeIconGridPanel.getComponentCount() > 0
+                || !new Dimension(0, 0).equals(largeIconGridPanel.getPreferredSize())) {
+            largeIconGridPanel.removeAll();
+            largeIconGridPanel.setPreferredSize(new Dimension(0, 0));
+            largeIconTilesByKey.clear();
+            largeIconGridPanel.revalidate();
+            largeIconGridPanel.repaint();
+            largeIconWrapperPanel.revalidate();
+            largeIconWrapperPanel.repaint();
+        }
+    }
+
+    private void rebuildLargeIconGridTiles(List<LibraryEntry> entries, int tileSize) {
+        largeIconGridPanel.removeAll();
+        Map<String, LargeIconTile> nextTilesByKey = new LinkedHashMap<>();
+        for (LibraryEntry entry : entries) {
+            LargeIconTile tile = largeIconTilesByKey.get(entry.key());
+            if (tile == null) {
+                tile = new LargeIconTile(entry, tileSize);
+            } else {
+                tile.setEntry(entry);
+                tile.updateTileSize(tileSize);
+            }
+            nextTilesByKey.put(entry.key(), tile);
+            largeIconGridPanel.add(tile);
+        }
+        largeIconTilesByKey.clear();
+        largeIconTilesByKey.putAll(nextTilesByKey);
+    }
+
+    private void primeLargeIconArtIcons(List<LibraryEntry> entries, int contentSize) {
+        for (LibraryEntry entry : entries) {
+            ensureScaledArtIconAsync(entry, contentSize, contentSize);
+        }
+    }
+
+    private void warmArtIconCaches(String entryKey, BufferedImage image) {
+        if (entryKey == null || entryKey.isBlank() || image == null) {
+            return;
+        }
+        cacheScaledArtIcon(entryKey, image, smallArtSize, smallArtSize);
+        cacheScaledArtIcon(entryKey, image, largeArtSize, largeArtSize);
+        cacheScaledArtIcon(entryKey, image, currentLargeIconContentSize, currentLargeIconContentSize);
+    }
+
+    private void cacheScaledArtIcon(String entryKey, BufferedImage image, int maxWidth, int maxHeight) {
+        if (entryKey == null || entryKey.isBlank() || image == null || maxWidth <= 0 || maxHeight <= 0) {
+            return;
+        }
+
+        String cacheKey = scaledArtCacheKey(entryKey, maxWidth, maxHeight);
+        if (scaledArtIconCache.containsKey(cacheKey)) {
+            return;
+        }
+
+        BufferedImage scaledImage = GameArtScaler.ScaleToFit(image, maxWidth, maxHeight, true);
+        if (scaledImage != null) {
+            scaledArtIconCache.put(cacheKey, new ImageIcon(scaledImage));
+        }
+    }
+
+    private void ensureScaledArtIconAsync(LibraryEntry entry, int maxWidth, int maxHeight) {
+        if (entry == null || maxWidth <= 0 || maxHeight <= 0) {
+            return;
+        }
+
+        String cacheKey = scaledArtCacheKey(entry.key(), maxWidth, maxHeight);
+        if (scaledArtIconCache.containsKey(cacheKey) || !scaledArtLoadingKeys.add(cacheKey)) {
+            return;
+        }
+
+        BufferedImage sourceImage = artCache.get(entry.key());
+        if (sourceImage == null) {
+            scaledArtLoadingKeys.remove(cacheKey);
+            return;
+        }
+
+        CompletableFuture
+                .runAsync(() -> cacheScaledArtIcon(entry.key(), sourceImage, maxWidth, maxHeight))
+                .whenComplete((ignored, throwable) -> {
+                    scaledArtLoadingKeys.remove(cacheKey);
+                    SwingUtilities.invokeLater(() -> refreshArtPresentation(entry.key()));
+                });
+    }
+
+    private String scaledArtCacheKey(String entryKey, int maxWidth, int maxHeight) {
+        return entryKey + "|" + maxWidth + "x" + maxHeight;
+    }
+
+    private void refreshArtPresentation(String entryKey) {
+        if (entryKey == null || entryKey.isBlank()) {
+            return;
+        }
+        if (viewMode == ViewMode.LARGE_ICONS) {
+            LargeIconRefreshPlan refreshPlan = planSingleArtRefresh(entryKey, largeIconTilesByKey.containsKey(entryKey));
+            if (refreshPlan.rebuildGrid()) {
+                refreshLargeIconGrid();
+            } else {
+                refreshLargeIconTile(refreshPlan.targetEntryKey());
+            }
+        } else {
+            repaintEntryCell(entryKey);
+        }
+    }
+
+    private void refreshLargeIconTile(String entryKey) {
+        if (entryKey == null || entryKey.isBlank()) {
+            return;
+        }
+        LargeIconTile tile = largeIconTilesByKey.get(entryKey);
+        if (tile != null) {
+            tile.refreshVisuals();
+        }
+    }
+
+    private void cacheTitleScreenPreviewIcon(String entryKey, BufferedImage image) {
+        if (entryKey == null || entryKey.isBlank() || image == null) {
+            return;
+        }
+        BufferedImage scaledImage = GameArtScaler.ScaleToFit(image, detailPreviewWidth, detailPreviewHeight, true);
+        if (scaledImage != null) {
+            titleScreenPreviewIconCache.put(entryKey, new ImageIcon(scaledImage));
+        }
+    }
+
+    private void ensureTitleScreenPreviewIconAsync(String entryKey, BufferedImage image) {
+        if (entryKey == null || entryKey.isBlank() || image == null
+                || titleScreenPreviewIconCache.containsKey(entryKey)
+                || !titleScreenPreviewLoadingKeys.add(entryKey)) {
+            return;
+        }
+
+        CompletableFuture
+                .runAsync(() -> cacheTitleScreenPreviewIcon(entryKey, image))
+                .whenComplete((ignored, throwable) -> {
+                    titleScreenPreviewLoadingKeys.remove(entryKey);
+                    SwingUtilities.invokeLater(() -> {
+                        LibraryEntry selectedEntry = selectedEntry();
+                        if (selectedEntry != null && entryKey.equals(selectedEntry.key())) {
+                            refreshDetailPreview(selectedEntry);
+                        }
+                    });
+                });
+    }
+
     private void installMouseListenerRecursively(Component component, MouseAdapter listener) {
         component.addMouseListener(listener);
         if (component instanceof Container container) {
@@ -1225,6 +1325,145 @@ public final class LibraryWindow extends DuckWindow {
         return "<html><table width='" + Math.max(60, width) + "'><tr><td align='center'>"
                 + WindowUiSupport.escapeHtml(value == null ? "" : value)
                 + "</td></tr></table></html>";
+    }
+
+    private final class LargeIconTile extends JPanel {
+        private static final String CARD_ART = "art";
+        private static final String CARD_PLACEHOLDER = "placeholder";
+
+        private final java.awt.CardLayout contentLayout = new java.awt.CardLayout();
+        private final JPanel contentCard = new JPanel(contentLayout);
+        private final JLabel artLabel = new JLabel("", SwingConstants.CENTER);
+        private final JPanel placeholderPanel = new JPanel(new BorderLayout());
+        private final JLabel placeholderLabel = new JLabel("", SwingConstants.CENTER);
+        private final JPanel contentPanel = new JPanel(new BorderLayout()) {
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                super.paintComponent(graphics);
+                Graphics2D graphics2d = (Graphics2D) graphics.create();
+                boolean selectedState = isSelectedEntry(entry);
+                if (hovered) {
+                    graphics2d.setColor(new Color(0, 0, 0, 70));
+                    graphics2d.fillRect(0, 0, getWidth(), getHeight());
+                }
+                if (selectedState || hovered) {
+                    graphics2d.setColor(
+                            selectedState ? Styling.sectionHighlightBorderColour : new Color(255, 255, 255, 90));
+                    graphics2d.setStroke(new BasicStroke(selectedState ? 3f : 1.5f));
+                    int inset = selectedState ? 2 : 1;
+                    int width = Math.max(0, getWidth() - (inset * 2) - 1);
+                    int height = Math.max(0, getHeight() - (inset * 2) - 1);
+                    graphics2d.drawRect(inset, inset, width, height);
+                }
+                graphics2d.dispose();
+            }
+        };
+
+        private LibraryEntry entry;
+        private int tileSize;
+        private boolean hovered;
+
+        private LargeIconTile(LibraryEntry entry, int tileSize) {
+            super(new BorderLayout());
+            setOpaque(false);
+            setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+
+            contentPanel.setOpaque(false);
+            contentCard.setOpaque(false);
+
+            artLabel.setOpaque(false);
+            artLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            artLabel.setVerticalAlignment(SwingConstants.CENTER);
+
+            placeholderPanel.setOpaque(true);
+            placeholderPanel.setBackground(Styling.displayFrameColour);
+            placeholderPanel.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1),
+                    BorderFactory.createEmptyBorder(12, 10, 12, 10)));
+            placeholderLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            placeholderLabel.setVerticalAlignment(SwingConstants.CENTER);
+            placeholderLabel.setForeground(mutedTextColour);
+            placeholderLabel.setFont(largePlaceholderFont);
+            placeholderPanel.add(placeholderLabel, BorderLayout.CENTER);
+
+            contentCard.add(artLabel, CARD_ART);
+            contentCard.add(placeholderPanel, CARD_PLACEHOLDER);
+            contentPanel.add(contentCard, BorderLayout.CENTER);
+            add(contentPanel, BorderLayout.CENTER);
+
+            MouseAdapter tileInteractionHandler = new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent event) {
+                    selectEntry(LargeIconTile.this.entry);
+                    if (event.getClickCount() == 2) {
+                        loadSelectedEntry(LargeIconTile.this.entry);
+                    }
+                }
+
+                @Override
+                public void mouseEntered(MouseEvent event) {
+                    hovered = true;
+                    contentPanel.repaint();
+                }
+
+                @Override
+                public void mouseExited(MouseEvent event) {
+                    if (event.getSource() instanceof Component source
+                            && isPointerInsideTile(source, event, LargeIconTile.this)) {
+                        return;
+                    }
+                    hovered = false;
+                    contentPanel.repaint();
+                }
+            };
+            installMouseListenerRecursively(this, tileInteractionHandler);
+            setEntry(entry);
+            updateTileSize(tileSize);
+        }
+
+        private void setEntry(LibraryEntry entry) {
+            this.entry = entry;
+            setToolTipText(resolveDisplayName(entry));
+            refreshVisuals();
+        }
+
+        private void updateTileSize(int tileSize) {
+            if (this.tileSize == tileSize) {
+                return;
+            }
+            this.tileSize = tileSize;
+            int contentSize = Math.max(80, tileSize - 16);
+            setPreferredSize(new Dimension(tileSize, tileSize));
+            contentPanel.setPreferredSize(new Dimension(contentSize, contentSize));
+            placeholderPanel.setPreferredSize(new Dimension(contentSize, contentSize));
+            revalidate();
+            refreshVisuals();
+        }
+
+        private void refreshVisuals() {
+            if (entry == null) {
+                return;
+            }
+
+            int contentSize = Math.max(80, tileSize - 16);
+            ImageIcon artIcon = iconFor(entry, contentSize, contentSize);
+            if (artIcon != null) {
+                artLabel.setIcon(artIcon);
+                artLabel.setText("");
+                contentLayout.show(contentCard, CARD_ART);
+            } else {
+                artLabel.setIcon(null);
+                String placeholderTitle = truncateToWidth(
+                        resolveDisplayName(entry),
+                        placeholderLabel.getFontMetrics(largePlaceholderFont),
+                        Math.max(60, contentSize - 28));
+                placeholderLabel.setText(artLoadingKeys.contains(entry.key())
+                        ? UiText.LibraryWindow.ART_LOADING
+                        : asRendererHtml(placeholderTitle, Math.max(60, contentSize - 28)));
+                contentLayout.show(contentCard, CARD_PLACEHOLDER);
+            }
+            repaint();
+        }
     }
 
     private String truncateToWidth(String value, FontMetrics metrics, int maxWidth) {

@@ -1256,10 +1256,10 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
                 UiText.MainWindow.LookingUpArtwork(displayMode.Label(), game.displayName()));
 
         CompletableFuture
-                .supplyAsync(() -> GameArtProvider.FindGameArt(game, displayMode))
+                .supplyAsync(() -> PrepareGameArtResult(game, displayMode))
                 .thenAccept(result -> ApplyGameArtResult(game, cacheKey, requestVersion, result))
                 .exceptionally(exception -> {
-                    ApplyGameArtResult(game, cacheKey, requestVersion, Optional.empty());
+                    ApplyGameArtResult(game, cacheKey, requestVersion, PreparedGameArtResult.empty());
                     return null;
                 });
     }
@@ -1316,29 +1316,43 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         return ResolveDisplayedRomName(currentLoadedGame, !romNameLookupPending);
     }
 
+    private PreparedGameArtResult PrepareGameArtResult(EmulatorGame game, GameArtDisplayMode displayMode) {
+        Optional<GameArtResult> result = GameArtProvider.FindGameArt(game, displayMode);
+        if (result.isEmpty()) {
+            return PreparedGameArtResult.empty();
+        }
+
+        GameArtResult gameArtResult = result.get();
+        BufferedImage scaledImage = GameArtScaler.ScaleToFit(
+                gameArtResult.image(),
+                gameArtPreviewWidth - 24,
+                gameArtPreviewHeight - 24,
+                true);
+        if (scaledImage == null) {
+            return PreparedGameArtResult.empty();
+        }
+
+        return new PreparedGameArtResult(
+                new CachedGameArt(new ImageIcon(scaledImage), gameArtResult.sourceLabel()),
+                gameArtResult.matchedGameName());
+    }
+
     private void ApplyGameArtResult(EmulatorGame game, String cacheKey, int requestVersion,
-            Optional<GameArtResult> result) {
+            PreparedGameArtResult result) {
         Runnable apply = () -> {
             if (gameArtRequestVersion.get() != requestVersion) {
                 return;
             }
 
-            if (result.isPresent()) {
-                GameArtResult gameArtResult = result.get();
-                if (gameArtResult.matchedGameName() != null && !gameArtResult.matchedGameName().isBlank()) {
-                    GameMetadataStore.RememberLibretroTitle(game, gameArtResult.matchedGameName());
+            if (result.preview() != null) {
+                if (result.matchedGameName() != null && !result.matchedGameName().isBlank()) {
+                    GameMetadataStore.RememberLibretroTitle(game, result.matchedGameName());
                     SetLoadedGame(game);
                 }
-                BufferedImage scaledImage = GameArtScaler.ScaleToFit(
-                        gameArtResult.image(),
-                        gameArtPreviewWidth - 24,
-                        gameArtPreviewHeight - 24,
-                        true);
-                CachedGameArt preview = new CachedGameArt(new ImageIcon(scaledImage), gameArtResult.sourceLabel());
                 if (cacheKey != null) {
-                    cachedGameArt.put(cacheKey, preview);
+                    cachedGameArt.put(cacheKey, result.preview());
                 }
-                ShowGameArt(cacheKey, preview);
+                ShowGameArt(cacheKey, result.preview());
                 return;
             }
 
@@ -1476,5 +1490,11 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     }
 
     private record CachedGameArt(ImageIcon icon, String sourceLabel) {
+    }
+
+    private record PreparedGameArtResult(CachedGameArt preview, String matchedGameName) {
+        private static PreparedGameArtResult empty() {
+            return new PreparedGameArtResult(null, null);
+        }
     }
 }

@@ -159,12 +159,7 @@ final class WindowUiSupport {
         }
 
         if (component instanceof JMenuBar menuBar) {
-            menuBar.setOpaque(true);
-            menuBar.setBackground(Styling.surfaceColour);
-            menuBar.setForeground(Styling.mutedTextColour);
-            if (!(menuBar.getUI() instanceof ThemedMenuBarUI)) {
-                menuBar.setUI(new ThemedMenuBarUI());
-            }
+            styleMenuBar(menuBar);
         }
         if (component instanceof JMenu menu) {
             styleMenu(menu);
@@ -204,6 +199,19 @@ final class WindowUiSupport {
             for (Component child : container.getComponents()) {
                 applyComponentTheme(child);
             }
+        }
+    }
+
+    static void styleMenuBar(JMenuBar menuBar) {
+        if (menuBar == null) {
+            return;
+        }
+
+        menuBar.setOpaque(true);
+        menuBar.setBackground(Styling.surfaceColour);
+        menuBar.setForeground(Styling.mutedTextColour);
+        if (!(menuBar.getUI() instanceof ThemedMenuBarUI)) {
+            menuBar.setUI(new ThemedMenuBarUI());
         }
     }
 

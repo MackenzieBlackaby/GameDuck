@@ -93,6 +93,8 @@ public class DuckWindow extends JFrame {
     private Dimension sizeBeforeMaximise;
     private Point locationBeforeMaximise;
     private Rectangle restoreBounds;
+    private Rectangle cachedDragWorkArea;
+    private Rectangle cachedDragScreenBounds;
     private Point titleDragAnchorOnScreen;
     private Point titleDragWindowLocation;
     private boolean titleDragMoved;
@@ -101,6 +103,10 @@ public class DuckWindow extends JFrame {
     private Rectangle resizeStartBounds;
     private Point resizeStartOnScreen;
     private JWindow snapPreviewWindow;
+    private Rectangle snapPreviewBounds;
+    private final WindowInteractionThrottler windowInteractionThrottler = new WindowInteractionThrottler();
+    private Boolean resizeHandleStateApplied;
+    private boolean initialThemeApplied;
     private final MouseAdapter windowDragAdapter = new MouseAdapter() {
         @Override
         public void mousePressed(MouseEvent event) {
@@ -114,6 +120,7 @@ public class DuckWindow extends JFrame {
                     ? 0.5f
                     : Math.max(0f, Math.min(1f, event.getX() / (float) getWidth()));
             titleDragVerticalOffset = Math.max(0, event.getY());
+            cacheDragContext(titleDragAnchorOnScreen);
         }
 
         @Override
@@ -132,13 +139,15 @@ public class DuckWindow extends JFrame {
             int deltaX = currentOnScreen.x - titleDragAnchorOnScreen.x;
             int deltaY = currentOnScreen.y - titleDragAnchorOnScreen.y;
             titleDragMoved = titleDragMoved || deltaX != 0 || deltaY != 0;
-            setLocation(titleDragWindowLocation.x + deltaX, titleDragWindowLocation.y + deltaY);
-            showSnapPreview(ResolveSnapBounds(ResolveSnapZone(currentOnScreen), currentOnScreen));
+            Point nextLocation = new Point(titleDragWindowLocation.x + deltaX, titleDragWindowLocation.y + deltaY);
+            Rectangle nextSnapPreviewBounds = ResolveSnapBounds(ResolveSnapZone(currentOnScreen), currentOnScreen);
+            queueWindowLocationUpdate(nextLocation, nextSnapPreviewBounds);
         }
 
         @Override
         public void mouseReleased(MouseEvent event) {
             Point releasePoint = event.getLocationOnScreen();
+            flushPendingWindowInteraction();
             SnapZone snapZone = titleDragMoved ? ResolveSnapZone(releasePoint) : SnapZone.NONE;
             hideSnapPreview();
             if (titleDragMoved) {
@@ -150,6 +159,8 @@ public class DuckWindow extends JFrame {
             titleDragAnchorOnScreen = null;
             titleDragWindowLocation = null;
             titleDragMoved = false;
+            clearDragContext();
+            windowInteractionThrottler.clear();
         }
 
         @Override
@@ -317,7 +328,10 @@ public class DuckWindow extends JFrame {
     public void setVisible(boolean visible) {
         super.setVisible(visible);
         if (visible) {
-            WindowUiSupport.applyComponentTheme(this);
+            if (!initialThemeApplied) {
+                WindowUiSupport.applyComponentTheme(this);
+                initialThemeApplied = true;
+            }
             applyWindowChromeTheme();
         }
     }
@@ -474,10 +488,7 @@ public class DuckWindow extends JFrame {
         styleTitleButton(closeButton);
 
         if (attachedMenuBar != null) {
-            attachedMenuBar.setOpaque(true);
-            attachedMenuBar.setBackground(Styling.surfaceColour);
-            attachedMenuBar.setForeground(Styling.mutedTextColour);
-            WindowUiSupport.applyComponentTheme(attachedMenuBar);
+            WindowUiSupport.styleMenuBar(attachedMenuBar);
         }
 
         JRootPane rootPane = getRootPane();
@@ -517,14 +528,18 @@ public class DuckWindow extends JFrame {
 
     private void updateResizeHandleState() {
         boolean allowResize = canResizeWindow();
+        if (resizeHandleStateApplied != null && resizeHandleStateApplied.booleanValue() == allowResize) {
+            return;
+        }
+        resizeHandleStateApplied = allowResize;
         northResizeHandle.setPreferredSize(new Dimension(0, allowResize ? RESIZE_MARGIN : 0));
         southResizeHandle.setPreferredSize(new Dimension(0, allowResize ? RESIZE_MARGIN : 0));
         westResizeHandle.setPreferredSize(new Dimension(allowResize ? RESIZE_MARGIN : 0, 0));
         eastResizeHandle.setPreferredSize(new Dimension(allowResize ? RESIZE_MARGIN : 0, 0));
-        northResizeHandle.setCursor(Cursor.getDefaultCursor());
-        southResizeHandle.setCursor(Cursor.getDefaultCursor());
-        westResizeHandle.setCursor(Cursor.getDefaultCursor());
-        eastResizeHandle.setCursor(Cursor.getDefaultCursor());
+        northResizeHandle.setCursorIfChanged(Cursor.getDefaultCursor());
+        southResizeHandle.setCursorIfChanged(Cursor.getDefaultCursor());
+        westResizeHandle.setCursorIfChanged(Cursor.getDefaultCursor());
+        eastResizeHandle.setCursorIfChanged(Cursor.getDefaultCursor());
         northResizeHandle.revalidate();
         southResizeHandle.revalidate();
         westResizeHandle.revalidate();
@@ -597,6 +612,10 @@ public class DuckWindow extends JFrame {
 
     private Rectangle resolveWorkAreaBounds(Point screenPoint) {
         GraphicsConfiguration graphicsConfiguration = resolveGraphicsConfiguration(screenPoint);
+        return resolveWorkAreaBounds(graphicsConfiguration);
+    }
+
+    private Rectangle resolveWorkAreaBounds(GraphicsConfiguration graphicsConfiguration) {
         Rectangle bounds = new Rectangle(graphicsConfiguration.getBounds());
         Insets screenInsets = Toolkit.getDefaultToolkit().getScreenInsets(graphicsConfiguration);
         bounds.x += screenInsets.left;
@@ -655,7 +674,7 @@ public class DuckWindow extends JFrame {
             maximised = false;
         }
         snappedZone = SnapZone.NONE;
-        setBounds(nextX, nextY, bounds.width, bounds.height);
+        applyWindowBoundsIfChanged(new Rectangle(nextX, nextY, bounds.width, bounds.height));
         titleDragAnchorOnScreen = currentOnScreen;
         titleDragWindowLocation = getLocation();
         titleDragMoved = true;
@@ -667,7 +686,7 @@ public class DuckWindow extends JFrame {
             return SnapZone.NONE;
         }
 
-        Rectangle bounds = resolveWorkAreaBounds(screenPoint);
+        Rectangle bounds = resolveSnapWorkAreaBounds(screenPoint);
         if (screenPoint.y <= bounds.y + Math.max(SNAP_MAXIMISE_THRESHOLD, SNAP_EDGE_THRESHOLD)) {
             return SnapZone.MAXIMISE;
         }
@@ -685,7 +704,7 @@ public class DuckWindow extends JFrame {
             return null;
         }
 
-        Rectangle workArea = resolveWorkAreaBounds(screenPoint);
+        Rectangle workArea = resolveSnapWorkAreaBounds(screenPoint);
         return switch (snapZone) {
             case LEFT_HALF -> new Rectangle(workArea.x, workArea.y, workArea.width / 2, workArea.height);
             case RIGHT_HALF -> new Rectangle(workArea.x + (workArea.width / 2), workArea.y,
@@ -717,7 +736,7 @@ public class DuckWindow extends JFrame {
         setMaximizedBounds(null);
         maximised = false;
         snappedZone = snapZone;
-        setBounds(snapBounds);
+        applyWindowBoundsIfChanged(snapBounds);
         updateWindowChromeState();
     }
 
@@ -745,7 +764,10 @@ public class DuckWindow extends JFrame {
         if (snapPreviewWindow == null) {
             snapPreviewWindow = createSnapPreviewWindow();
         }
-        snapPreviewWindow.setBounds(previewBounds);
+        if (snapPreviewBounds == null || !snapPreviewBounds.equals(previewBounds)) {
+            snapPreviewWindow.setBounds(previewBounds);
+            snapPreviewBounds = new Rectangle(previewBounds);
+        }
         if (!snapPreviewWindow.isVisible()) {
             snapPreviewWindow.setVisible(true);
         }
@@ -755,6 +777,7 @@ public class DuckWindow extends JFrame {
         if (snapPreviewWindow != null) {
             snapPreviewWindow.setVisible(false);
         }
+        snapPreviewBounds = null;
     }
 
     private JWindow createSnapPreviewWindow() {
@@ -846,7 +869,185 @@ public class DuckWindow extends JFrame {
             }
         }
 
+        queueWindowBoundsUpdate(nextBounds);
+    }
+
+    private void queueWindowLocationUpdate(Point nextLocation, Rectangle nextPreviewBounds) {
+        if (!windowInteractionThrottler.queueLocation(nextLocation, nextPreviewBounds)) {
+            return;
+        }
+        scheduleWindowInteractionFlush();
+    }
+
+    private void queueWindowBoundsUpdate(Rectangle nextBounds) {
+        if (!windowInteractionThrottler.queueBounds(nextBounds)) {
+            return;
+        }
+        scheduleWindowInteractionFlush();
+    }
+
+    private void scheduleWindowInteractionFlush() {
+        if (!windowInteractionThrottler.markFlushQueued()) {
+            return;
+        }
+        SwingUtilities.invokeLater(this::flushPendingWindowInteraction);
+    }
+
+    private void flushPendingWindowInteraction() {
+        PendingWindowInteraction pendingInteraction = windowInteractionThrottler.drain();
+        if (pendingInteraction == null) {
+            return;
+        }
+
+        if (pendingInteraction.bounds() != null) {
+            applyWindowBoundsIfChanged(pendingInteraction.bounds());
+        } else if (pendingInteraction.location() != null) {
+            applyWindowLocationIfChanged(pendingInteraction.location());
+        }
+
+        Rectangle previewBounds = pendingInteraction.previewBounds();
+        if (previewBounds == null) {
+            hideSnapPreview();
+        } else {
+            showSnapPreview(previewBounds);
+        }
+    }
+
+    private void applyWindowLocationIfChanged(Point nextLocation) {
+        if (nextLocation == null) {
+            return;
+        }
+        Point currentLocation = getLocation();
+        if (currentLocation.equals(nextLocation)) {
+            return;
+        }
+        setLocation(nextLocation);
+    }
+
+    private void applyWindowBoundsIfChanged(Rectangle nextBounds) {
+        if (nextBounds == null || nextBounds.isEmpty()) {
+            return;
+        }
+        Rectangle currentBounds = getBounds();
+        if (currentBounds.equals(nextBounds)) {
+            return;
+        }
         setBounds(nextBounds);
+    }
+
+    private void cacheDragContext(Point screenPoint) {
+        if (screenPoint == null) {
+            clearDragContext();
+            return;
+        }
+        GraphicsConfiguration graphicsConfiguration = resolveGraphicsConfiguration(screenPoint);
+        cachedDragScreenBounds = graphicsConfiguration == null ? null : new Rectangle(graphicsConfiguration.getBounds());
+        cachedDragWorkArea = graphicsConfiguration == null ? null : resolveWorkAreaBounds(graphicsConfiguration);
+    }
+
+    private void clearDragContext() {
+        cachedDragScreenBounds = null;
+        cachedDragWorkArea = null;
+    }
+
+    private Rectangle resolveSnapWorkAreaBounds(Point screenPoint) {
+        if (screenPoint == null) {
+            return resolveWorkAreaBounds(screenPoint);
+        }
+        if (cachedDragScreenBounds != null && cachedDragWorkArea != null && cachedDragScreenBounds.contains(screenPoint)) {
+            return new Rectangle(cachedDragWorkArea);
+        }
+        cacheDragContext(screenPoint);
+        return cachedDragWorkArea != null ? new Rectangle(cachedDragWorkArea) : resolveWorkAreaBounds(screenPoint);
+    }
+
+    record PendingWindowInteraction(Point location, Rectangle bounds, Rectangle previewBounds) {
+    }
+
+    static final class WindowInteractionThrottler {
+        private Point pendingLocation;
+        private Rectangle pendingBounds;
+        private Rectangle pendingPreviewBounds;
+        private Point lastAppliedLocation;
+        private Rectangle lastAppliedBounds;
+        private Rectangle lastAppliedPreviewBounds;
+        private boolean flushQueued;
+
+        boolean queueLocation(Point location, Rectangle previewBounds) {
+            Point comparisonLocation = pendingLocation != null ? pendingLocation : lastAppliedLocation;
+            Rectangle comparisonPreviewBounds = pendingPreviewBounds != null ? pendingPreviewBounds : lastAppliedPreviewBounds;
+            if (samePoint(comparisonLocation, location) && sameRectangle(comparisonPreviewBounds, previewBounds)) {
+                return false;
+            }
+            pendingLocation = copyPoint(location);
+            pendingBounds = null;
+            pendingPreviewBounds = copyRectangle(previewBounds);
+            return true;
+        }
+
+        boolean queueBounds(Rectangle bounds) {
+            Rectangle comparisonBounds = pendingBounds != null ? pendingBounds : lastAppliedBounds;
+            if (sameRectangle(comparisonBounds, bounds)) {
+                return false;
+            }
+            pendingBounds = copyRectangle(bounds);
+            pendingLocation = null;
+            pendingPreviewBounds = null;
+            return true;
+        }
+
+        boolean markFlushQueued() {
+            if (flushQueued) {
+                return false;
+            }
+            flushQueued = true;
+            return true;
+        }
+
+        PendingWindowInteraction drain() {
+            flushQueued = false;
+            if (pendingLocation == null && pendingBounds == null && pendingPreviewBounds == null) {
+                return null;
+            }
+
+            PendingWindowInteraction pendingInteraction = new PendingWindowInteraction(
+                    copyPoint(pendingLocation),
+                    copyRectangle(pendingBounds),
+                    copyRectangle(pendingPreviewBounds));
+            lastAppliedLocation = copyPoint(pendingLocation);
+            lastAppliedBounds = copyRectangle(pendingBounds);
+            lastAppliedPreviewBounds = copyRectangle(pendingPreviewBounds);
+            pendingLocation = null;
+            pendingBounds = null;
+            pendingPreviewBounds = null;
+            return pendingInteraction;
+        }
+
+        void clear() {
+            flushQueued = false;
+            pendingLocation = null;
+            pendingBounds = null;
+            pendingPreviewBounds = null;
+            lastAppliedLocation = null;
+            lastAppliedBounds = null;
+            lastAppliedPreviewBounds = null;
+        }
+
+        private static boolean samePoint(Point first, Point second) {
+            return first == null ? second == null : first.equals(second);
+        }
+
+        private static boolean sameRectangle(Rectangle first, Rectangle second) {
+            return first == null ? second == null : first.equals(second);
+        }
+
+        private static Point copyPoint(Point point) {
+            return point == null ? null : new Point(point);
+        }
+
+        private static Rectangle copyRectangle(Rectangle rectangle) {
+            return rectangle == null ? null : new Rectangle(rectangle);
+        }
     }
 
     private static final class WindowControlButton extends JButton {
@@ -906,7 +1107,7 @@ public class DuckWindow extends JFrame {
             MouseAdapter adapter = new MouseAdapter() {
                 @Override
                 public void mouseMoved(MouseEvent event) {
-                    setCursor(Cursor.getPredefinedCursor(cursorForDirection(resolveDirection(event))));
+                    setCursorIfChanged(Cursor.getPredefinedCursor(cursorForDirection(resolveDirection(event))));
                 }
 
                 @Override
@@ -925,21 +1126,29 @@ public class DuckWindow extends JFrame {
 
                 @Override
                 public void mouseReleased(MouseEvent event) {
+                    flushPendingWindowInteraction();
                     activeDirection = 0;
                     resizeStartBounds = null;
                     resizeStartOnScreen = null;
-                    setCursor(Cursor.getDefaultCursor());
+                    setCursorIfChanged(Cursor.getDefaultCursor());
                 }
 
                 @Override
                 public void mouseExited(MouseEvent event) {
                     if (activeDirection == 0) {
-                        setCursor(Cursor.getDefaultCursor());
+                        setCursorIfChanged(Cursor.getDefaultCursor());
                     }
                 }
             };
             addMouseListener(adapter);
             addMouseMotionListener(adapter);
+        }
+
+        private void setCursorIfChanged(Cursor cursor) {
+            Cursor nextCursor = cursor == null ? Cursor.getDefaultCursor() : cursor;
+            if (!nextCursor.equals(getCursor())) {
+                setCursor(nextCursor);
+            }
         }
 
         private int resolveDirection(MouseEvent event) {

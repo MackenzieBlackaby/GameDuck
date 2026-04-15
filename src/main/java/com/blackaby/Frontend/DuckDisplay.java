@@ -23,6 +23,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 
 /**
  * A custom JPanel for rendering Game Boy display output.
@@ -40,9 +42,14 @@ public class DuckDisplay extends JPanel {
     public record PresentationStats(double paintedFps, double averageFrameTimeMs) {
     }
 
+    record PresentationCompositeKey(long frameVersion, int width, int height, String borderId,
+            boolean integerScaleEnabled, int backgroundRgb) {
+    }
+
     private final EmulatorDisplaySpec displaySpec;
     private final Object frameLock = new Object();
     private final Object presentationBufferLock = new Object();
+    private final Object presentationCompositeLock = new Object();
     private final Object shaderQueueLock = new Object();
     private final Object shaderExecutionLock = new Object();
     private final AtomicBoolean repaintQueued = new AtomicBoolean();
@@ -72,11 +79,15 @@ public class DuckDisplay extends JPanel {
     private transient String preparedBorderId;
     private transient int preparedBorderWidth = -1;
     private transient int preparedBorderHeight = -1;
+    private transient boolean preparedBorderIntegerScaleEnabled;
+    private transient BufferedImage presentationCompositeImage;
+    private transient PresentationCompositeKey presentationCompositeKey;
     private transient long statsWindowStartNanos;
     private transient int statsWindowPaintCount;
     private transient long lastPaintNanos;
     private transient double smoothedFrameIntervalNanos;
     private volatile PresentationStats presentationStats = new PresentationStats(0.0, 0.0);
+    private volatile long visibleFrameVersion;
     private int pendingShaderFrameVersion;
     private int displayedShaderFrameVersion;
     private int shaderRenderEpoch;
@@ -109,6 +120,13 @@ public class DuckDisplay extends JPanel {
         setBackground(displaySpec == null ? Color.BLACK : displaySpec.backgroundColour());
         setOpaque(true);
         setDoubleBuffered(false);
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent event) {
+                invalidatePreparedBorderFrame();
+                invalidatePresentationComposite();
+            }
+        });
         initializeFrameBuffers();
         initializeRenderBuffers(1);
         RefreshShader();
@@ -212,6 +230,7 @@ public class DuckDisplay extends JPanel {
             InvalidateAsyncShaderFrames();
         }
 
+        MarkVisibleFrameChanged();
         RequestRepaint();
     }
 
@@ -323,15 +342,13 @@ public class DuckDisplay extends JPanel {
             return;
         }
 
-        if (isOpaque()) {
-            g.setColor(getBackground());
-            g.fillRect(0, 0, getWidth(), getHeight());
-        }
-
         Graphics2D g2d = (Graphics2D) g;
         LoadedDisplayBorder border = activeBorder != null ? activeBorder
                 : DisplayBorderManager.Resolve(Settings.displayBorderId);
-        DisplayBorderRenderer.paint(g2d, currentImage, prepareBorderFrame(border, getWidth(), getHeight()));
+        BufferedImage presentationComposite = resolvePresentationComposite(currentImage, border, getWidth(), getHeight());
+        if (presentationComposite != null) {
+            g2d.drawImage(presentationComposite, 0, 0, null);
+        }
         recordPaintPresentation();
     }
 
@@ -346,6 +363,7 @@ public class DuckDisplay extends JPanel {
     public void resizeImage() {
         initializeFrameBuffers();
         initializeRenderBuffers(activeShader == null ? 1 : activeShader.renderScale());
+        invalidatePresentationComposite();
         RefreshShader();
     }
 
@@ -355,6 +373,7 @@ public class DuckDisplay extends JPanel {
     public void RefreshShader() {
         activeShader = DisplayShaderManager.Resolve(Settings.displayShaderId);
         InvalidateAsyncShaderFrames();
+        invalidatePresentationComposite();
         boolean repaintNow = false;
         synchronized (frameLock) {
             if (frontBuffer != null && imageBuffer != null && shaderScratchBuffer != null) {
@@ -373,6 +392,7 @@ public class DuckDisplay extends JPanel {
     public void RefreshBorder() {
         activeBorder = DisplayBorderManager.Resolve(Settings.displayBorderId);
         invalidatePreparedBorderFrame();
+        invalidatePresentationComposite();
         RequestRepaint();
     }
 
@@ -453,6 +473,7 @@ public class DuckDisplay extends JPanel {
                 InvalidateAsyncShaderFramesLocked();
             }
         }
+        invalidatePresentationComposite();
     }
 
     private int frameWidth() {
@@ -765,6 +786,9 @@ public class DuckDisplay extends JPanel {
         int[] nextVisibleBuffer = imageBuffer;
         imageBuffer = paintBuffer;
         paintBuffer = nextVisibleBuffer;
+        synchronized (presentationCompositeLock) {
+            MarkVisibleFrameChangedLocked();
+        }
     }
 
     private LoadedDisplayShader ResolveActiveShader() {
@@ -792,9 +816,11 @@ public class DuckDisplay extends JPanel {
     private DisplayBorderRenderer.PreparedBorderFrame prepareBorderFrame(LoadedDisplayBorder border, int width,
             int height) {
         String borderId = border == null ? "none" : border.id();
+        boolean integerScaleEnabled = Settings.integerScaleWindowOutput;
         if (preparedBorderFrame != null
                 && preparedBorderWidth == width
                 && preparedBorderHeight == height
+                && preparedBorderIntegerScaleEnabled == integerScaleEnabled
                 && ((preparedBorderId == null && borderId == null)
                         || (preparedBorderId != null && preparedBorderId.equalsIgnoreCase(borderId)))) {
             return preparedBorderFrame;
@@ -804,6 +830,7 @@ public class DuckDisplay extends JPanel {
         preparedBorderId = borderId;
         preparedBorderWidth = width;
         preparedBorderHeight = height;
+        preparedBorderIntegerScaleEnabled = integerScaleEnabled;
         return preparedBorderFrame;
     }
 
@@ -812,6 +839,66 @@ public class DuckDisplay extends JPanel {
         preparedBorderId = null;
         preparedBorderWidth = -1;
         preparedBorderHeight = -1;
+        preparedBorderIntegerScaleEnabled = false;
+    }
+
+    private BufferedImage resolvePresentationComposite(BufferedImage currentImage, LoadedDisplayBorder border,
+            int width, int height) {
+        if (currentImage == null || width <= 0 || height <= 0) {
+            return null;
+        }
+
+        String borderId = border == null ? "none" : border.id();
+        PresentationCompositeKey nextKey = new PresentationCompositeKey(
+                visibleFrameVersion,
+                width,
+                height,
+                borderId,
+                Settings.integerScaleWindowOutput,
+                getBackground().getRGB());
+        BufferedImage cachedComposite = presentationCompositeImage;
+        if (cachedComposite != null && nextKey.equals(presentationCompositeKey)) {
+            return cachedComposite;
+        }
+
+        synchronized (presentationCompositeLock) {
+            if (presentationCompositeImage != null && nextKey.equals(presentationCompositeKey)) {
+                return presentationCompositeImage;
+            }
+
+            BufferedImage nextComposite = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
+            Graphics2D graphics = nextComposite.createGraphics();
+            try {
+                graphics.setColor(getBackground());
+                graphics.fillRect(0, 0, width, height);
+                DisplayBorderRenderer.paint(graphics, currentImage, prepareBorderFrame(border, width, height));
+            } finally {
+                graphics.dispose();
+            }
+
+            presentationCompositeImage = nextComposite;
+            presentationCompositeKey = nextKey;
+            return nextComposite;
+        }
+    }
+
+    private void invalidatePresentationComposite() {
+        synchronized (presentationCompositeLock) {
+            presentationCompositeImage = null;
+            presentationCompositeKey = null;
+        }
+    }
+
+    private void MarkVisibleFrameChanged() {
+        synchronized (presentationCompositeLock) {
+            MarkVisibleFrameChangedLocked();
+        }
+    }
+
+    private void MarkVisibleFrameChangedLocked() {
+        visibleFrameVersion++;
+        presentationCompositeImage = null;
+        presentationCompositeKey = null;
     }
 
     private void recordPaintPresentation() {

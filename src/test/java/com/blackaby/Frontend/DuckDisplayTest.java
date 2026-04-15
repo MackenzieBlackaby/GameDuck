@@ -2,9 +2,12 @@ package com.blackaby.Frontend;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.blackaby.Frontend.Borders.DisplayBorderRenderer;
+import com.blackaby.Frontend.Borders.LoadedDisplayBorder;
 import com.blackaby.Frontend.Shaders.DisplayShader;
 import com.blackaby.Frontend.Shaders.LoadedDisplayShader;
 import java.awt.Color;
@@ -12,6 +15,7 @@ import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import java.awt.image.BufferedImage;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.concurrent.ExecutorService;
@@ -22,6 +26,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 
 import com.blackaby.Misc.Settings;
+
+import javax.swing.SwingUtilities;
 
 class DuckDisplayTest {
 
@@ -176,6 +182,89 @@ class DuckDisplayTest {
     }
 
     @Test
+    void presentationCompositeCacheReusesPreparedImageForSameFrameAndSize() throws Exception {
+        String originalBorderId = Settings.displayBorderId;
+        String originalShaderId = Settings.displayShaderId;
+        try {
+            Settings.displayBorderId = "studio_black";
+            Settings.displayShaderId = "none";
+            DuckDisplay display = new DuckDisplay(null, false);
+            display.setSize(560, 432);
+            flushEdt();
+            display.setPixel(0, 0, Color.RED.getRGB(), false);
+            display.presentFrame();
+
+            BufferedImage firstComposite = resolvePresentationComposite(display, 560, 432);
+
+            BufferedImage secondComposite = resolvePresentationComposite(display, 560, 432);
+
+            assertSame(firstComposite, secondComposite);
+        } finally {
+            Settings.displayBorderId = originalBorderId;
+            Settings.displayShaderId = originalShaderId;
+        }
+    }
+
+    @Test
+    void presentationCompositeCacheInvalidatesWhenVisibleFrameChanges() throws Exception {
+        String originalBorderId = Settings.displayBorderId;
+        String originalShaderId = Settings.displayShaderId;
+        try {
+            Settings.displayBorderId = "studio_black";
+            Settings.displayShaderId = "none";
+            DuckDisplay display = new DuckDisplay(null, false);
+            display.setSize(560, 432);
+            flushEdt();
+            display.setPixel(0, 0, Color.RED.getRGB(), false);
+            display.presentFrame();
+
+            BufferedImage firstComposite = resolvePresentationComposite(display, 560, 432);
+
+            display.setPixel(1, 0, Color.BLUE.getRGB(), false);
+            display.presentFrame();
+
+            assertNotSame(firstComposite, resolvePresentationComposite(display, 560, 432));
+        } finally {
+            Settings.displayBorderId = originalBorderId;
+            Settings.displayShaderId = originalShaderId;
+        }
+    }
+
+    @Test
+    void presentationCompositeCacheInvalidatesOnBorderShaderAndResizeChanges() throws Exception {
+        String originalBorderId = Settings.displayBorderId;
+        String originalShaderId = Settings.displayShaderId;
+        try {
+            Settings.displayBorderId = "studio_black";
+            Settings.displayShaderId = "none";
+            DuckDisplay display = new DuckDisplay(null, false);
+            display.setSize(560, 432);
+            flushEdt();
+            display.setPixel(0, 0, Color.RED.getRGB(), false);
+            display.presentFrame();
+
+            BufferedImage baselineComposite = resolvePresentationComposite(display, 560, 432);
+
+            Settings.displayBorderId = "none";
+            display.RefreshBorder();
+            BufferedImage borderComposite = resolvePresentationComposite(display, 560, 432);
+            assertNotSame(baselineComposite, borderComposite);
+
+            Settings.displayShaderId = "amber_monitor";
+            display.RefreshShader();
+            BufferedImage shaderComposite = resolvePresentationComposite(display, 560, 432);
+            assertNotSame(borderComposite, shaderComposite);
+
+            display.setSize(640, 480);
+            flushEdt();
+            assertNotSame(shaderComposite, resolvePresentationComposite(display, 640, 480));
+        } finally {
+            Settings.displayBorderId = originalBorderId;
+            Settings.displayShaderId = originalShaderId;
+        }
+    }
+
+    @Test
     void shutdownStopsShaderExecutor() throws Exception {
         DuckDisplay display = new DuckDisplay(null, true);
 
@@ -199,6 +288,40 @@ class DuckDisplayTest {
         return (int[]) paintBufferField.get(display);
     }
 
+    private static BufferedImage presentationComposite(DuckDisplay display) throws Exception {
+        Field presentationCompositeField = DuckDisplay.class.getDeclaredField("presentationCompositeImage");
+        presentationCompositeField.setAccessible(true);
+        return (BufferedImage) presentationCompositeField.get(display);
+    }
+
+    private static BufferedImage resolvePresentationComposite(DuckDisplay display, int width, int height) throws Exception {
+        Method resolvePresentationCompositeMethod = DuckDisplay.class.getDeclaredMethod(
+                "resolvePresentationComposite",
+                BufferedImage.class,
+                LoadedDisplayBorder.class,
+                int.class,
+                int.class);
+        resolvePresentationCompositeMethod.setAccessible(true);
+        return (BufferedImage) resolvePresentationCompositeMethod.invoke(
+                display,
+                currentImage(display),
+                activeBorder(display),
+                width,
+                height);
+    }
+
+    private static BufferedImage currentImage(DuckDisplay display) throws Exception {
+        Field imageField = DuckDisplay.class.getDeclaredField("image");
+        imageField.setAccessible(true);
+        return (BufferedImage) imageField.get(display);
+    }
+
+    private static LoadedDisplayBorder activeBorder(DuckDisplay display) throws Exception {
+        Field activeBorderField = DuckDisplay.class.getDeclaredField("activeBorder");
+        activeBorderField.setAccessible(true);
+        return (LoadedDisplayBorder) activeBorderField.get(display);
+    }
+
     private static void waitForLatch(CountDownLatch latch) throws InterruptedException {
         assertTrue(latch.await(2, TimeUnit.SECONDS));
     }
@@ -212,6 +335,11 @@ class DuckDisplayTest {
             Thread.sleep(10L);
         }
         assertEquals(expectedRgb, paintBuffer(display)[0]);
+    }
+
+    private static void flushEdt() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+        });
     }
 
     private static final class ControlledAsyncShader implements DisplayShader {

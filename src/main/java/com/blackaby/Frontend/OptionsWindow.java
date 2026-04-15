@@ -1934,10 +1934,35 @@ public class OptionsWindow extends DuckWindow {
         void valueChanged(int newValue, boolean adjusting);
     }
 
+    static final class ResponsiveLayoutState {
+        private int columns = -1;
+        private int geometryKey = -1;
+        private int widthBucket = -1;
+
+        boolean update(int columns, int geometryKey, int widthBucket) {
+            if (this.columns == columns
+                    && this.geometryKey == geometryKey
+                    && this.widthBucket == widthBucket) {
+                return false;
+            }
+            this.columns = columns;
+            this.geometryKey = geometryKey;
+            this.widthBucket = widthBucket;
+            return true;
+        }
+
+        void clear() {
+            columns = -1;
+            geometryKey = -1;
+            widthBucket = -1;
+        }
+    }
+
     private static final class ResponsiveTileGridPanel extends JPanel {
         private final int minTileWidth;
         private final int maxColumns;
         private final int gap = 10;
+        private final ResponsiveLayoutState layoutState = new ResponsiveLayoutState();
 
         private ResponsiveTileGridPanel(int minTileWidth) {
             this(minTileWidth, Integer.MAX_VALUE);
@@ -1951,9 +1976,14 @@ public class OptionsWindow extends DuckWindow {
             addComponentListener(new ComponentAdapter() {
                 @Override
                 public void componentResized(ComponentEvent event) {
-                    revalidate();
-                    if (getParent() != null) {
-                        getParent().revalidate();
+                    int availableWidth = Math.max(0, getWidth());
+                    int columns = computeColumns(availableWidth);
+                    int cellWidth = columns <= 0
+                            ? 0
+                            : Math.max(0, (availableWidth - (gap * (columns - 1))) / columns);
+                    int widthBucket = cellWidth <= 0 ? 0 : Math.max(1, cellWidth / 24);
+                    if (layoutState.update(columns, widthBucket, widthBucket)) {
+                        revalidate();
                     }
                 }
             });
@@ -2075,6 +2105,7 @@ public class OptionsWindow extends DuckWindow {
     private static final class ResponsiveAudioKnobPanel extends JPanel {
         private final int knobCount;
         private static final int gap = 10;
+        private final ResponsiveLayoutState layoutState = new ResponsiveLayoutState();
 
         private ResponsiveAudioKnobPanel(int knobCount) {
             super(null);
@@ -2083,9 +2114,14 @@ public class OptionsWindow extends DuckWindow {
             addComponentListener(new ComponentAdapter() {
                 @Override
                 public void componentResized(ComponentEvent event) {
-                    revalidate();
-                    if (getParent() != null) {
-                        getParent().revalidate();
+                    int availableWidth = Math.max(0, getWidth());
+                    int columns = computeColumns(availableWidth);
+                    int cellWidth = columns <= 0
+                            ? 0
+                            : Math.max(0, (availableWidth - (gap * (columns - 1))) / columns);
+                    int rowHeight = computeRowHeight(cellWidth);
+                    if (layoutState.update(columns, rowHeight, rowHeight)) {
+                        revalidate();
                     }
                 }
             });
@@ -2307,7 +2343,11 @@ public class OptionsWindow extends DuckWindow {
         }
 
         private void SetCompactWidth(int width, int height) {
-            compactVisuals = width < 116 || height < 98;
+            boolean nextCompactVisuals = width < 116 || height < 98;
+            if (compactVisuals != nextCompactVisuals) {
+                compactVisuals = nextCompactVisuals;
+                repaint();
+            }
         }
 
         private void SetValue(int newValue) {

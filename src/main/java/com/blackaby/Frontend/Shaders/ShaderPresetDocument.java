@@ -22,7 +22,6 @@ public final class ShaderPresetDocument {
     private String id;
     private String name;
     private String description;
-    private int renderScale;
     private final List<ShaderPassConfig> passes = new ArrayList<>();
 
     public ShaderPresetDocument(String id, String name, String description, int renderScale,
@@ -30,9 +29,13 @@ public final class ShaderPresetDocument {
         this.id = requireNonBlank(id, "id");
         this.name = requireNonBlank(name, "name");
         this.description = description == null ? "" : description.trim();
-        this.renderScale = clampRenderScale(renderScale);
         if (passes != null) {
             this.passes.addAll(passes);
+        }
+        if (renderScale > 1 && findLastRenderScalePassIndex() < 0) {
+            ShaderPassConfig renderScalePass = ShaderPassType.RENDER_SCALE.createDefaultPass();
+            renderScalePass.setValue("scale", clampRenderScale(renderScale));
+            this.passes.add(0, renderScalePass);
         }
     }
 
@@ -41,7 +44,7 @@ public final class ShaderPresetDocument {
                 suggestedIdFromFileName(suggestedFileName),
                 "Custom Shader",
                 "Describe the look here",
-                2,
+                1,
                 List.of(
                         ShaderPassType.COLOR_GRADE.createDefaultPass(),
                         ShaderPassType.PIXEL_GRID.createDefaultPass(),
@@ -96,7 +99,6 @@ public final class ShaderPresetDocument {
         root.addProperty("id", requireNonBlank(id, "id"));
         root.addProperty("name", requireNonBlank(name, "name"));
         root.addProperty("description", description == null ? "" : description);
-        root.addProperty("renderScale", clampRenderScale(renderScale));
 
         JsonArray passArray = new JsonArray();
         for (ShaderPassConfig pass : passes) {
@@ -119,7 +121,13 @@ public final class ShaderPresetDocument {
     }
 
     public LoadedDisplayShader toLoadedShader(String sourceLabel, Path sourcePath) {
-        return new LoadedDisplayShader(toShader(), sourceLabel, sourcePath, renderScale);
+        JsonObject snapshot = toJsonObject();
+        return new LoadedDisplayShader(
+                toShader(),
+                sourceLabel,
+                sourcePath,
+                renderScale(),
+                () -> ShaderPresetDocument.fromJsonObject(snapshot.deepCopy()).toShader());
     }
 
     public String id() {
@@ -147,15 +155,40 @@ public final class ShaderPresetDocument {
     }
 
     public int renderScale() {
+        int renderScale = 1;
+        for (ShaderPassConfig pass : passes) {
+            if (pass != null && pass.type() == ShaderPassType.RENDER_SCALE) {
+                renderScale *= clampRenderScale(pass.intValue("scale"));
+            }
+        }
         return renderScale;
     }
 
     public void setRenderScale(int renderScale) {
-        this.renderScale = clampRenderScale(renderScale);
+        int clampedRenderScale = clampRenderScale(renderScale);
+        int existingIndex = findLastRenderScalePassIndex();
+        if (existingIndex >= 0) {
+            passes.get(existingIndex).setValue("scale", clampedRenderScale);
+            return;
+        }
+
+        ShaderPassConfig renderScalePass = ShaderPassType.RENDER_SCALE.createDefaultPass();
+        renderScalePass.setValue("scale", clampedRenderScale);
+        passes.add(renderScalePass);
     }
 
     public List<ShaderPassConfig> passes() {
         return passes;
+    }
+
+    private int findLastRenderScalePassIndex() {
+        for (int index = passes.size() - 1; index >= 0; index--) {
+            ShaderPassConfig pass = passes.get(index);
+            if (pass != null && pass.type() == ShaderPassType.RENDER_SCALE) {
+                return index;
+            }
+        }
+        return -1;
     }
 
     public static String suggestedIdFromFileName(String suggestedFileName) {
@@ -171,6 +204,32 @@ public final class ShaderPresetDocument {
                 .replaceAll("[^a-z0-9]+", "_")
                 .replaceAll("^_+|_+$", "");
         return presetId.isBlank() ? "custom_shader" : presetId;
+    }
+
+    public static String fileStemFromShaderId(String shaderId) {
+        String trimmedId = shaderId == null ? "" : shaderId.trim();
+        if (trimmedId.toLowerCase(Locale.ROOT).endsWith(".json")) {
+            trimmedId = trimmedId.substring(0, trimmedId.length() - 5).trim();
+        }
+        if (trimmedId.isBlank()) {
+            throw new IllegalArgumentException("Shader name cannot be blank.");
+        }
+        if (".".equals(trimmedId) || "..".equals(trimmedId)
+                || trimmedId.contains("/") || trimmedId.contains("\\")) {
+            throw new IllegalArgumentException("Shader name must stay inside the shader folder.");
+        }
+        for (int index = 0; index < trimmedId.length(); index++) {
+            char character = trimmedId.charAt(index);
+            if (character < 32 || "<>:\"|?*".indexOf(character) >= 0) {
+                throw new IllegalArgumentException(
+                        "Shader name contains characters that cannot be used in a preset file.");
+            }
+        }
+        return trimmedId;
+    }
+
+    public static String fileNameFromShaderId(String shaderId) {
+        return fileStemFromShaderId(shaderId) + ".json";
     }
 
     private static String requireNonBlank(String value, String fieldName) {
@@ -234,6 +293,18 @@ public final class ShaderPresetDocument {
     }
 
     public enum ShaderPassType {
+        RENDER_SCALE(
+                "render_scale",
+                "Render Scale",
+                "Multiply the current render scale by this amount.",
+                List.of(
+                        new ShaderParameterDefinition("scale", "Scale", ParameterValueType.INTEGER, 1.00, 6.00,
+                                1.00, 2.00))) {
+            @Override
+            PipelineDisplayShader.ShaderPass toRuntimePass(ShaderPassConfig pass) {
+                return new PipelineDisplayShader.RenderScalePass(pass.intValue("scale"));
+            }
+        },
         COLOR_GRADE(
                 "color_grade",
                 "Color Grade",
@@ -318,13 +389,19 @@ public final class ShaderPresetDocument {
                         new ShaderParameterDefinition("rowSpacing", "Row Spacing", ParameterValueType.INTEGER, 1.00,
                                 8.00, 1.00, 2.00),
                         new ShaderParameterDefinition("columnSpacing", "Column Spacing", ParameterValueType.INTEGER,
-                                1.00, 8.00, 1.00, 2.00))) {
+                                1.00, 8.00, 1.00, 2.00),
+                        new ShaderParameterDefinition("rowLineWidth", "Row Line Width", ParameterValueType.INTEGER,
+                                1.00, 8.00, 1.00, 1.00),
+                        new ShaderParameterDefinition("columnLineWidth", "Column Line Width", ParameterValueType.INTEGER,
+                                1.00, 8.00, 1.00, 1.00))) {
             @Override
             PipelineDisplayShader.ShaderPass toRuntimePass(ShaderPassConfig pass) {
                 return new PipelineDisplayShader.PixelGridPass(
                         pass.doubleValue("intensity"),
                         pass.intValue("rowSpacing"),
-                        pass.intValue("columnSpacing"));
+                        pass.intValue("columnSpacing"),
+                        pass.intValue("rowLineWidth"),
+                        pass.intValue("columnLineWidth"));
             }
         },
         PIXEL_OUTLINE(

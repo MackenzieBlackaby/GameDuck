@@ -3,6 +3,7 @@ package com.blackaby.Frontend;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.blackaby.Frontend.Shaders.DisplayShaderManager;
@@ -62,10 +63,11 @@ class DisplayShaderManagerTest {
         DisplayShaderManager.Reload();
 
         LoadedDisplayShader shader = DisplayShaderManager.Resolve("dot_matrix");
-        int[] source = new int[] {
-                0x7CB060, 0x7CB060,
-                0x7CB060, 0x7CB060
-        };
+        int[] source = new int[2 * 2 * shader.renderScale() * shader.renderScale()];
+        source[0] = 0x7CB060;
+        source[1] = 0x7CB060;
+        source[2] = 0x7CB060;
+        source[3] = 0x7CB060;
         int[] target = new int[source.length];
         int[] scratch = new int[source.length];
         shader.apply(source, target, scratch, 2, 2);
@@ -73,6 +75,19 @@ class DisplayShaderManagerTest {
         assertEquals("Dot Matrix", shader.displayName());
         assertEquals(4, shader.renderScale());
         assertNotEquals(source[0], target[0]);
+    }
+
+    @Test
+    void resolvedJsonShadersCanCreateFreshRenderInstances() {
+        DisplayShaderManager.Reload();
+
+        LoadedDisplayShader resolvedShader = DisplayShaderManager.Resolve("dot_matrix");
+        LoadedDisplayShader renderShaderA = resolvedShader.createRenderInstance();
+        LoadedDisplayShader renderShaderB = resolvedShader.createRenderInstance();
+
+        assertNotSame(resolvedShader.shader(), renderShaderA.shader());
+        assertNotSame(renderShaderA.shader(), renderShaderB.shader());
+        assertEquals(resolvedShader.displayName(), renderShaderA.displayName());
     }
 
     @Test

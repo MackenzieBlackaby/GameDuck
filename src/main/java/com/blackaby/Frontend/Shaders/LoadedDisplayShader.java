@@ -1,6 +1,7 @@
 package com.blackaby.Frontend.Shaders;
 
 import java.nio.file.Path;
+import java.util.function.Supplier;
 
 /**
  * Metadata wrapper around a loaded display shader instance.
@@ -9,10 +10,15 @@ public record LoadedDisplayShader(
         DisplayShader shader,
         String sourceLabel,
         Path sourcePath,
-        int renderScale) {
+        int renderScale,
+        Supplier<DisplayShader> runtimeFactory) {
+
+    public LoadedDisplayShader(DisplayShader shader, String sourceLabel, Path sourcePath, int renderScale) {
+        this(shader, sourceLabel, sourcePath, renderScale, null);
+    }
 
     public LoadedDisplayShader {
-        renderScale = Math.max(1, Math.min(6, renderScale));
+        renderScale = Math.max(1, renderScale);
     }
 
     /**
@@ -62,6 +68,32 @@ public record LoadedDisplayShader(
      */
     public boolean prefersAsyncRendering() {
         return shader.PreferAsyncRendering();
+    }
+
+    /**
+     * Returns an isolated runtime shader instance when the shader can be cloned.
+     *
+     * @return render-ready shader wrapper
+     */
+    public LoadedDisplayShader createRenderInstance() {
+        if (runtimeFactory == null) {
+            return this;
+        }
+
+        DisplayShader nextShader = runtimeFactory.get();
+        if (nextShader == null || nextShader == shader) {
+            return this;
+        }
+        return new LoadedDisplayShader(nextShader, sourceLabel, sourcePath, renderScale, runtimeFactory);
+    }
+
+    /**
+     * Returns the source scale that should be prepared before shader execution.
+     *
+     * @return integer source render scale
+     */
+    public int sourceRenderScale() {
+        return shader instanceof PipelineDisplayShader ? 1 : renderScale;
     }
 
     /**

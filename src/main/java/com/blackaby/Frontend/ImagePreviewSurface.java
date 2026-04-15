@@ -11,6 +11,7 @@ import java.awt.image.BufferedImage;
 final class ImagePreviewSurface extends JPanel {
 
     private final String placeholderText;
+    private final boolean pixelPerfect;
     private BufferedImage image;
     private BufferedImage scaledImage;
     private int scaledImageWidth = -1;
@@ -19,7 +20,12 @@ final class ImagePreviewSurface extends JPanel {
     private int scaledImageSourceHeight = -1;
 
     ImagePreviewSurface(String placeholderText, int preferredWidth, int preferredHeight) {
+        this(placeholderText, preferredWidth, preferredHeight, false);
+    }
+
+    ImagePreviewSurface(String placeholderText, int preferredWidth, int preferredHeight, boolean pixelPerfect) {
         this.placeholderText = placeholderText == null ? "" : placeholderText;
+        this.pixelPerfect = pixelPerfect;
         setOpaque(true);
         setBackground(new Color(234, 241, 248));
         setPreferredSize(new Dimension(preferredWidth, preferredHeight));
@@ -75,9 +81,28 @@ final class ImagePreviewSurface extends JPanel {
             return scaledImage;
         }
 
-        double scale = Math.min(getWidth() / (double) image.getWidth(), getHeight() / (double) image.getHeight());
-        int targetWidth = Math.max(1, (int) Math.round(image.getWidth() * scale));
-        int targetHeight = Math.max(1, (int) Math.round(image.getHeight() * scale));
+        int targetWidth;
+        int targetHeight;
+        if (pixelPerfect) {
+            double widthRatio = getWidth() / (double) image.getWidth();
+            double heightRatio = getHeight() / (double) image.getHeight();
+            double scaleRatio = Math.min(widthRatio, heightRatio);
+            if (scaleRatio >= 1.0) {
+                int integerScale = Math.max(1, (int) Math.floor(scaleRatio));
+                targetWidth = image.getWidth() * integerScale;
+                targetHeight = image.getHeight() * integerScale;
+            } else {
+                int downscaleDivisor = Math.max(1, (int) Math.ceil(Math.max(
+                        image.getWidth() / (double) getWidth(),
+                        image.getHeight() / (double) getHeight())));
+                targetWidth = Math.max(1, image.getWidth() / downscaleDivisor);
+                targetHeight = Math.max(1, image.getHeight() / downscaleDivisor);
+            }
+        } else {
+            double scale = Math.min(getWidth() / (double) image.getWidth(), getHeight() / (double) image.getHeight());
+            targetWidth = Math.max(1, (int) Math.round(image.getWidth() * scale));
+            targetHeight = Math.max(1, (int) Math.round(image.getHeight() * scale));
+        }
 
         BufferedImage nextScaledImage = new BufferedImage(
                 targetWidth,

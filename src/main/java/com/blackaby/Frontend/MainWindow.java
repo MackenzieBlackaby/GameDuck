@@ -117,8 +117,6 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private volatile String lastDisplayStatsText = UiText.MainWindow.DISPLAY_HINT;
     private volatile boolean recentGamesMenuDirty = true;
     private volatile int cachedRecentGamesMenuLimit = -1;
-    private volatile boolean serialOutputStreamingActive;
-    private volatile boolean serialOutputDirty;
 
     private JMenuBar menuBar;
     private JLabel romLabel;
@@ -133,6 +131,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private JLabel gameArtHintLabel;
     private JLabel gameArtLabel;
     private JPanel headerPanel;
+    private JPanel embeddedDisplaySurface;
     private JPanel displayWrapper;
     private JPanel displayCard;
     private JPanel displayStagePanel;
@@ -282,14 +281,14 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         displayFrame.setBackground(Styling.displayFrameColour);
         displayFrame.setBorder(createDisplayFrameBorder());
 
-        JPanel displaySurface = new JPanel(new BorderLayout());
-        displaySurface.setOpaque(false);
-        displaySurface.add(display, BorderLayout.CENTER);
+        embeddedDisplaySurface = new JPanel(new BorderLayout());
+        embeddedDisplaySurface.setOpaque(false);
+        embeddedDisplaySurface.add(display, BorderLayout.CENTER);
 
         displayStagePanel = new JPanel(new CardLayout());
         displayStagePanel.setOpaque(false);
         displayStagePanel.add(BuildDisplayEmptyState(), DISPLAY_STAGE_EMPTY);
-        displayStagePanel.add(displaySurface, DISPLAY_STAGE_ACTIVE);
+        displayStagePanel.add(embeddedDisplaySurface, DISPLAY_STAGE_ACTIVE);
 
         displayFrame.add(displayStagePanel, BorderLayout.CENTER);
 
@@ -729,7 +728,6 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             boolean fillWindow = Settings.fillWindowOutput;
             boolean showSerial = Settings.showSerialOutput;
             boolean showGameArt = Settings.gameArtDisplayMode != GameArtDisplayMode.NONE;
-            boolean serialVisible = !fillWindow && showSerial;
             SyncFullViewActionState(fillWindow);
 
             getContentPane().setBackground(fillWindow ? Styling.displayBackgroundColour : Styling.appBackgroundColour);
@@ -770,12 +768,13 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
                 displayFrame.setBackground(Styling.displayFrameColour);
                 displayFrame.setBorder(fillWindow ? BorderFactory.createEmptyBorder() : createDisplayFrameBorder());
             }
-            serialOutputStreamingActive = serialVisible;
-            if (serialVisible) {
-                syncSerialOutputFromLoggerIfNeeded();
+            if (!fillWindow && showSerial) {
+                SetSerialOutput(DebugLogger.GetSerialOutput());
             } else {
-                serialOutputDirty = true;
-                clearPendingSerialUiBuffer();
+                synchronized (pendingSerialAppend) {
+                    pendingSerialAppend.setLength(0);
+                }
+                serialAppendQueued.set(false);
             }
             updateDisplayStage();
             revalidate();
@@ -1011,11 +1010,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     }
 
     private void AppendSerialOutput(String text) {
-        if (serialOutputArea == null || text == null || text.isEmpty()) {
-            return;
-        }
-        if (!serialOutputStreamingActive) {
-            serialOutputDirty = true;
+        if (text == null || text.isEmpty() || !shouldUpdateSerialOutputUi()) {
             return;
         }
 
@@ -1032,12 +1027,11 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
     private void SetSerialOutput(String text) {
         Runnable set = () -> {
-            if (serialOutputArea == null) {
+            if (serialOutputArea == null || !shouldUpdateSerialOutputUi()) {
                 return;
             }
             serialOutputArea.setText(text == null ? "" : text);
             serialOutputArea.setCaretPosition(serialOutputArea.getDocument().getLength());
-            serialOutputDirty = false;
         };
 
         if (SwingUtilities.isEventDispatchThread()) {
@@ -1048,9 +1042,13 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     }
 
     private void ClearSerialOutput() {
-        clearPendingSerialUiBuffer();
-        serialOutputDirty = false;
-        SetSerialOutput("");
+        synchronized (pendingSerialAppend) {
+            pendingSerialAppend.setLength(0);
+        }
+        serialAppendQueued.set(false);
+        if (shouldUpdateSerialOutputUi()) {
+            SetSerialOutput("");
+        }
     }
 
     private void FlushPendingSerialOutput() {
@@ -1061,11 +1059,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         }
 
         serialAppendQueued.set(false);
-        if (serialOutputArea == null || text.isEmpty()) {
-            return;
-        }
-        if (!serialOutputStreamingActive) {
-            serialOutputDirty = true;
+        if (text.isEmpty() || !shouldUpdateSerialOutputUi()) {
             return;
         }
 
@@ -1492,8 +1486,16 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
         if (!nextText.equals(lastDisplayStatsText)) {
             lastDisplayStatsText = nextText;
-            displayHintLabel.setText(nextText);
+            if (!Settings.fillWindowOutput) {
+                displayHintLabel.setText(nextText);
+            }
         }
+    }
+
+    private boolean shouldUpdateSerialOutputUi() {
+        return serialOutputArea != null
+                && Settings.showSerialOutput
+                && !Settings.fillWindowOutput;
     }
 
     private void updateDisplayStage() {
@@ -1502,7 +1504,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         }
 
         CardLayout layout = (CardLayout) displayStagePanel.getLayout();
-        boolean showEmptyState = currentLoadedGame == null && Settings.fillWindowOutput;
+        boolean showEmptyState = currentLoadedGame == null;
         layout.show(displayStagePanel, showEmptyState ? DISPLAY_STAGE_EMPTY : DISPLAY_STAGE_ACTIVE);
     }
 
@@ -1515,17 +1517,4 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         }
     }
 
-    private void clearPendingSerialUiBuffer() {
-        synchronized (pendingSerialAppend) {
-            pendingSerialAppend.setLength(0);
-        }
-        serialAppendQueued.set(false);
-    }
-
-    private void syncSerialOutputFromLoggerIfNeeded() {
-        if (!serialOutputStreamingActive || !serialOutputDirty) {
-            return;
-        }
-        SetSerialOutput(DebugLogger.GetSerialOutput());
-    }
 }

@@ -40,6 +40,8 @@ import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.GridLayout;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -64,25 +66,17 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     private final JTextField shaderIdField = new JTextField();
     private final JTextField shaderNameField = new JTextField();
     private final JTextField descriptionField = new JTextField();
-    private final JSpinner renderScaleSpinner = new JSpinner(new SpinnerNumberModel(2, 1, 6, 1));
     private final JLabel statusValueLabel = new JLabel();
     private final JLabel selectedPassDescriptionLabel = new JLabel(UiText.ShaderEditorWindow.PASS_PARAMETERS_EMPTY);
-    private final JLabel previewStatusLabel = new JLabel();
     private final JList<PresetFileEntry> presetList = new JList<>(presetListModel);
     private final JList<ShaderPassConfig> passChainList = new JList<>(passChainModel);
     private final JComboBox<ShaderPassType> addPassSelector = new JComboBox<>(ShaderPassType.values());
     private final JLabel addPassDescriptionLabel = new JLabel();
     private final JPanel passParameterPanel = new JPanel(new GridBagLayout());
-    private final ImagePreviewSurface sourcePreviewSurface = new ImagePreviewSurface(
-            UiText.ShaderEditorWindow.PREVIEW_UNAVAILABLE,
-            280,
-            210);
-    private final ImagePreviewSurface outputPreviewSurface = new ImagePreviewSurface(
-            UiText.ShaderEditorWindow.PREVIEW_UNAVAILABLE,
-            280,
-            210);
     private final AtomicInteger previewRequestVersion = new AtomicInteger();
     private final Timer previewRefreshTimer;
+    private String currentPresetRelativePath;
+    private LivePreviewWindow livePreviewWindow;
     private boolean updatingSelection;
     private boolean updatingEditor;
 
@@ -95,6 +89,8 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         getContentPane().setBackground(Styling.appBackgroundColour);
         previewRefreshTimer = new Timer(140, event -> refreshPreviewAsync());
         previewRefreshTimer.setRepeats(false);
+        fileNameField.setEditable(false);
+        fileNameField.setFocusable(false);
 
         add(buildHeader(), BorderLayout.NORTH);
         add(buildBody(), BorderLayout.CENTER);
@@ -241,12 +237,11 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         topRow.add(fileFieldCard, BorderLayout.CENTER);
         topRow.add(statusCard, BorderLayout.EAST);
 
-        JPanel metadataGrid = new JPanel(new GridLayout(2, 2, 10, 10));
+        JPanel metadataGrid = new JPanel(new GridLayout(1, 3, 10, 10));
         metadataGrid.setOpaque(false);
         metadataGrid.add(createLabeledFieldPanel(UiText.ShaderEditorWindow.SHADER_ID_LABEL, shaderIdField));
         metadataGrid.add(createLabeledFieldPanel(UiText.ShaderEditorWindow.SHADER_NAME_LABEL, shaderNameField));
         metadataGrid.add(createLabeledFieldPanel(UiText.ShaderEditorWindow.DESCRIPTION_LABEL, descriptionField));
-        metadataGrid.add(createLabeledSpinnerPanel(UiText.ShaderEditorWindow.RENDER_SCALE_LABEL, renderScaleSpinner));
 
         stack.add(topRow);
         stack.add(javax.swing.Box.createVerticalStrut(10));
@@ -301,9 +296,6 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
 
         addText.add(addTitle);
         addText.add(javax.swing.Box.createVerticalStrut(8));
-        addText.add(addPassSelector);
-        addText.add(javax.swing.Box.createVerticalStrut(8));
-        addText.add(addPassDescriptionLabel);
 
         JButton addButton = WindowUiSupport.createSecondaryButton(
                 UiText.ShaderEditorWindow.ADD_TO_CHAIN_BUTTON,
@@ -311,12 +303,16 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
                 Styling.surfaceBorderColour);
         addButton.addActionListener(event -> addSelectedPassType());
 
-        JPanel addButtonWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        addButtonWrap.setOpaque(false);
-        addButtonWrap.add(addButton);
+        JPanel addControls = new JPanel(new BorderLayout(10, 0));
+        addControls.setOpaque(false);
+        addControls.add(addPassSelector, BorderLayout.CENTER);
+        addControls.add(addButton, BorderLayout.EAST);
+
+        addText.add(addControls);
+        addText.add(javax.swing.Box.createVerticalStrut(8));
+        addText.add(addPassDescriptionLabel);
 
         addCard.add(addText, BorderLayout.CENTER);
-        addCard.add(addButtonWrap, BorderLayout.EAST);
 
         JPanel chainCard = new JPanel(new BorderLayout(12, 0));
         chainCard.setBackground(Styling.cardTintColour);
@@ -343,24 +339,31 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         passChainList.setForeground(Styling.accentColour);
         passChainList.setSelectionBackground(Styling.listSelectionColour);
         passChainList.setSelectionForeground(Styling.accentColour);
-        passChainList.setFixedCellHeight(32);
+        passChainList.setFixedCellHeight(36);
         passChainList.setBorder(WindowUiSupport.createLineBorder(Styling.surfaceBorderColour));
-        passChainList.setCellRenderer(new DefaultListCellRenderer() {
-            @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected,
-                    boolean cellHasFocus) {
-                JLabel label = (JLabel) super.getListCellRendererComponent(list, value, index, isSelected,
-                        cellHasFocus);
-                if (value instanceof ShaderPassConfig passConfig) {
-                    label.setText(UiText.ShaderEditorWindow.PassChainItemLabel(index, passConfig.type().label()));
-                }
-                label.setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 8));
-                return label;
-            }
-        });
+        passChainList.setCellRenderer((list, value, index, isSelected, cellHasFocus) ->
+                createPassChainCell((ShaderPassConfig) value, index, isSelected));
         passChainList.addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) {
                 rebuildPassParameterPanel();
+            }
+        });
+        passChainList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent event) {
+                int index = passChainList.locationToIndex(event.getPoint());
+                if (index < 0 || index >= passChainModel.size()) {
+                    return;
+                }
+
+                java.awt.Rectangle cellBounds = passChainList.getCellBounds(index, index);
+                if (cellBounds == null || !cellBounds.contains(event.getPoint())) {
+                    return;
+                }
+
+                if (event.getX() >= cellBounds.x + cellBounds.width - 34) {
+                    removePassAt(index);
+                }
             }
         });
 
@@ -371,43 +374,24 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
 
         JPanel chainPanel = new JPanel(new BorderLayout(0, 8));
         chainPanel.setOpaque(false);
-        chainPanel.add(chainText, BorderLayout.NORTH);
+        JPanel chainHeader = new JPanel(new BorderLayout(12, 0));
+        chainHeader.setOpaque(false);
+        chainHeader.add(chainText, BorderLayout.CENTER);
+        chainHeader.add(createMovePassButtonGroup(), BorderLayout.EAST);
+        chainPanel.add(chainHeader, BorderLayout.NORTH);
         chainPanel.add(chainScrollPane, BorderLayout.CENTER);
-
-        JPanel chainControls = new JPanel(new GridLayout(4, 1, 0, 8));
-        chainControls.setOpaque(false);
-
-        JButton moveUpButton = WindowUiSupport.createSecondaryButton(
-                UiText.ShaderEditorWindow.MOVE_UP_BUTTON,
-                Styling.accentColour,
-                Styling.surfaceBorderColour);
-        moveUpButton.addActionListener(event -> moveSelectedPass(-1));
-
-        JButton moveDownButton = WindowUiSupport.createSecondaryButton(
-                UiText.ShaderEditorWindow.MOVE_DOWN_BUTTON,
-                Styling.accentColour,
-                Styling.surfaceBorderColour);
-        moveDownButton.addActionListener(event -> moveSelectedPass(1));
-
-        JButton removeButton = WindowUiSupport.createSecondaryButton(
-                UiText.ShaderEditorWindow.REMOVE_BUTTON,
-                Styling.accentColour,
-                Styling.surfaceBorderColour);
-        removeButton.addActionListener(event -> removeSelectedPass());
 
         JButton clearButton = WindowUiSupport.createSecondaryButton(
                 UiText.ShaderEditorWindow.CLEAR_CHAIN_BUTTON,
                 Styling.accentColour,
                 Styling.surfaceBorderColour);
         clearButton.addActionListener(event -> clearPassChain());
-
-        chainControls.add(moveUpButton);
-        chainControls.add(moveDownButton);
-        chainControls.add(removeButton);
-        chainControls.add(clearButton);
+        JPanel clearButtonRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        clearButtonRow.setOpaque(false);
+        clearButtonRow.add(clearButton);
+        chainPanel.add(clearButtonRow, BorderLayout.SOUTH);
 
         chainCard.add(chainPanel, BorderLayout.CENTER);
-        chainCard.add(chainControls, BorderLayout.EAST);
 
         JPanel body = new JPanel();
         body.setLayout(new javax.swing.BoxLayout(body, javax.swing.BoxLayout.Y_AXIS));
@@ -424,59 +408,8 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         JPanel inspector = new JPanel();
         inspector.setLayout(new javax.swing.BoxLayout(inspector, javax.swing.BoxLayout.Y_AXIS));
         inspector.setOpaque(false);
-        inspector.add(buildPreviewCard());
-        inspector.add(javax.swing.Box.createVerticalStrut(12));
         inspector.add(buildPassInspectorCard());
         return inspector;
-    }
-
-    private JComponent buildPreviewCard() {
-        JPanel card = new JPanel(new BorderLayout(0, 10));
-        card.setBackground(Styling.cardTintColour);
-        card.setBorder(WindowUiSupport.createCardBorder(Styling.surfaceBorderColour, false, 14));
-
-        JPanel text = new JPanel();
-        text.setLayout(new javax.swing.BoxLayout(text, javax.swing.BoxLayout.Y_AXIS));
-        text.setOpaque(false);
-
-        JLabel title = new JLabel(UiText.ShaderEditorWindow.PREVIEW_TITLE);
-        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        title.setForeground(Styling.accentColour);
-
-        JLabel helper = new JLabel(UiText.ShaderEditorWindow.PREVIEW_HELPER);
-        helper.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
-        helper.setForeground(Styling.mutedTextColour);
-
-        text.add(title);
-        text.add(javax.swing.Box.createVerticalStrut(4));
-        text.add(helper);
-
-        JPanel previewGrid = new JPanel(new GridLayout(1, 2, 10, 0));
-        previewGrid.setOpaque(false);
-        previewGrid.add(createPreviewPane(UiText.ShaderEditorWindow.SOURCE_PREVIEW_LABEL, sourcePreviewSurface));
-        previewGrid.add(createPreviewPane(UiText.ShaderEditorWindow.OUTPUT_PREVIEW_LABEL, outputPreviewSurface));
-
-        previewStatusLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
-        previewStatusLabel.setForeground(Styling.mutedTextColour);
-
-        card.add(text, BorderLayout.NORTH);
-        card.add(previewGrid, BorderLayout.CENTER);
-        card.add(previewStatusLabel, BorderLayout.SOUTH);
-        return card;
-    }
-
-    private JComponent createPreviewPane(String titleText, ImagePreviewSurface surface) {
-        JPanel panel = new JPanel(new BorderLayout(0, 6));
-        panel.setOpaque(false);
-
-        JLabel title = new JLabel(titleText);
-        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
-        title.setForeground(Styling.accentColour);
-
-        surface.setBorder(WindowUiSupport.createLineBorder(Styling.surfaceBorderColour));
-        panel.add(title, BorderLayout.NORTH);
-        panel.add(surface, BorderLayout.CENTER);
-        return panel;
     }
 
     private JComponent buildPassInspectorCard() {
@@ -529,6 +462,12 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
                 Styling.surfaceBorderColour);
         openFolderButton.addActionListener(event -> openShaderDirectory());
 
+        JButton livePreviewButton = WindowUiSupport.createSecondaryButton(
+                UiText.ShaderEditorWindow.OPEN_LIVE_PREVIEW_BUTTON,
+                Styling.accentColour,
+                Styling.surfaceBorderColour);
+        livePreviewButton.addActionListener(event -> openLivePreview());
+
         JButton closeButton = WindowUiSupport.createSecondaryButton(
                 UiText.ShaderEditorWindow.CLOSE_BUTTON,
                 Styling.accentColour,
@@ -542,9 +481,58 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
 
         actions.add(reloadButton);
         actions.add(openFolderButton);
+        actions.add(livePreviewButton);
         actions.add(closeButton);
         actions.add(saveButton);
         return actions;
+    }
+
+    private Component createPassChainCell(ShaderPassConfig passConfig, int index, boolean isSelected) {
+        JPanel row = new JPanel(new BorderLayout(8, 0));
+        row.setOpaque(true);
+        row.setBackground(isSelected ? Styling.listSelectionColour : Styling.surfaceColour);
+        row.setBorder(BorderFactory.createEmptyBorder(2, 8, 2, 6));
+
+        JLabel label = new JLabel(UiText.ShaderEditorWindow.PassChainItemLabel(index, passConfig.type().label()));
+        label.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+        label.setForeground(Styling.accentColour);
+
+        JLabel removeLabel = new JLabel("-");
+        removeLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        removeLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+        removeLabel.setPreferredSize(new Dimension(24, 24));
+        removeLabel.setOpaque(true);
+        removeLabel.setForeground(Styling.accentColour);
+        removeLabel.setBackground(isSelected ? Styling.sectionHighlightColour : Styling.buttonSecondaryBackground);
+        removeLabel.setBorder(WindowUiSupport.createLineBorder(Styling.surfaceBorderColour));
+
+        row.add(label, BorderLayout.CENTER);
+        row.add(removeLabel, BorderLayout.EAST);
+        return row;
+    }
+
+    private JComponent createMovePassButtonGroup() {
+        JPanel group = new JPanel(new GridLayout(2, 1, 0, 0));
+        group.setOpaque(false);
+        group.setBorder(WindowUiSupport.createLineBorder(Styling.surfaceBorderColour));
+
+        JButton moveUpButton = WindowUiSupport.createSecondaryButton("\u2191",
+                Styling.accentColour,
+                Styling.surfaceBorderColour);
+        moveUpButton.setFont(Styling.unicodeFont.deriveFont(Font.BOLD, 13f));
+        moveUpButton.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        moveUpButton.addActionListener(event -> moveSelectedPass(-1));
+
+        JButton moveDownButton = WindowUiSupport.createSecondaryButton("\u2193",
+                Styling.accentColour,
+                Styling.surfaceBorderColour);
+        moveDownButton.setFont(Styling.unicodeFont.deriveFont(Font.BOLD, 13f));
+        moveDownButton.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
+        moveDownButton.addActionListener(event -> moveSelectedPass(1));
+
+        group.add(moveUpButton);
+        group.add(moveDownButton);
+        return group;
     }
 
     private JPanel createLabeledFieldPanel(String labelText, JTextField field) {
@@ -597,11 +585,9 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
             }
         };
 
-        fileNameField.getDocument().addDocumentListener(dirtyListener);
         shaderIdField.getDocument().addDocumentListener(dirtyListener);
         shaderNameField.getDocument().addDocumentListener(dirtyListener);
         descriptionField.getDocument().addDocumentListener(dirtyListener);
-        renderScaleSpinner.addChangeListener(event -> handleEditorChanged());
         updateAddPassDescription();
     }
 
@@ -687,11 +673,13 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     private void applyDocumentToEditor(String relativePath, ShaderPresetDocument document, String statusText) {
         updatingEditor = true;
         try {
-            fileNameField.setText(relativePath == null ? "" : relativePath);
+            currentPresetRelativePath = relativePath == null || relativePath.isBlank()
+                    ? null
+                    : relativePath.replace('\\', '/');
             shaderIdField.setText(document.id());
             shaderNameField.setText(document.name());
             descriptionField.setText(document.description());
-            renderScaleSpinner.setValue(document.renderScale());
+            updateDerivedFileName();
 
             passChainModel.clear();
             for (ShaderPassConfig pass : document.passes()) {
@@ -713,10 +701,19 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     }
 
     private void saveCurrentPreset() {
-        String relativePath = normaliseRelativeFileName(fileNameField.getText());
+        String relativePath;
+        try {
+            relativePath = normaliseRelativeFileName(shaderIdField.getText());
+        } catch (IllegalArgumentException exception) {
+            JOptionPane.showMessageDialog(this,
+                    exception.getMessage(),
+                    UiText.ShaderEditorWindow.SAVE_FAILED_TITLE,
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
         if (relativePath == null) {
             JOptionPane.showMessageDialog(this,
-                    UiText.ShaderEditorWindow.FILE_NAME_REQUIRED,
+                    UiText.ShaderEditorWindow.SHADER_ID_REQUIRED,
                     UiText.ShaderEditorWindow.SAVE_FAILED_TITLE,
                     JOptionPane.WARNING_MESSAGE);
             return;
@@ -725,8 +722,14 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         try {
             ShaderPresetDocument document = buildDocumentForSave();
             Path targetPath = resolvePresetPath(relativePath);
+            Path previousPath = currentPresetRelativePath == null || currentPresetRelativePath.isBlank()
+                    ? null
+                    : resolvePresetPath(currentPresetRelativePath);
             Files.createDirectories(targetPath.getParent());
             Files.writeString(targetPath, document.toPrettyJson(), StandardCharsets.UTF_8);
+            if (previousPath != null && !previousPath.equals(targetPath)) {
+                Files.deleteIfExists(previousPath);
+            }
             reloadShaderLibrary();
             refreshPresetList(relativePath);
             setStatus(UiText.ShaderEditorWindow.SavedStatus(relativePath));
@@ -830,10 +833,21 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         }
     }
 
+    private void openLivePreview() {
+        if (livePreviewWindow == null || !livePreviewWindow.isDisplayable()) {
+            livePreviewWindow = new LivePreviewWindow();
+        }
+        livePreviewWindow.setVisible(true);
+        livePreviewWindow.toFront();
+        livePreviewWindow.requestFocus();
+        refreshPreviewAsync();
+    }
+
     private void handleEditorChanged() {
         if (updatingEditor) {
             return;
         }
+        updateDerivedFileName();
         setStatus(UiText.ShaderEditorWindow.UNSAVED_STATUS);
         schedulePreviewRefresh();
     }
@@ -841,7 +855,7 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     private void updateAddPassDescription() {
         Object selectedPass = addPassSelector.getSelectedItem();
         if (selectedPass instanceof ShaderPassType passType) {
-            addPassDescriptionLabel.setText(passType.description());
+            addPassDescriptionLabel.setText(asWrappedLabelHtml(passType.description(), 320));
         } else {
             addPassDescriptionLabel.setText(UiText.ShaderEditorWindow.PASS_DESCRIPTION_PLACEHOLDER);
         }
@@ -861,7 +875,7 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     }
 
     private void alignPassToCurrentRenderScale(ShaderPassConfig passConfig) {
-        int currentRenderScale = ((Number) renderScaleSpinner.getValue()).intValue();
+        int currentRenderScale = currentRenderScale();
         if (currentRenderScale <= 0) {
             return;
         }
@@ -903,13 +917,19 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
 
     private void removeSelectedPass() {
         int selectedIndex = passChainList.getSelectedIndex();
-        if (selectedIndex < 0) {
+        removePassAt(selectedIndex);
+    }
+
+    private void removePassAt(int index) {
+        if (index < 0 || index >= passChainModel.size()) {
             return;
         }
 
-        passChainModel.remove(selectedIndex);
+        passChainModel.remove(index);
         if (!passChainModel.isEmpty()) {
-            passChainList.setSelectedIndex(Math.min(selectedIndex, passChainModel.size() - 1));
+            passChainList.setSelectedIndex(Math.min(index, passChainModel.size() - 1));
+        } else {
+            passChainList.clearSelection();
         }
         handleEditorChanged();
         rebuildPassParameterPanel();
@@ -943,7 +963,7 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
             emptyLabel.setForeground(Styling.mutedTextColour);
             passParameterPanel.add(emptyLabel, emptyGbc);
         } else {
-            selectedPassDescriptionLabel.setText(selectedPass.type().description());
+            selectedPassDescriptionLabel.setText(asWrappedLabelHtml(selectedPass.type().description(), 320));
             GridBagConstraints gbc = new GridBagConstraints();
             gbc.gridx = 0;
             gbc.gridy = 0;
@@ -973,7 +993,9 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         spacer.gridy = Math.max(1, passParameterPanel.getComponentCount());
         spacer.weighty = 1.0;
         spacer.fill = GridBagConstraints.VERTICAL;
-        passParameterPanel.add(new JPanel(), spacer);
+        JPanel spacerPanel = new JPanel();
+        spacerPanel.setOpaque(false);
+        passParameterPanel.add(spacerPanel, spacer);
 
         passParameterPanel.revalidate();
         passParameterPanel.repaint();
@@ -1000,11 +1022,17 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     }
 
     private void schedulePreviewRefresh() {
+        if (livePreviewWindow == null || !livePreviewWindow.isDisplayable()) {
+            return;
+        }
         previewRefreshTimer.restart();
     }
 
     private void refreshPreviewAsync() {
         previewRefreshTimer.stop();
+        if (livePreviewWindow == null || !livePreviewWindow.isDisplayable()) {
+            return;
+        }
         int requestVersion = previewRequestVersion.incrementAndGet();
         ShaderPresetDocument previewDocument;
         try {
@@ -1034,39 +1062,43 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         if (previewRequestVersion.get() != requestVersion) {
             return;
         }
-
-        if (result == null || result.errorText() != null) {
-            sourcePreviewSurface.setImage(null);
-            outputPreviewSurface.setImage(null);
-            previewStatusLabel.setText(result == null || result.errorText() == null ? "" : result.errorText());
+        if (livePreviewWindow == null || !livePreviewWindow.isDisplayable()) {
             return;
         }
 
-        ShaderPreviewRenderer.PreviewImages previewImages = result.previewImages();
-        sourcePreviewSurface.setImage(previewImages.sourceImage());
-        outputPreviewSurface.setImage(previewImages.previewImage());
-        previewStatusLabel.setText(UiText.ShaderEditorWindow.PreviewStatus(
+        if (result == null || result.errorText() != null) {
+            livePreviewWindow.showPreview(
+                    null,
+                    result == null || result.errorText() == null ? "" : result.errorText());
+            return;
+        }
+
+        livePreviewWindow.showPreview(result.previewImages().previewImage(), UiText.ShaderEditorWindow.PreviewStatus(
                 result.document().renderScale(),
                 passChainModel.size()));
     }
 
     private ShaderPresetDocument buildDocumentForPreview() {
-        String id = shaderIdField.getText().trim();
+        String id = currentShaderId();
         String name = shaderNameField.getText().trim();
         return new ShaderPresetDocument(
-                id.isBlank() ? "preview_shader" : id,
+                id == null ? "preview_shader" : id,
                 name.isBlank() ? "Preview Shader" : name,
                 descriptionField.getText(),
-                ((Number) renderScaleSpinner.getValue()).intValue(),
+                currentRenderScale(),
                 currentPassChain());
     }
 
     private ShaderPresetDocument buildDocumentForSave() {
+        String id = currentShaderId();
+        if (id == null) {
+            throw new IllegalArgumentException(UiText.ShaderEditorWindow.SHADER_ID_REQUIRED);
+        }
         return new ShaderPresetDocument(
-                shaderIdField.getText().trim(),
+                id,
                 shaderNameField.getText().trim(),
                 descriptionField.getText(),
-                ((Number) renderScaleSpinner.getValue()).intValue(),
+                currentRenderScale(),
                 currentPassChain());
     }
 
@@ -1082,6 +1114,38 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         statusValueLabel.setText(text == null ? "" : text);
     }
 
+    private String currentShaderId() {
+        if (shaderIdField.getText() == null || shaderIdField.getText().isBlank()) {
+            return null;
+        }
+        return ShaderPresetDocument.fileStemFromShaderId(shaderIdField.getText());
+    }
+
+    private int currentRenderScale() {
+        int renderScale = 1;
+        for (int index = 0; index < passChainModel.size(); index++) {
+            if (passChainModel.get(index).type() == ShaderPassType.RENDER_SCALE) {
+                renderScale *= passChainModel.get(index).intValue("scale");
+            }
+        }
+        return renderScale;
+    }
+
+    private String asWrappedLabelHtml(String text, int width) {
+        return "<html><table width='" + Math.max(120, width) + "'><tr><td>"
+                + WindowUiSupport.escapeHtml(text == null ? "" : text)
+                + "</td></tr></table></html>";
+    }
+
+    private void updateDerivedFileName() {
+        try {
+            String shaderId = currentShaderId();
+            fileNameField.setText(shaderId == null ? "" : ShaderPresetDocument.fileNameFromShaderId(shaderId));
+        } catch (IllegalArgumentException exception) {
+            fileNameField.setText("");
+        }
+    }
+
     private Path suggestNewPresetPath() {
         Path shaderDirectory = DisplayShaderManager.ShaderDirectory();
         int index = 1;
@@ -1095,19 +1159,11 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         }
     }
 
-    private String normaliseRelativeFileName(String fileName) {
-        if (fileName == null) {
+    private String normaliseRelativeFileName(String shaderId) {
+        if (shaderId == null || shaderId.isBlank()) {
             return null;
         }
-
-        String trimmed = fileName.trim().replace('\\', '/');
-        if (trimmed.isBlank() || !trimmed.toLowerCase().endsWith(".json")) {
-            return null;
-        }
-        if (trimmed.startsWith("/") || trimmed.contains("..")) {
-            throw new IllegalArgumentException("Preset file must stay inside the shader folder.");
-        }
-        return trimmed;
+        return ShaderPresetDocument.fileNameFromShaderId(shaderId);
     }
 
     private Path resolvePresetPath(String relativePath) {
@@ -1145,6 +1201,9 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     public void dispose() {
         previewRefreshTimer.stop();
         previewRequestVersion.incrementAndGet();
+        if (livePreviewWindow != null && livePreviewWindow.isDisplayable()) {
+            livePreviewWindow.dispose();
+        }
         super.dispose();
     }
 
@@ -1158,5 +1217,67 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     private record PreviewRenderResult(ShaderPresetDocument document,
             ShaderPreviewRenderer.PreviewImages previewImages,
             String errorText) {
+    }
+
+    private final class LivePreviewWindow extends DuckWindow {
+        private final ImagePreviewSurface previewSurface = new ImagePreviewSurface(
+                UiText.ShaderEditorWindow.PREVIEW_UNAVAILABLE,
+                880,
+                660,
+                true);
+        private final JLabel statusLabel = new JLabel();
+
+        private LivePreviewWindow() {
+            super(UiText.ShaderEditorWindow.PREVIEW_WINDOW_TITLE, 980, 780, true);
+            setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+            getContentPane().setBackground(Styling.appBackgroundColour);
+            setLayout(new BorderLayout(0, 12));
+            add(buildPreviewHeader(), BorderLayout.NORTH);
+            add(buildPreviewBody(), BorderLayout.CENTER);
+            add(statusLabel, BorderLayout.SOUTH);
+            statusLabel.setBorder(BorderFactory.createEmptyBorder(0, 20, 18, 20));
+            statusLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+            statusLabel.setForeground(Styling.mutedTextColour);
+            setLocationRelativeTo(ShaderPresetEditorWindow.this);
+        }
+
+        private JComponent buildPreviewHeader() {
+            JPanel header = new JPanel(new BorderLayout(0, 6));
+            header.setBackground(Styling.appBackgroundColour);
+            header.setBorder(BorderFactory.createEmptyBorder(20, 20, 0, 20));
+
+            JLabel titleLabel = new JLabel(UiText.ShaderEditorWindow.PREVIEW_TITLE);
+            titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 20f));
+            titleLabel.setForeground(Styling.accentColour);
+
+            JLabel helperLabel = new JLabel(UiText.ShaderEditorWindow.PREVIEW_HELPER);
+            helperLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+            helperLabel.setForeground(Styling.mutedTextColour);
+
+            header.add(titleLabel, BorderLayout.NORTH);
+            header.add(helperLabel, BorderLayout.CENTER);
+            return header;
+        }
+
+        private JComponent buildPreviewBody() {
+            JPanel body = new JPanel(new BorderLayout());
+            body.setBackground(Styling.surfaceColour);
+            body.setBorder(BorderFactory.createEmptyBorder(0, 20, 0, 20));
+
+            previewSurface.setBorder(WindowUiSupport.createCardBorder(Styling.surfaceBorderColour, false, 18));
+            body.add(previewSurface, BorderLayout.CENTER);
+            return body;
+        }
+
+        private void showPreview(java.awt.image.BufferedImage image, String statusText) {
+            previewSurface.setImage(image);
+            statusLabel.setText(statusText == null ? "" : statusText);
+        }
+
+        @Override
+        public void dispose() {
+            livePreviewWindow = null;
+            super.dispose();
+        }
     }
 }

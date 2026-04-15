@@ -18,22 +18,25 @@ public final class ShaderPreviewRenderer {
 
     public static PreviewImages render(ShaderPresetDocument document) {
         int renderScale = document == null ? 1 : Math.max(1, document.renderScale());
+        int sourceScale = 1;
+        int sourceWidth = LOGICAL_WIDTH * sourceScale;
+        int sourceHeight = LOGICAL_HEIGHT * sourceScale;
         int renderWidth = LOGICAL_WIDTH * renderScale;
         int renderHeight = LOGICAL_HEIGHT * renderScale;
 
         int[] sourcePixels = new int[renderWidth * renderHeight];
         int[] targetPixels = new int[renderWidth * renderHeight];
         int[] scratchPixels = new int[renderWidth * renderHeight];
-        prepareShaderSource(SAMPLE_LOGICAL_FRAME, sourcePixels, renderScale);
+        prepareShaderSource(SAMPLE_LOGICAL_FRAME, sourcePixels, sourceScale);
 
         if (document == null) {
-            System.arraycopy(sourcePixels, 0, targetPixels, 0, sourcePixels.length);
+            System.arraycopy(sourcePixels, 0, targetPixels, 0, sourceWidth * sourceHeight);
         } else {
-            document.toShader().Apply(sourcePixels, targetPixels, scratchPixels, renderWidth, renderHeight);
+            document.toShader().Apply(sourcePixels, targetPixels, scratchPixels, sourceWidth, sourceHeight);
         }
 
         return new PreviewImages(
-                imageFromPixels(sourcePixels, renderWidth, renderHeight),
+                imageFromPixels(sourcePixels, sourceWidth, sourceHeight),
                 imageFromPixels(targetPixels, renderWidth, renderHeight));
     }
 

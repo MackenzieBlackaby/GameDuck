@@ -59,20 +59,31 @@ public final class PipelineDisplayShader implements DisplayShader {
             throw new IllegalArgumentException("Shader buffers must be the same size.");
         }
         if (passes.isEmpty()) {
-            System.arraycopy(source, 0, target, 0, source.length);
+            System.arraycopy(source, 0, target, 0, Math.min(source.length, width * height));
             return;
         }
 
         int[] read = source;
+        int readWidth = width;
+        int readHeight = height;
         int[] write = target;
         for (ShaderPass pass : passes) {
-            pass.apply(read, write, width, height);
+            int outputWidth = pass.outputWidth(readWidth);
+            int outputHeight = pass.outputHeight(readHeight);
+            int outputLength = outputWidth * outputHeight;
+            if (outputLength > write.length) {
+                throw new IllegalArgumentException("Shader output exceeds the provided render buffer size.");
+            }
+
+            pass.apply(read, write, readWidth, readHeight);
             read = write;
+            readWidth = outputWidth;
+            readHeight = outputHeight;
             write = (write == target) ? scratch : target;
         }
 
         if (read != target) {
-            System.arraycopy(read, 0, target, 0, read.length);
+            System.arraycopy(read, 0, target, 0, readWidth * readHeight);
         }
     }
 
@@ -90,6 +101,26 @@ public final class PipelineDisplayShader implements DisplayShader {
          * @param height frame height
          */
         void apply(int[] source, int[] target, int width, int height);
+
+        /**
+         * Returns the output width for this pass.
+         *
+         * @param inputWidth current frame width
+         * @return pass output width
+         */
+        default int outputWidth(int inputWidth) {
+            return inputWidth;
+        }
+
+        /**
+         * Returns the output height for this pass.
+         *
+         * @param inputHeight current frame height
+         * @return pass output height
+         */
+        default int outputHeight(int inputHeight) {
+            return inputHeight;
+        }
 
         /**
          * Returns whether this pass is expensive enough to prefer async rendering.
@@ -148,6 +179,8 @@ public final class PipelineDisplayShader implements DisplayShader {
     public static final class PixelGridPass implements ShaderPass {
         private final int rowSpacing;
         private final int columnSpacing;
+        private final int rowLineWidth;
+        private final int columnLineWidth;
         private final int rowScale256;
         private final int columnScale256;
         private int cachedWidth = -1;
@@ -156,9 +189,16 @@ public final class PipelineDisplayShader implements DisplayShader {
         private int[] cachedColumnScale256 = new int[0];
 
         public PixelGridPass(double intensity, int rowSpacing, int columnSpacing) {
+            this(intensity, rowSpacing, columnSpacing, 1, 1);
+        }
+
+        public PixelGridPass(double intensity, int rowSpacing, int columnSpacing, int rowLineWidth,
+                int columnLineWidth) {
             double clampedIntensity = clampUnit(intensity);
             this.rowSpacing = Math.max(1, rowSpacing);
             this.columnSpacing = Math.max(1, columnSpacing);
+            this.rowLineWidth = Math.max(1, rowLineWidth);
+            this.columnLineWidth = Math.max(1, columnLineWidth);
             this.rowScale256 = scale256(1.0 - clampedIntensity);
             this.columnScale256 = scale256(1.0 - (clampedIntensity * 0.8));
         }
@@ -180,7 +220,7 @@ public final class PipelineDisplayShader implements DisplayShader {
             if (cachedWidth != width) {
                 cachedColumnScale256 = new int[width];
                 for (int x = 0; x < width; x++) {
-                    cachedColumnScale256[x] = Math.floorMod(x + 1, columnSpacing) == 0 ? columnScale256 : 256;
+                    cachedColumnScale256[x] = isGridLine(x, columnSpacing, columnLineWidth) ? columnScale256 : 256;
                 }
                 cachedWidth = width;
             }
@@ -188,10 +228,71 @@ public final class PipelineDisplayShader implements DisplayShader {
             if (cachedHeight != height) {
                 cachedRowScale256 = new int[height];
                 for (int y = 0; y < height; y++) {
-                    cachedRowScale256[y] = Math.floorMod(y + 1, rowSpacing) == 0 ? rowScale256 : 256;
+                    cachedRowScale256[y] = isGridLine(y, rowSpacing, rowLineWidth) ? rowScale256 : 256;
                 }
                 cachedHeight = height;
             }
+        }
+
+        private boolean isGridLine(int index, int spacing, int lineWidth) {
+            int clampedLineWidth = Math.min(spacing, Math.max(1, lineWidth));
+            int offset = Math.floorMod(index + 1, spacing);
+            return offset == 0 || offset > spacing - clampedLineWidth;
+        }
+    }
+
+    /**
+     * Nearest-neighbour integer upscaler used by explicit render-scale passes.
+     */
+    public static final class RenderScalePass implements ShaderPass {
+        private final int scale;
+        private int[] rowBuffer = new int[0];
+
+        public RenderScalePass(int scale) {
+            this.scale = Math.max(1, scale);
+        }
+
+        @Override
+        public int outputWidth(int inputWidth) {
+            return inputWidth * scale;
+        }
+
+        @Override
+        public int outputHeight(int inputHeight) {
+            return inputHeight * scale;
+        }
+
+        @Override
+        public void apply(int[] source, int[] target, int width, int height) {
+            if (scale <= 1 || width <= 0 || height <= 0) {
+                System.arraycopy(source, 0, target, 0, Math.min(source.length, width * height));
+                return;
+            }
+
+            int scaledWidth = width * scale;
+            if (rowBuffer.length != scaledWidth) {
+                rowBuffer = new int[scaledWidth];
+            }
+
+            for (int y = 0; y < height; y++) {
+                int sourceRowOffset = y * width;
+                int scaledRowBase = y * scale * scaledWidth;
+                int destinationOffset = 0;
+                for (int x = 0; x < width; x++) {
+                    int rgb = source[sourceRowOffset + x];
+                    Arrays.fill(rowBuffer, destinationOffset, destinationOffset + scale, rgb);
+                    destinationOffset += scale;
+                }
+                System.arraycopy(rowBuffer, 0, target, scaledRowBase, scaledWidth);
+                for (int subY = 1; subY < scale; subY++) {
+                    System.arraycopy(rowBuffer, 0, target, scaledRowBase + (subY * scaledWidth), scaledWidth);
+                }
+            }
+        }
+
+        @Override
+        public boolean prefersAsyncRendering() {
+            return scale > 1;
         }
     }
 
@@ -217,7 +318,8 @@ public final class PipelineDisplayShader implements DisplayShader {
         @Override
         public void apply(int[] source, int[] target, int width, int height) {
             ensureScaleCache(width, height);
-            for (int index = 0; index < source.length; index++) {
+            int pixelCount = width * height;
+            for (int index = 0; index < pixelCount; index++) {
                 target[index] = scaleRgb256(source[index], cachedScale256[index]);
             }
         }
@@ -277,7 +379,8 @@ public final class PipelineDisplayShader implements DisplayShader {
         @Override
         public void apply(int[] source, int[] target, int width, int height) {
             ensureScaleCache(width, height);
-            for (int index = 0; index < source.length; index++) {
+            int pixelCount = width * height;
+            for (int index = 0; index < pixelCount; index++) {
                 target[index] = scaleRgb256(source[index], cachedScale256[index]);
             }
         }
@@ -333,7 +436,7 @@ public final class PipelineDisplayShader implements DisplayShader {
         @Override
         public void apply(int[] source, int[] target, int width, int height) {
             if (strength <= 0.0 || (cellWidth <= 1 && cellHeight <= 1)) {
-                System.arraycopy(source, 0, target, 0, source.length);
+                System.arraycopy(source, 0, target, 0, Math.min(source.length, width * height));
                 return;
             }
 
@@ -435,7 +538,7 @@ public final class PipelineDisplayShader implements DisplayShader {
                     || height <= 0
                     || width % scale != 0
                     || height % scale != 0) {
-                System.arraycopy(source, 0, target, 0, source.length);
+                System.arraycopy(source, 0, target, 0, Math.min(source.length, width * height));
                 return;
             }
 
@@ -695,7 +798,8 @@ public final class PipelineDisplayShader implements DisplayShader {
         @Override
         public void apply(int[] source, int[] target, int width, int height) {
             ensureScaleCache(width, height);
-            for (int index = 0; index < source.length; index++) {
+            int pixelCount = width * height;
+            for (int index = 0; index < pixelCount; index++) {
                 target[index] = scaleRgb256(source[index], cachedScale256[index]);
             }
         }
@@ -754,14 +858,14 @@ public final class PipelineDisplayShader implements DisplayShader {
         @Override
         public void apply(int[] source, int[] target, int width, int height) {
             if (glowScale256 <= 0) {
-                System.arraycopy(source, 0, target, 0, source.length);
+                System.arraycopy(source, 0, target, 0, Math.min(source.length, width * height));
                 return;
             }
 
             int stride = width + 1;
             ensureIntegralCapacity(stride, height + 1);
             if (buildIntegralBuffers(source, width, height, stride) == 0) {
-                System.arraycopy(source, 0, target, 0, source.length);
+                System.arraycopy(source, 0, target, 0, Math.min(source.length, width * height));
                 return;
             }
             for (int y = 0; y < height; y++) {
@@ -901,7 +1005,8 @@ public final class PipelineDisplayShader implements DisplayShader {
         @Override
         public void apply(int[] source, int[] target, int width, int height) {
             double brightnessOffset = brightness * 255.0;
-            for (int index = 0; index < source.length; index++) {
+            int pixelCount = width * height;
+            for (int index = 0; index < pixelCount; index++) {
                 int rgb = source[index];
                 double red = ((red(rgb) - 127.5) * contrast) + 127.5 + brightnessOffset + (warmth * 36.0);
                 double green = ((green(rgb) - 127.5) * contrast) + 127.5 + brightnessOffset + (warmth * 8.0);

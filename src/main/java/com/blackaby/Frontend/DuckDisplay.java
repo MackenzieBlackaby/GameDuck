@@ -371,7 +371,8 @@ public class DuckDisplay extends JPanel {
      * Re-resolves the selected shader and reapplies it to the current frame.
      */
     public void RefreshShader() {
-        activeShader = DisplayShaderManager.Resolve(Settings.displayShaderId);
+        LoadedDisplayShader resolvedShader = DisplayShaderManager.Resolve(Settings.displayShaderId);
+        activeShader = resolvedShader == null ? null : resolvedShader.createRenderInstance();
         InvalidateAsyncShaderFrames();
         invalidatePresentationComposite();
         boolean repaintNow = false;
@@ -563,8 +564,10 @@ public class DuckDisplay extends JPanel {
             if (shader == null || "none".equals(shader.id())) {
                 prepareShaderSource(frontBuffer, imageBuffer);
             } else {
-                prepareShaderSource(frontBuffer, shaderSourceBuffer);
-                ApplyShader(shader, shaderSourceBuffer, imageBuffer, shaderScratchBuffer, renderWidth(), renderHeight());
+                int sourceScale = shader.sourceRenderScale();
+                prepareShaderSource(frontBuffer, shaderSourceBuffer, sourceScale);
+                ApplyShader(shader, shaderSourceBuffer, imageBuffer, shaderScratchBuffer,
+                        frameWidth() * sourceScale, frameHeight() * sourceScale);
             }
             PublishStagedImage();
         } catch (RuntimeException exception) {
@@ -614,6 +617,7 @@ public class DuckDisplay extends JPanel {
                 int frameVersion;
                 int epoch;
                 int queuedRenderScale;
+                int queuedSourceScale;
                 synchronized (shaderQueueLock) {
                     if (shutdown
                             || pendingShaderFrameVersion == displayedShaderFrameVersion
@@ -632,16 +636,17 @@ public class DuckDisplay extends JPanel {
                     epoch = shaderRenderEpoch;
                     queuedRenderScale = renderScale;
                     shader = ResolveActiveShader();
+                    queuedSourceScale = shader == null ? 1 : shader.sourceRenderScale();
                 }
 
                 try {
                     if (shader == null || "none".equals(shader.id())) {
                         prepareWorkerShaderSource(workerFrame, workerShaderTargetBuffer, queuedRenderScale);
                     } else {
-                        prepareWorkerShaderSource(workerFrame, workerShaderSourceBuffer, queuedRenderScale);
+                        prepareWorkerShaderSource(workerFrame, workerShaderSourceBuffer, queuedSourceScale);
                         ApplyShader(shader, workerShaderSourceBuffer, workerShaderTargetBuffer,
-                                workerShaderScratchBuffer, frameWidth() * queuedRenderScale,
-                                frameHeight() * queuedRenderScale);
+                                workerShaderScratchBuffer, frameWidth() * queuedSourceScale,
+                                frameHeight() * queuedSourceScale);
                     }
                 } catch (RuntimeException exception) {
                     exception.printStackTrace();
@@ -756,8 +761,14 @@ public class DuckDisplay extends JPanel {
         }
 
         try {
-            prepareShaderSource(frontBuffer, shaderSourceBuffer);
-            ApplyShader(shader, shaderSourceBuffer, imageBuffer, shaderScratchBuffer, renderWidth(), renderHeight());
+            if (shader == null || "none".equals(shader.id())) {
+                prepareShaderSource(frontBuffer, imageBuffer);
+            } else {
+                int sourceScale = shader.sourceRenderScale();
+                prepareShaderSource(frontBuffer, shaderSourceBuffer, sourceScale);
+                ApplyShader(shader, shaderSourceBuffer, imageBuffer, shaderScratchBuffer,
+                        frameWidth() * sourceScale, frameHeight() * sourceScale);
+            }
         } catch (RuntimeException exception) {
             exception.printStackTrace();
             prepareShaderSource(frontBuffer, imageBuffer);
@@ -796,7 +807,8 @@ public class DuckDisplay extends JPanel {
         if (shader != null) {
             return shader;
         }
-        shader = DisplayShaderManager.Resolve(Settings.displayShaderId);
+        LoadedDisplayShader resolvedShader = DisplayShaderManager.Resolve(Settings.displayShaderId);
+        shader = resolvedShader == null ? null : resolvedShader.createRenderInstance();
         activeShader = shader;
         return shader;
     }

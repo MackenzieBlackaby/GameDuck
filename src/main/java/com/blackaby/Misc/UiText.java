@@ -258,6 +258,7 @@ public final class UiText {
         public static final String DELETE_FAILED_TITLE = "Failed to delete shader preset";
         public static final String OPEN_FOLDER_FAILED_TITLE = "Failed to open shader folder";
         public static final String FILE_NAME_REQUIRED = "Enter a preset file name ending in .json.";
+        public static final String SHADER_ID_REQUIRED = "Enter a shader name. It will be saved as <name>.json.";
         public static final String TEMPLATE_STATUS = "New preset template ready";
         public static final String RELOAD_STATUS = "Shader preset list reloaded";
         public static final String UNSAVED_STATUS = "Unsaved changes";
@@ -272,6 +273,8 @@ public final class UiText {
         public static final String PREVIEW_HELPER = "Preview uses the current render scale and pass order.";
         public static final String SOURCE_PREVIEW_LABEL = "Source";
         public static final String OUTPUT_PREVIEW_LABEL = "Shader Output";
+        public static final String PREVIEW_WINDOW_TITLE = "Shader Live Preview";
+        public static final String OPEN_LIVE_PREVIEW_BUTTON = "Open Live Preview";
         public static final String PREVIEW_UNAVAILABLE = "Preview unavailable";
         public static final String MOVE_UP_BUTTON = "Move Up";
         public static final String MOVE_DOWN_BUTTON = "Move Down";

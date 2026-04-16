@@ -58,7 +58,7 @@ import java.util.Set;
 /**
  * Dedicated visual rebinding window for keyboard and controller mappings.
  */
-public final class InputMappingWindow extends JDialog {
+public final class InputMappingWindow extends DuckWindow {
 
     private static final Dimension minimumWindowSize = new Dimension(900, 700);
     private static final Dimension canvasSize = new Dimension(820, 500);
@@ -86,17 +86,12 @@ public final class InputMappingWindow extends JDialog {
     private Timer controllerRefreshTimer;
 
     public InputMappingWindow(Window owner, MainWindow mainWindow) {
-        super(owner, UiText.OptionsWindow.INPUT_MAPPER_WINDOW_TITLE, ModalityType.MODELESS);
+        super(UiText.OptionsWindow.INPUT_MAPPER_WINDOW_TITLE, minimumWindowSize.width, minimumWindowSize.height, false);
         this.mainWindow = mainWindow;
 
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
-        setResizable(false);
         getContentPane().setBackground(panelBackground);
         setLayout(new BorderLayout(0, 0));
-        List<java.awt.Image> windowIcons = AppAssets.WindowIcons();
-        if (!windowIcons.isEmpty()) {
-            setIconImages(windowIcons);
-        }
 
         add(buildHeader(), BorderLayout.NORTH);
         add(buildContent(), BorderLayout.CENTER);
@@ -371,6 +366,7 @@ public final class InputMappingWindow extends JDialog {
         content.add(title, BorderLayout.NORTH);
         content.add(helper, BorderLayout.CENTER);
         dialog.add(content, BorderLayout.CENTER);
+        WindowUiSupport.applyComponentTheme(dialog);
         dialog.setSize(420, 180);
         dialog.setLocationRelativeTo(this);
 
@@ -457,6 +453,7 @@ public final class InputMappingWindow extends JDialog {
         content.add(title, BorderLayout.NORTH);
         content.add(helper, BorderLayout.CENTER);
         dialog.add(content, BorderLayout.CENTER);
+        WindowUiSupport.applyComponentTheme(dialog);
         dialog.setSize(520, 180);
         dialog.setLocationRelativeTo(this);
 

@@ -2868,12 +2868,7 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JPanel createSaveDataDetailCard(String titleText, String helperText, String valueText) {
-        JPanel card = new JPanel(new BorderLayout(0, 6));
-        card.setOpaque(true);
-        card.setBackground(new Color(255, 255, 255, 135));
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
+        JPanel card = createInsetSurfaceCard(6);
 
         JLabel title = new JLabel(titleText);
         title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
@@ -2979,9 +2974,9 @@ public class OptionsWindow extends DuckWindow {
 
     private JCheckBox createBootRomCheckBox(BootRomSectionSpec spec, boolean bootRomInstalled) {
         JCheckBox checkBox = new JCheckBox(spec.checkboxText(), spec.settingEnabled());
+        checkBox.setOpaque(false);
         checkBox.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
         checkBox.setForeground(accentColour);
-        checkBox.setBackground(Styling.sectionHighlightColour);
         checkBox.addActionListener(event -> {
             if (checkBox.isSelected() && !spec.installedSupplier().getAsBoolean()) {
                 checkBox.setSelected(false);
@@ -3038,21 +3033,19 @@ public class OptionsWindow extends DuckWindow {
 
     private JLabel createInstallStatusBadge(boolean installed) {
         JLabel badge = createBadgeLabel(installed ? UiText.Common.INSTALLED : UiText.Common.MISSING);
-        badge.setBackground(installed ? new Color(220, 239, 222) : new Color(244, 233, 217));
+        badge.setBackground(installed ? Styling.sectionHighlightColour : Styling.buttonSecondaryBackground);
+        badge.setForeground(installed ? accentColour : mutedText);
         badge.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(installed ? new Color(126, 170, 132) : new Color(185, 160, 108), 1,
+                BorderFactory.createLineBorder(
+                        installed ? Styling.sectionHighlightBorderColour : Styling.surfaceBorderColour,
+                        1,
                         true),
                 BorderFactory.createEmptyBorder(4, 8, 4, 8)));
         return badge;
     }
 
     private JPanel createManagedPathCard(String title, Path path) {
-        JPanel pathCard = new JPanel(new BorderLayout(0, 6));
-        pathCard.setOpaque(true);
-        pathCard.setBackground(new Color(255, 255, 255, 135));
-        pathCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
+        JPanel pathCard = createInsetSurfaceCard(6);
 
         JLabel pathTitle = new JLabel(title);
         pathTitle.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
@@ -3071,6 +3064,16 @@ public class OptionsWindow extends DuckWindow {
         pathCard.add(pathTitle, BorderLayout.NORTH);
         pathCard.add(pathLabel, BorderLayout.CENTER);
         return pathCard;
+    }
+
+    private JPanel createInsetSurfaceCard(int verticalGap) {
+        JPanel card = new JPanel(new BorderLayout(0, verticalGap));
+        card.setOpaque(true);
+        card.setBackground(Styling.surfaceColour);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Styling.surfaceBorderColour, 1, true),
+                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
+        return card;
     }
 
     private JPanel createBootRomButtonRow(BootRomSectionSpec spec) {

@@ -341,8 +341,8 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         passChainList.setSelectionForeground(Styling.accentColour);
         passChainList.setFixedCellHeight(36);
         passChainList.setBorder(WindowUiSupport.createLineBorder(Styling.surfaceBorderColour));
-        passChainList.setCellRenderer((list, value, index, isSelected, cellHasFocus) ->
-                createPassChainCell((ShaderPassConfig) value, index, isSelected));
+        passChainList.setCellRenderer((list, value, index, isSelected,
+                cellHasFocus) -> createPassChainCell((ShaderPassConfig) value, index, isSelected));
         passChainList.addListSelectionListener(event -> {
             if (!event.getValueIsAdjusting()) {
                 rebuildPassParameterPanel();
@@ -546,24 +546,6 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         field.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
         panel.add(label, BorderLayout.NORTH);
         panel.add(field, BorderLayout.CENTER);
-        return panel;
-    }
-
-    private JPanel createLabeledSpinnerPanel(String labelText, JSpinner spinner) {
-        JPanel panel = new JPanel(new BorderLayout(0, 6));
-        panel.setOpaque(false);
-
-        JLabel label = new JLabel(labelText);
-        label.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
-        label.setForeground(Styling.accentColour);
-
-        JComponent editor = spinner.getEditor();
-        if (editor instanceof JSpinner.DefaultEditor defaultEditor) {
-            defaultEditor.getTextField().setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-        }
-
-        panel.add(label, BorderLayout.NORTH);
-        panel.add(spinner, BorderLayout.CENTER);
         return panel;
     }
 
@@ -913,11 +895,6 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         passChainModel.add(targetIndex, selectedPass);
         passChainList.setSelectedIndex(targetIndex);
         handleEditorChanged();
-    }
-
-    private void removeSelectedPass() {
-        int selectedIndex = passChainList.getSelectedIndex();
-        removePassAt(selectedIndex);
     }
 
     private void removePassAt(int index) {

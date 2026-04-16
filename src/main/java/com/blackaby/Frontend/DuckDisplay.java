@@ -271,9 +271,13 @@ public class DuckDisplay extends JPanel {
             if (previousFrameWeight <= 0 || currentFrameWeight <= 0) {
                 System.arraycopy(backBuffer, 0, frontBuffer, 0, backBuffer.length);
             } else {
+                int totalWeight = previousFrameWeight + currentFrameWeight;
+                int shift = isPowerOfTwo(totalWeight)
+                        ? Integer.numberOfTrailingZeros(totalWeight)
+                        : -1;
                 for (int index = 0; index < backBuffer.length; index++) {
                     frontBuffer[index] = BlendRgb(frontBuffer[index], backBuffer[index],
-                            previousFrameWeight, currentFrameWeight);
+                            previousFrameWeight, currentFrameWeight, totalWeight, shift);
                 }
             }
             frameUpdated = RenderImageBufferLocked();
@@ -529,7 +533,12 @@ public class DuckDisplay extends JPanel {
         return cgbCurrentFrameBlendWeight;
     }
 
-    private int BlendRgb(int previousRgb, int currentRgb, int previousWeight, int currentWeight) {
+    private int BlendRgb(int previousRgb, int currentRgb, int previousWeight, int currentWeight,
+            int totalWeight, int shift) {
+        if (shift >= 0) {
+            return BlendRgbPowerOfTwo(previousRgb, currentRgb, previousWeight, currentWeight, shift);
+        }
+
         int previousRed = (previousRgb >> 16) & 0xFF;
         int previousGreen = (previousRgb >> 8) & 0xFF;
         int previousBlue = previousRgb & 0xFF;
@@ -538,11 +547,29 @@ public class DuckDisplay extends JPanel {
         int currentGreen = (currentRgb >> 8) & 0xFF;
         int currentBlue = currentRgb & 0xFF;
 
-        int totalWeight = Math.max(1, previousWeight + currentWeight);
         int blendedRed = ((previousRed * previousWeight) + (currentRed * currentWeight)) / totalWeight;
         int blendedGreen = ((previousGreen * previousWeight) + (currentGreen * currentWeight)) / totalWeight;
         int blendedBlue = ((previousBlue * previousWeight) + (currentBlue * currentWeight)) / totalWeight;
         return (blendedRed << 16) | (blendedGreen << 8) | blendedBlue;
+    }
+
+    private int BlendRgbPowerOfTwo(int previousRgb, int currentRgb, int previousWeight, int currentWeight, int shift) {
+        int previousRed = (previousRgb >> 16) & 0xFF;
+        int previousGreen = (previousRgb >> 8) & 0xFF;
+        int previousBlue = previousRgb & 0xFF;
+
+        int currentRed = (currentRgb >> 16) & 0xFF;
+        int currentGreen = (currentRgb >> 8) & 0xFF;
+        int currentBlue = currentRgb & 0xFF;
+
+        int blendedRed = ((previousRed * previousWeight) + (currentRed * currentWeight)) >> shift;
+        int blendedGreen = ((previousGreen * previousWeight) + (currentGreen * currentWeight)) >> shift;
+        int blendedBlue = ((previousBlue * previousWeight) + (currentBlue * currentWeight)) >> shift;
+        return (blendedRed << 16) | (blendedGreen << 8) | blendedBlue;
+    }
+
+    private boolean isPowerOfTwo(int value) {
+        return value > 0 && (value & (value - 1)) == 0;
     }
 
     private boolean RenderImageBufferLocked() {

@@ -1,12 +1,12 @@
 {
   "id": "ice_blue",
   "name": "Ice Blue",
-  "description": "A cool backlit handheld look with crisp pixels built from lightweight passes.",
-  "renderScale": 1,
+  "description": "A cool backlit handheld look with crisp pixels and a light bloom.",
+  "renderScale": 2,
   "passes": [
     { "type": "color_grade", "brightness": 0.01, "contrast": 1.08, "saturation": 0.52, "warmth": -0.20 },
     { "type": "pixel_grid", "intensity": 0.05, "rowSpacing": 2, "columnSpacing": 2 },
-    { "type": "scanlines", "intensity": 0.03, "spacing": 3, "offset": 0 },
+    { "type": "bloom", "radius": 1, "strength": 0.08, "threshold": 0.50 },
     { "type": "vignette", "strength": 0.10, "roundness": 1.5 }
   ]
 }

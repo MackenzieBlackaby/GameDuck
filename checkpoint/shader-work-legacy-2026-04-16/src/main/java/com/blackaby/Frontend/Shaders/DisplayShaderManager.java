@@ -271,19 +271,30 @@ public final class DisplayShaderManager {
                   "id": "my_shader",
                   "name": "My Shader",
                   "description": "Optional description shown in the UI",
+                  "renderScale": 1,
                   "passes": [
                     { "type": "color_grade", "brightness": 0.02, "contrast": 1.05, "saturation": 0.9, "warmth": 0.08 },
+                    { "type": "sprite_interpolation", "strength": 1.0, "cellWidth": 2, "cellHeight": 2, "sharpness": 2.0 },
                     { "type": "pixel_grid", "intensity": 0.06, "rowSpacing": 2, "columnSpacing": 3 },
+                    { "type": "pixel_outline", "intensity": 0.35, "cellWidth": 2, "cellHeight": 2, "edgeWidth": 1 },
+                    { "type": "dot_matrix", "intensity": 0.30, "cellWidth": 2, "cellHeight": 2, "roundness": 1.4 },
                     { "type": "scanlines", "intensity": 0.08, "spacing": 2 },
-                    { "type": "vignette", "strength": 0.12, "roundness": 1.6 }
+                    { "type": "bloom", "radius": 1, "strength": 0.10, "threshold": 0.45 },
+                    { "type": "vignette", "strength": 0.12, "roundness": 1.6 },
+                    { "type": "rgb_shift", "distance": 1, "mix": 0.15 }
                   ]
                 }
 
-                Supported lightweight pass types:
+                Supported pass types:
                 - color_grade
+                - sprite_interpolation
                 - pixel_grid
+                - pixel_outline
+                - dot_matrix
                 - scanlines
+                - bloom
                 - vignette
+                - rgb_shift
 
                 Plugin JARs can expose implementations of:
                 com.blackaby.Frontend.Shaders.DisplayShader

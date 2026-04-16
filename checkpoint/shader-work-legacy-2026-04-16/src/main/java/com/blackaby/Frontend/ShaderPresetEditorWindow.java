@@ -70,7 +70,7 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     private final JLabel selectedPassDescriptionLabel = new JLabel(UiText.ShaderEditorWindow.PASS_PARAMETERS_EMPTY);
     private final JList<PresetFileEntry> presetList = new JList<>(presetListModel);
     private final JList<ShaderPassConfig> passChainList = new JList<>(passChainModel);
-    private final JComboBox<ShaderPassType> addPassSelector = new JComboBox<>(ShaderPassType.lightweightValues());
+    private final JComboBox<ShaderPassType> addPassSelector = new JComboBox<>(ShaderPassType.values());
     private final JLabel addPassDescriptionLabel = new JLabel();
     private final JPanel passParameterPanel = new JPanel(new GridBagLayout());
     private final AtomicInteger previewRequestVersion = new AtomicInteger();

@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
 class ShaderPresetDocumentTest {
 
     @Test
-    void fromJsonStripsLegacyRgbShiftDistanceInLightweightMode() {
+    void fromJsonParsesLegacyRgbShiftDistance() {
         ShaderPresetDocument document = ShaderPresetDocument.fromJson("""
                 {
                   "id": "legacy_shift",
@@ -32,14 +32,28 @@ class ShaderPresetDocumentTest {
                 """);
 
         assertEquals("legacy_shift", document.id());
-        assertEquals(1, document.renderScale());
-        assertEquals(0, document.passes().size());
-        assertEquals(0, document.toJsonObject().getAsJsonArray("passes").size());
+        assertEquals(3, document.renderScale());
+        assertEquals(2, document.passes().size());
+
+        ShaderPassConfig renderScalePass = document.passes().get(0);
+        assertEquals(ShaderPassType.RENDER_SCALE, renderScalePass.type());
+        assertEquals(3, renderScalePass.intValue("scale"));
+
+        ShaderPassConfig pass = document.passes().get(1);
+        assertEquals(ShaderPassType.RGB_SHIFT, pass.type());
+        assertEquals(2, pass.intValue("redX"));
+        assertEquals(-2, pass.intValue("blueX"));
+        assertEquals(0.35, pass.doubleValue("mix"), 0.0001);
+
+        assertEquals(2, document.toJsonObject().getAsJsonArray("passes").size());
+        JsonObject passJson = document.toJsonObject().getAsJsonArray("passes").get(1).getAsJsonObject();
+        assertEquals(2, passJson.get("redX").getAsInt());
+        assertEquals(-2, passJson.get("blueX").getAsInt());
         assertEquals(false, document.toJsonObject().has("renderScale"));
     }
 
     @Test
-    void fromJsonStripsUnsupportedSpriteInterpolationPass() {
+    void fromJsonParsesSpriteInterpolationPass() {
         ShaderPresetDocument document = ShaderPresetDocument.fromJson("""
                 {
                   "id": "sharp_pixels",
@@ -51,12 +65,16 @@ class ShaderPresetDocumentTest {
                 }
                 """);
 
-        assertEquals(1, document.renderScale());
-        assertEquals(0, document.passes().size());
+        ShaderPassConfig pass = document.passes().get(1);
+        assertEquals(ShaderPassType.SPRITE_INTERPOLATION, pass.type());
+        assertEquals(0.85, pass.doubleValue("strength"), 0.0001);
+        assertEquals(3, pass.intValue("cellWidth"));
+        assertEquals(3, pass.intValue("cellHeight"));
+        assertEquals(2.4, pass.doubleValue("sharpness"), 0.0001);
     }
 
     @Test
-    void fromJsonStripsUnsupportedXbrzPassWithoutParameters() {
+    void fromJsonParsesXbrzPassWithoutParameters() {
         ShaderPresetDocument document = ShaderPresetDocument.fromJson("""
                 {
                   "id": "smooth_diagonals",
@@ -68,8 +86,9 @@ class ShaderPresetDocumentTest {
                 }
                 """);
 
-        assertEquals(1, document.renderScale());
-        assertEquals(0, document.passes().size());
+        ShaderPassConfig pass = document.passes().get(1);
+        assertEquals(ShaderPassType.XBRZ, pass.type());
+        assertEquals(0, pass.toJsonObject().entrySet().size() - 1);
     }
 
     @Test
@@ -102,7 +121,7 @@ class ShaderPresetDocumentTest {
     }
 
     @Test
-    void unsupportedRenderScalePassIsRemovedFromChain() {
+    void explicitRenderScalePassRemainsInChainAndDeterminesOutputScale() {
         ShaderPresetDocument document = ShaderPresetDocument.fromJson("""
                 {
                   "id": "chain_scale",
@@ -115,33 +134,43 @@ class ShaderPresetDocumentTest {
                 }
                 """);
 
-        assertEquals(2, document.passes().size());
+        assertEquals(3, document.passes().size());
         assertEquals(ShaderPassType.COLOR_GRADE, document.passes().get(0).type());
-        assertEquals(ShaderPassType.PIXEL_GRID, document.passes().get(1).type());
-        assertEquals(1, document.renderScale());
+        assertEquals(ShaderPassType.RENDER_SCALE, document.passes().get(1).type());
+        assertEquals(ShaderPassType.PIXEL_GRID, document.passes().get(2).type());
+        assertEquals(3, document.renderScale());
     }
 
     @Test
-    void unsupportedPassesAreDroppedWhileSupportedPassOrderStaysIntact() {
+    void renderScalePassAppliesAtItsPositionInTheChain() {
         ShaderPresetDocument document = ShaderPresetDocument.fromJson("""
                 {
-                  "id": "mixed_chain",
-                  "name": "Mixed Chain",
+                  "id": "stepped_scale",
+                  "name": "Stepped Scale",
                   "passes": [
                     { "type": "render_scale", "scale": 2 },
-                    { "type": "color_grade", "warmth": 0.20 },
-                    { "type": "bloom", "radius": 1, "strength": 0.10, "threshold": 0.45 },
                     { "type": "pixel_grid", "intensity": 1.0, "rowSpacing": 2, "columnSpacing": 99 },
-                    { "type": "vignette", "strength": 0.10, "roundness": 1.50 }
+                    { "type": "render_scale", "scale": 2 }
                   ]
                 }
                 """);
 
-        assertEquals(1, document.renderScale());
-        assertEquals(3, document.passes().size());
-        assertEquals(ShaderPassType.COLOR_GRADE, document.passes().get(0).type());
-        assertEquals(ShaderPassType.PIXEL_GRID, document.passes().get(1).type());
-        assertEquals(ShaderPassType.VIGNETTE, document.passes().get(2).type());
+        assertEquals(4, document.renderScale());
+
+        int[] source = new int[32];
+        source[0] = 0xFFFFFF;
+        source[1] = 0xFFFFFF;
+        int[] target = new int[source.length];
+        int[] scratch = new int[source.length];
+
+        document.toShader().Apply(source, target, scratch, 1, 2);
+
+        for (int y = 0; y < 8; y++) {
+            int expectedRgb = ((y / 2) % 2 == 0) ? 0xFFFFFF : 0x000000;
+            for (int x = 0; x < 4; x++) {
+                assertEquals(expectedRgb, target[(y * 4) + x] & 0xFFFFFF);
+            }
+        }
     }
 
     @Test
@@ -190,13 +219,13 @@ class ShaderPresetDocumentTest {
     }
 
     @Test
-    void lightweightMultiPassShaderStaysOnTheSynchronousPath() {
+    void scaledMultiPassShaderPrefersAsyncRendering() {
         ShaderPresetDocument document = ShaderPresetDocument.fromJson("""
                 {
-                  "id": "inline_lightweight",
-                  "name": "Inline Lightweight",
+                  "id": "async_scaled",
+                  "name": "Async Scaled",
                   "passes": [
-                    { "type": "color_grade", "warmth": 0.12 },
+                    { "type": "render_scale", "scale": 2 },
                     { "type": "pixel_grid", "rowSpacing": 2, "columnSpacing": 2 },
                     { "type": "vignette", "strength": 0.12, "roundness": 1.4 }
                   ]
@@ -205,8 +234,7 @@ class ShaderPresetDocumentTest {
 
         LoadedDisplayShader shader = document.toLoadedShader("JSON preset", null);
 
-        assertEquals(1, shader.renderScale());
-        assertEquals(false, shader.prefersAsyncRendering());
+        assertTrue(shader.prefersAsyncRendering());
     }
 
     @Test
@@ -224,7 +252,7 @@ class ShaderPresetDocumentTest {
                 """);
 
         LoadedDisplayShader shader = document.toLoadedShader("JSON preset", null);
-        int[] source = new int[2 * 2];
+        int[] source = new int[2 * 2 * shader.renderScale() * shader.renderScale()];
         source[0] = 0x4A7EB2;
         source[1] = 0x4A7EB2;
         source[2] = 0x4A7EB2;
@@ -233,18 +261,18 @@ class ShaderPresetDocumentTest {
         int[] scratch = new int[source.length];
         shader.apply(source, target, scratch, 2, 2);
 
-        assertEquals(1, shader.renderScale());
+        assertEquals(2, shader.renderScale());
         assertNotEquals(source[0], target[0]);
     }
 
     @Test
     void toLoadedShaderCanCreateIsolatedRenderInstances() {
         ShaderPresetDocument document = ShaderPresetDocument.fromJson("""
-                    {
-                      "id": "isolated_runtime",
-                      "name": "Isolated Runtime",
-                      "passes": [
-                    { "type": "pixel_grid", "intensity": 0.30, "rowSpacing": 2, "columnSpacing": 2 }
+                {
+                  "id": "isolated_runtime",
+                  "name": "Isolated Runtime",
+                  "passes": [
+                    { "type": "dot_matrix", "intensity": 0.30, "cellWidth": 3, "cellHeight": 3, "roundness": 1.4 }
                   ]
                 }
                 """);

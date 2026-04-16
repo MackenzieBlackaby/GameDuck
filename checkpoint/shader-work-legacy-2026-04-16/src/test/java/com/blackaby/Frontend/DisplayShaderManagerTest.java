@@ -59,11 +59,11 @@ class DisplayShaderManagerTest {
     }
 
     @Test
-    void builtInPocketMonoShaderIsAvailable() {
+    void builtInDotMatrixShaderIsAvailable() {
         DisplayShaderManager.Reload();
 
-        LoadedDisplayShader shader = DisplayShaderManager.Resolve("pocket_mono");
-        int[] source = new int[2 * 2];
+        LoadedDisplayShader shader = DisplayShaderManager.Resolve("dot_matrix");
+        int[] source = new int[2 * 2 * shader.renderScale() * shader.renderScale()];
         source[0] = 0x7CB060;
         source[1] = 0x7CB060;
         source[2] = 0x7CB060;
@@ -72,8 +72,8 @@ class DisplayShaderManagerTest {
         int[] scratch = new int[source.length];
         shader.apply(source, target, scratch, 2, 2);
 
-        assertEquals("Pocket Mono", shader.displayName());
-        assertEquals(1, shader.renderScale());
+        assertEquals("Dot Matrix", shader.displayName());
+        assertEquals(4, shader.renderScale());
         assertNotEquals(source[0], target[0]);
     }
 
@@ -81,7 +81,7 @@ class DisplayShaderManagerTest {
     void resolvedJsonShadersCanCreateFreshRenderInstances() {
         DisplayShaderManager.Reload();
 
-        LoadedDisplayShader resolvedShader = DisplayShaderManager.Resolve("pocket_mono");
+        LoadedDisplayShader resolvedShader = DisplayShaderManager.Resolve("dot_matrix");
         LoadedDisplayShader renderShaderA = resolvedShader.createRenderInstance();
         LoadedDisplayShader renderShaderB = resolvedShader.createRenderInstance();
 
@@ -91,12 +91,18 @@ class DisplayShaderManagerTest {
     }
 
     @Test
-    void removedHeavyBundledShadersFallBackToOff() {
+    void builtInPixelArtUpscalerShadersAreAvailable() {
         DisplayShaderManager.Reload();
 
-        LoadedDisplayShader fallback = DisplayShaderManager.Resolve("xbrz");
+        LoadedDisplayShader scale2x = DisplayShaderManager.Resolve("scale2x");
+        LoadedDisplayShader scale3x = DisplayShaderManager.Resolve("scale3x");
+        LoadedDisplayShader xbrz = DisplayShaderManager.Resolve("xbrz");
 
-        assertEquals("Off", fallback.displayName());
-        assertEquals(1, fallback.renderScale());
+        assertEquals("Scale2x", scale2x.displayName());
+        assertEquals(2, scale2x.renderScale());
+        assertEquals("Scale3x", scale3x.displayName());
+        assertEquals(3, scale3x.renderScale());
+        assertEquals("xBRZ", xbrz.displayName());
+        assertEquals(4, xbrz.renderScale());
     }
 }

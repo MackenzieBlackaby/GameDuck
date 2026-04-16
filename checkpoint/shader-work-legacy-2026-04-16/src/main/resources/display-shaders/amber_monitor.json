@@ -1,11 +1,11 @@
 {
   "id": "amber_monitor",
   "name": "Amber Monitor",
-  "description": "A warm monochrome amber tint using only lightweight CPU-friendly passes.",
-  "renderScale": 1,
+  "description": "A warm monochrome amber tint with bloom and scanlines for late-night sessions.",
+  "renderScale": 2,
   "passes": [
     { "type": "color_grade", "brightness": -0.03, "contrast": 1.12, "saturation": 0.18, "warmth": 0.42 },
-    { "type": "pixel_grid", "intensity": 0.04, "rowSpacing": 2, "columnSpacing": 2 },
+    { "type": "bloom", "radius": 1, "strength": 0.12, "threshold": 0.28 },
     { "type": "scanlines", "intensity": 0.10, "spacing": 2, "offset": 0 },
     { "type": "vignette", "strength": 0.16, "roundness": 1.7 }
   ]

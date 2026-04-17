@@ -790,12 +790,12 @@ public final class UiText {
         // Section card titles and descriptions used across the tab pages.
         // Keep each title/description pair together for the card it belongs to.
         // -----------------------------------------------------------------
-        public static final String SECTION_PALETTE_TITLE = "Game Boy Colourisation";
-        public static final String SECTION_PALETTE_DESCRIPTION = "";
+        public static final String SECTION_PALETTE_TITLE = "Colourisation";
+        public static final String SECTION_PALETTE_DESCRIPTION = "Game Boy and Game Boy Color palettes, presets, and colour modes in one place.";
         public static final String SECTION_GBC_TITLE = "Game Boy Color Colourisation";
         public static final String SECTION_GBC_DESCRIPTION = "";
-        public static final String SECTION_CONTROLS_TITLE = "Input Mapping";
-        public static final String SECTION_CONTROLS_DESCRIPTION = "Open the dedicated visual mapper for keyboard and controller rebinding";
+        public static final String SECTION_CONTROLS_TITLE = "Controls";
+        public static final String SECTION_CONTROLS_DESCRIPTION = "Choose the controller, then expand Game Controls or App Shortcuts to rebind them.";
         public static final String SECTION_SHORTCUTS_TITLE = "App Shortcuts";
         public static final String SECTION_SHORTCUTS_DESCRIPTION = "Customise the keyboard shortcuts";
         public static final String SECTION_SOUND_TITLE = "Audio Output";
@@ -803,7 +803,7 @@ public final class UiText {
         public static final String SECTION_EMULATION_TITLE = "Save Data and Boot ROM";
         public static final String SECTION_EMULATION_DESCRIPTION = "";
         public static final String SECTION_WINDOW_TITLE = "Main Window Layout";
-        public static final String SECTION_WINDOW_DESCRIPTION = "";
+        public static final String SECTION_WINDOW_DESCRIPTION = "Core window, border, and shader controls.";
         public static final String SECTION_DISPLAY_SHADER_TITLE = "Display Shaders";
         public static final String SECTION_DISPLAY_SHADER_DESCRIPTION = "Apply built-in looks or load your own JSON presets and plugin shaders";
         public static final String SECTION_LIBRARY_TITLE = "Library Preferences";
@@ -819,6 +819,8 @@ public final class UiText {
         public static final String SAVE_CURRENT_PALETTE = "Save Current Palette";
         public static final String SAVE_CURRENT_PALETTE_HELPER = "";
         public static final String SAVE_PALETTE_BUTTON = "Save Palette";
+        public static final String SAVED_PALETTE_LABEL = "Saved Palettes";
+        public static final String SAVED_GBC_PALETTE_LABEL = "Saved GBC Palettes";
         public static final String BROWSE_BUTTON = "Browse";
         public static final String RESET_PALETTE_BUTTON = "Default Palette";
         public static final String[] DMG_TONE_NAMES = { "Background", "Light", "Medium", "Dark" };
@@ -858,9 +860,9 @@ public final class UiText {
         // Controls tab: player inputs and app shortcut rebinding.
         // -----------------------------------------------------------------
         public static final String PLAYER_CONTROLS_TITLE = "Player Controls";
-        public static final String PLAYER_CONTROLS_DESCRIPTION = "Keyboard and controller rebinding now live in the visual mapper window.";
+        public static final String PLAYER_CONTROLS_DESCRIPTION = "Keyboard and controller bindings for the emulated buttons.";
         public static final String WINDOW_SHORTCUTS_TITLE = "Window Shortcuts";
-        public static final String WINDOW_SHORTCUTS_DESCRIPTION = "Rebind app functions to keyboard shortcuts and controller inputs.";
+        public static final String WINDOW_SHORTCUTS_DESCRIPTION = "Keyboard and controller bindings for app actions.";
         public static final String PLAYER_CONTROLS_BADGE = "Game Boy Input";
         public static final String WINDOW_SHORTCUTS_BADGE = "App Action";
         public static final String DMG_BADGE = "Game Boy";
@@ -889,7 +891,7 @@ public final class UiText {
         public static final String SECTION_CONTROLLER_TITLE = "Controller Input";
         public static final String SECTION_CONTROLLER_DESCRIPTION = "Choose a detected controller, verify live input, and then use the visual mapper window for controller rebinding.";
         public static final String CONTROLLER_ENABLE_CHECKBOX = "Enable Controller Input";
-        public static final String CONTROLLER_SELECTION_LABEL = "Preferred Controller";
+        public static final String CONTROLLER_SELECTION_LABEL = "Controller";
         public static final String CONTROLLER_ACTIVE_LABEL = "Active Controller";
         public static final String CONTROLLER_STATUS_LABEL = "Connection Status";
         public static final String CONTROLLER_DEADZONE_LABEL = "Stick Deadzone";
@@ -910,6 +912,7 @@ public final class UiText {
         public static final String CONTROLLER_NO_ACTIVE_DEVICE_MESSAGE = "Connect a controller or pick a detected device first.";
         public static final String CONTROLLER_LIVE_INPUTS_LABEL = "Live Raw Inputs";
         public static final String CONTROLLER_MAPPED_BUTTONS_LABEL = "Mapped Game Boy Buttons";
+        public static final String CONTROLLER_DETAILS_TITLE = "Details";
         public static final String CONTROLLER_LIVE_NONE = "No active inputs";
         public static final String CONTROLLER_MAPPED_NONE = "No mapped buttons pressed";
         public static final String CONTROLLER_MAPPED_DISABLED = "Controller input is disabled";

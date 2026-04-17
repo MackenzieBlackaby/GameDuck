@@ -29,6 +29,7 @@ import com.blackaby.Misc.UiText;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.AbstractButton;
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
@@ -94,6 +95,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -169,6 +171,8 @@ public class OptionsWindow extends DuckWindow {
     private final JPanel[] gbcColorPreviews = new JPanel[12];
     private final JLabel[] gbcColorHexLabels = new JLabel[12];
     private final JPanel[] themeStripPreviews = new JPanel[AppThemeColorRole.values().length];
+    private final Map<EmulatorButton, JButton> keyboardBindingButtons = new HashMap<>();
+    private final Map<EmulatorButton, JButton> controllerBindingButtons = new HashMap<>();
     private final EnumMap<AppShortcut, JButton> shortcutButtons = new EnumMap<>(AppShortcut.class);
     private final EnumMap<AppShortcut, JButton> controllerShortcutButtons = new EnumMap<>(AppShortcut.class);
     private final MainWindow mainWindow;
@@ -308,12 +312,8 @@ public class OptionsWindow extends DuckWindow {
         content.add(createSectionCard(
                 UiText.OptionsWindow.SECTION_PALETTE_TITLE,
                 UiText.OptionsWindow.SECTION_PALETTE_DESCRIPTION,
-                createPaletteLibraryPanel()));
-        content.add(Box.createVerticalStrut(16));
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_GBC_TITLE,
-                UiText.OptionsWindow.SECTION_GBC_DESCRIPTION,
-                createGbcPalettePanel()));
+                createUnifiedPalettePanel()));
+        content.add(Box.createVerticalGlue());
         return content;
     }
 
@@ -323,16 +323,6 @@ public class OptionsWindow extends DuckWindow {
                 UiText.OptionsWindow.SECTION_CONTROLS_TITLE,
                 UiText.OptionsWindow.SECTION_CONTROLS_DESCRIPTION,
                 createControlsPanel()));
-        content.add(Box.createVerticalStrut(16));
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_CONTROLLER_TITLE,
-                UiText.OptionsWindow.SECTION_CONTROLLER_DESCRIPTION,
-                createControllerPanel()));
-        content.add(Box.createVerticalStrut(16));
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_SHORTCUTS_TITLE,
-                UiText.OptionsWindow.SECTION_SHORTCUTS_DESCRIPTION,
-                createShortcutPanel()));
         content.add(Box.createVerticalGlue());
         return content;
     }
@@ -361,11 +351,6 @@ public class OptionsWindow extends DuckWindow {
                 UiText.OptionsWindow.SECTION_WINDOW_TITLE,
                 UiText.OptionsWindow.SECTION_WINDOW_DESCRIPTION,
                 createWindowPanel()));
-        content.add(Box.createVerticalStrut(16));
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_DISPLAY_SHADER_TITLE,
-                UiText.OptionsWindow.SECTION_DISPLAY_SHADER_DESCRIPTION,
-                createDisplayShaderPanel()));
         return content;
     }
 
@@ -468,15 +453,13 @@ public class OptionsWindow extends DuckWindow {
         panel.add(component, constraints);
     }
 
-    private JComponent createPaletteLibraryPanel() {
+    private JComponent createUnifiedPalettePanel() {
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setOpaque(false);
 
-        content.add(createPalettePreviewBanner());
-        content.add(Box.createVerticalStrut(12));
-
         dmgPaletteModeSelector = new JComboBox<>(DmgPaletteModeOption.values());
+        configureCompactPaletteSelector(dmgPaletteModeSelector);
         dmgPaletteModeSelector.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
         dmgPaletteModeSelector.setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.gbcPaletteModeEnabled));
         dmgPaletteModeSelector.addActionListener(event -> {
@@ -487,77 +470,8 @@ public class OptionsWindow extends DuckWindow {
             Config.Save();
         });
 
-        content.add(createPaletteModeSelectorCard(
-                UiText.OptionsWindow.GBC_NON_CGB_MODE_TITLE,
-                UiText.OptionsWindow.GBC_NON_CGB_MODE_HELPER,
-                dmgPaletteModeSelector));
-        content.add(Box.createVerticalStrut(12));
-
-        JPanel actionCard = new JPanel(new BorderLayout());
-        actionCard.setBackground(Styling.cardTintColour);
-        actionCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
-
-        JPanel textColumn = createInfoTextBlock(
-                UiText.OptionsWindow.SAVE_CURRENT_PALETTE,
-                UiText.OptionsWindow.SAVE_CURRENT_PALETTE_HELPER,
-                13f);
-
-        JTextField paletteNameField = new JTextField();
-        paletteNameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
-        paletteNameField.setPreferredSize(new Dimension(240, 38));
-        paletteNameField.setFont(Styling.menuFont.deriveFont(13f));
-        paletteNameField.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1, true),
-                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-
-        textColumn.add(Box.createVerticalStrut(8));
-        textColumn.add(paletteNameField);
-
-        JButton savePaletteButton = createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
-        savePaletteButton.addActionListener(event -> {
-            String name = paletteNameField.getText().trim();
-            if (name.isEmpty()) {
-                JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteNameRequiredMessage(),
-                        UiText.Common.WARNING_TITLE,
-                        JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-
-            Config.SavePalette(name);
-            JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteSavedMessage(name));
-        });
-
-        JButton loadPaletteButton = createSecondaryButton(UiText.OptionsWindow.BROWSE_BUTTON);
-        loadPaletteButton.addActionListener(event -> new PaletteManager(this::refreshPaletteDetails));
-
-        JPanel buttonColumn = createResponsiveGroup(120, 2, savePaletteButton, loadPaletteButton);
-        actionCard.add(createResponsiveGroup(280, 2, textColumn, buttonColumn), BorderLayout.CENTER);
-
-        content.add(actionCard);
-        content.add(Box.createVerticalStrut(12));
-
-        JButton resetPaletteButton = createSecondaryButton(UiText.OptionsWindow.RESET_PALETTE_BUTTON);
-        resetPaletteButton.addActionListener(event -> {
-            Settings.ResetPalette();
-            refreshPaletteDetails();
-            Config.Save();
-        });
-
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        actions.setOpaque(false);
-        actions.add(resetPaletteButton);
-        content.add(actions);
-        return content;
-    }
-
-    private JComponent createGbcPalettePanel() {
-        JPanel container = new JPanel();
-        container.setLayout(new BoxLayout(container, BoxLayout.Y_AXIS));
-        container.setOpaque(false);
-
         gbcCompatiblePaletteModeSelector = new JComboBox<>(GbcCompatiblePaletteModeOption.values());
+        configureCompactPaletteSelector(gbcCompatiblePaletteModeSelector);
         gbcCompatiblePaletteModeSelector.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
         gbcCompatiblePaletteModeSelector.setSelectedItem(
                 GbcCompatiblePaletteModeOption.fromSetting(Settings.preferDmgModeForGbcCompatibleGames));
@@ -569,50 +483,212 @@ public class OptionsWindow extends DuckWindow {
             Config.Save();
         });
 
-        JPanel toggleStack = new JPanel();
-        toggleStack.setLayout(new BoxLayout(toggleStack, BoxLayout.Y_AXIS));
-        toggleStack.setOpaque(false);
-        toggleStack.add(createPaletteModeSelectorCard(
-                UiText.OptionsWindow.GBC_COMPATIBLE_MODE_TITLE,
-                UiText.OptionsWindow.GBC_COMPATIBLE_MODE_HELPER,
-                gbcCompatiblePaletteModeSelector));
-        toggleStack.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(createResponsiveGroup(
+                280,
+                2,
+                createCompactSelectorWindowOptionCard(
+                        UiText.OptionsWindow.GBC_NON_CGB_MODE_TITLE,
+                        dmgPaletteModeSelector),
+                createCompactSelectorWindowOptionCard(
+                        UiText.OptionsWindow.GBC_COMPATIBLE_MODE_TITLE,
+                        gbcCompatiblePaletteModeSelector)));
+        content.add(Box.createVerticalStrut(10));
+        content.add(createResponsiveGroup(
+                320,
+                2,
+                createDmgPaletteWorkspaceCard(),
+                createGbcPaletteWorkspaceCard()));
+        content.add(Box.createVerticalStrut(8));
 
-        JPanel paletteGrid = createResponsiveGroup(220, 3);
-        paletteGrid.add(createGbcPaletteRow(0, UiText.OptionsWindow.GBC_BACKGROUND_PALETTE_TITLE,
-                UiText.OptionsWindow.GBC_BACKGROUND_PALETTE_HELPER,
-                Settings.CurrentGbcBackgroundPalette()));
-        paletteGrid.add(createGbcPaletteRow(1, UiText.OptionsWindow.GBC_SPRITE0_PALETTE_TITLE,
-                UiText.OptionsWindow.GBC_SPRITE0_PALETTE_HELPER,
-                Settings.CurrentGbcSpritePalette0()));
-        paletteGrid.add(createGbcPaletteRow(2, UiText.OptionsWindow.GBC_SPRITE1_PALETTE_TITLE,
-                UiText.OptionsWindow.GBC_SPRITE1_PALETTE_HELPER,
-                Settings.CurrentGbcSpritePalette1()));
+        JButton resetPaletteButton = createSecondaryButton(UiText.OptionsWindow.RESET_PALETTE_BUTTON);
+        configureCompactPaletteButton(resetPaletteButton, 120);
+        resetPaletteButton.addActionListener(event -> {
+            Settings.ResetPalette();
+            refreshPaletteDetails();
+            Config.Save();
+        });
 
-        JPanel actionCard = new JPanel(new BorderLayout());
-        actionCard.setBackground(Styling.cardTintColour);
-        actionCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
-        actionCard.setAlignmentX(Component.LEFT_ALIGNMENT);
+        JButton resetGbcPaletteButton = createSecondaryButton(UiText.OptionsWindow.RESET_GBC_SETTINGS_BUTTON);
+        configureCompactPaletteButton(resetGbcPaletteButton, 132);
+        resetGbcPaletteButton.addActionListener(event -> {
+            Settings.ResetGbcPaletteMode();
+            if (gbcCompatiblePaletteModeSelector != null) {
+                gbcCompatiblePaletteModeSelector.setSelectedItem(
+                        GbcCompatiblePaletteModeOption.fromSetting(Settings.preferDmgModeForGbcCompatibleGames));
+            }
+            if (dmgPaletteModeSelector != null) {
+                dmgPaletteModeSelector.setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.gbcPaletteModeEnabled));
+            }
+            refreshPaletteDetails();
+            Config.Save();
+        });
 
-        JPanel textColumn = createInfoTextBlock(
-                UiText.OptionsWindow.SAVE_CURRENT_GBC_PALETTE,
-                UiText.OptionsWindow.SAVE_CURRENT_GBC_PALETTE_HELPER,
-                13f);
+        JPanel actionRow = createResponsiveGroup(150, 2, resetPaletteButton, resetGbcPaletteButton);
+        actionRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(actionRow);
+        return content;
+    }
+
+    private JComponent createDmgPaletteWorkspaceCard() {
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
+
+        JLabel title = createFieldLabel(UiText.OptionsWindow.ACTIVE_DMG_PALETTE_TITLE);
+        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+        content.add(title);
+        content.add(Box.createVerticalStrut(8));
+        content.add(createPalettePreviewStrip());
+        content.add(Box.createVerticalStrut(10));
 
         JTextField paletteNameField = new JTextField();
-        paletteNameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
-        paletteNameField.setPreferredSize(new Dimension(240, 38));
-        paletteNameField.setFont(Styling.menuFont.deriveFont(13f));
-        paletteNameField.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1, true),
-                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
+        configureCompactPaletteField(paletteNameField);
+        content.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_PALETTE, paletteNameField));
+        content.add(Box.createVerticalStrut(6));
 
-        textColumn.add(Box.createVerticalStrut(8));
-        textColumn.add(paletteNameField);
-
+        JButton importPaletteButton = createSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
+        configureCompactPaletteButton(importPaletteButton);
         JButton savePaletteButton = createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
+        configureCompactPaletteButton(savePaletteButton);
+        content.add(createResponsiveGroup(96, 2, savePaletteButton, importPaletteButton));
+        content.add(Box.createVerticalStrut(10));
+
+        JComboBox<String> savedPaletteSelector = new JComboBox<>();
+        configureCompactPaletteSelector(savedPaletteSelector);
+        savedPaletteSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+        savedPaletteSelector.setBackground(Styling.surfaceColour);
+        savedPaletteSelector.setForeground(accentColour);
+        content.add(createFieldCard(UiText.OptionsWindow.SAVED_PALETTE_LABEL, savedPaletteSelector));
+        content.add(Box.createVerticalStrut(6));
+
+        JButton loadPaletteButton = createSecondaryButton(UiText.PaletteManager.LOAD_BUTTON);
+        configureCompactPaletteButton(loadPaletteButton);
+        loadPaletteButton.addActionListener(event -> {
+            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+            if (selectedPalette == null || selectedPalette.isBlank()) {
+                return;
+            }
+            if (Config.LoadPalette(selectedPalette)) {
+                refreshPaletteDetails();
+            }
+        });
+
+        JButton deletePaletteButton = createSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
+        configureCompactPaletteButton(deletePaletteButton);
+        deletePaletteButton.addActionListener(event -> {
+            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+            if (selectedPalette == null || selectedPalette.isBlank()) {
+                return;
+            }
+
+            int result = JOptionPane.showConfirmDialog(this,
+                    UiText.PaletteManager.DeleteConfirmMessage(false, selectedPalette),
+                    UiText.PaletteManager.DeleteConfirmTitle(false),
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+            if (result != JOptionPane.YES_OPTION) {
+                return;
+            }
+
+            Config.DeletePalette(selectedPalette);
+            refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
+        });
+
+        importPaletteButton.addActionListener(event -> {
+            importSavedPalettes(false);
+            refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
+        });
+
+        savePaletteButton.addActionListener(event -> {
+            String name = paletteNameField.getText().trim();
+            if (name.isEmpty()) {
+                JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteNameRequiredMessage(),
+                        UiText.Common.WARNING_TITLE,
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            Config.SavePalette(name);
+            JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteSavedMessage(name));
+            refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
+            savedPaletteSelector.setSelectedItem(name);
+        });
+
+        content.add(createResponsiveGroup(96, 2, loadPaletteButton, deletePaletteButton));
+        refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
+        return createCompactWindowOptionCard(content);
+    }
+
+    private JComponent createGbcPaletteWorkspaceCard() {
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
+
+        JLabel title = createFieldLabel(UiText.OptionsWindow.SECTION_GBC_TITLE);
+        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+        content.add(title);
+        content.add(Box.createVerticalStrut(8));
+        content.add(createGbcPaletteMatrix());
+        content.add(Box.createVerticalStrut(10));
+
+        JTextField paletteNameField = new JTextField();
+        configureCompactPaletteField(paletteNameField);
+        content.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_GBC_PALETTE, paletteNameField));
+        content.add(Box.createVerticalStrut(6));
+
+        JButton importPaletteButton = createSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
+        configureCompactPaletteButton(importPaletteButton);
+        JButton savePaletteButton = createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
+        configureCompactPaletteButton(savePaletteButton);
+        content.add(createResponsiveGroup(96, 2, savePaletteButton, importPaletteButton));
+        content.add(Box.createVerticalStrut(10));
+
+        JComboBox<String> savedPaletteSelector = new JComboBox<>();
+        configureCompactPaletteSelector(savedPaletteSelector);
+        savedPaletteSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+        savedPaletteSelector.setBackground(Styling.surfaceColour);
+        savedPaletteSelector.setForeground(accentColour);
+        content.add(createFieldCard(UiText.OptionsWindow.SAVED_GBC_PALETTE_LABEL, savedPaletteSelector));
+        content.add(Box.createVerticalStrut(6));
+
+        JButton loadPaletteButton = createSecondaryButton(UiText.PaletteManager.LOAD_BUTTON);
+        configureCompactPaletteButton(loadPaletteButton);
+        loadPaletteButton.addActionListener(event -> {
+            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+            if (selectedPalette == null || selectedPalette.isBlank()) {
+                return;
+            }
+            if (Config.LoadGbcPalette(selectedPalette)) {
+                refreshPaletteDetails();
+            }
+        });
+
+        JButton deletePaletteButton = createSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
+        configureCompactPaletteButton(deletePaletteButton);
+        deletePaletteButton.addActionListener(event -> {
+            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+            if (selectedPalette == null || selectedPalette.isBlank()) {
+                return;
+            }
+
+            int result = JOptionPane.showConfirmDialog(this,
+                    UiText.PaletteManager.DeleteConfirmMessage(true, selectedPalette),
+                    UiText.PaletteManager.DeleteConfirmTitle(true),
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+            if (result != JOptionPane.YES_OPTION) {
+                return;
+            }
+
+            Config.DeleteGbcPalette(selectedPalette);
+            refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
+        });
+
+        importPaletteButton.addActionListener(event -> {
+            importSavedPalettes(true);
+            refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
+        });
+
         savePaletteButton.addActionListener(event -> {
             String name = paletteNameField.getText().trim();
             if (name.isEmpty()) {
@@ -624,16 +700,312 @@ public class OptionsWindow extends DuckWindow {
 
             Config.SaveGbcPalette(name);
             JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteSavedMessage(name));
+            refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
+            savedPaletteSelector.setSelectedItem(name);
         });
 
-        JButton loadPaletteButton = createSecondaryButton(UiText.OptionsWindow.BROWSE_BUTTON);
-        loadPaletteButton.addActionListener(
-                event -> new PaletteManager(PaletteManager.PaletteKind.GBC, this::refreshPaletteDetails));
+        content.add(createResponsiveGroup(96, 2, loadPaletteButton, deletePaletteButton));
+        refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
+        return createCompactWindowOptionCard(content);
+    }
 
-        JPanel buttonColumn = createResponsiveGroup(120, 2, savePaletteButton, loadPaletteButton);
-        actionCard.add(createResponsiveGroup(280, 2, textColumn, buttonColumn), BorderLayout.CENTER);
+    private JComponent createPalettePreviewStrip() {
+        JPanel swatchStrip = new JPanel(new GridLayout(1, 4, 6, 0));
+        swatchStrip.setOpaque(false);
+
+        GBColor[] palette = Settings.CurrentPalette();
+        String[] toneNames = UiText.OptionsWindow.DMG_TONE_NAMES;
+        for (int i = 0; i < palette.length; i++) {
+            JPanel swatch = new JPanel();
+            swatch.setPreferredSize(new Dimension(34, 34));
+            swatch.setBackground(palette[i].ToColour());
+            swatch.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(58, 92, 132, 60), 1, true),
+                    BorderFactory.createEmptyBorder(1, 1, 1, 1)));
+            swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            swatch.setToolTipText(UiText.OptionsWindow.EditPaletteToneTooltip(toneNames[i]));
+            final int paletteIndex = i;
+            swatch.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent event) {
+                    chooseColor(paletteIndex, UiText.OptionsWindow.PaletteToneColorLabel(toneNames[paletteIndex]));
+                }
+            });
+            paletteStripPreviews[i] = swatch;
+            swatchStrip.add(swatch);
+        }
+
+        return swatchStrip;
+    }
+
+    private JComponent createGbcPaletteMatrix() {
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
+        content.add(createCompactGbcPaletteRow(0, UiText.OptionsWindow.GBC_BACKGROUND_PALETTE_TITLE,
+                Settings.CurrentGbcBackgroundPalette()));
+        content.add(Box.createVerticalStrut(6));
+        content.add(createCompactGbcPaletteRow(1, UiText.OptionsWindow.GBC_SPRITE0_PALETTE_TITLE,
+                Settings.CurrentGbcSpritePalette0()));
+        content.add(Box.createVerticalStrut(6));
+        content.add(createCompactGbcPaletteRow(2, UiText.OptionsWindow.GBC_SPRITE1_PALETTE_TITLE,
+                Settings.CurrentGbcSpritePalette1()));
+        return content;
+    }
+
+    private JComponent createCompactGbcPaletteRow(int paletteIndex, String titleText, GBColor[] palette) {
+        JPanel row = new JPanel(new BorderLayout(10, 0));
+        row.setOpaque(false);
+
+        JLabel title = createFieldLabel(titleText);
+        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+        title.setPreferredSize(new Dimension(120, 24));
+
+        JPanel swatchGrid = new JPanel(new GridLayout(1, 4, 4, 0));
+        swatchGrid.setOpaque(false);
+        for (int colourIndex = 0; colourIndex < palette.length; colourIndex++) {
+            swatchGrid.add(createGbcPaletteSwatch(paletteIndex, titleText, colourIndex, palette[colourIndex]));
+        }
+
+        row.add(title, BorderLayout.WEST);
+        row.add(swatchGrid, BorderLayout.CENTER);
+        return row;
+    }
+
+    private JComponent createPaletteLibraryPanel() {
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
+
+        dmgPaletteModeSelector = new JComboBox<>(DmgPaletteModeOption.values());
+        configureCompactPaletteSelector(dmgPaletteModeSelector);
+        dmgPaletteModeSelector.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+        dmgPaletteModeSelector.setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.gbcPaletteModeEnabled));
+        dmgPaletteModeSelector.addActionListener(event -> {
+            Object selectedItem = dmgPaletteModeSelector.getSelectedItem();
+            if (selectedItem instanceof DmgPaletteModeOption selectedMode) {
+                Settings.gbcPaletteModeEnabled = selectedMode.gbcPaletteModeEnabled;
+            }
+            Config.Save();
+        });
+
+        content.add(createResponsiveGroup(
+                240,
+                2,
+                createCompactSelectorWindowOptionCard(
+                        UiText.OptionsWindow.GBC_NON_CGB_MODE_TITLE,
+                        dmgPaletteModeSelector),
+                createPalettePreviewBanner()));
+        content.add(Box.createVerticalStrut(6));
+
+        JPanel actionCardContent = new JPanel();
+        actionCardContent.setLayout(new BoxLayout(actionCardContent, BoxLayout.Y_AXIS));
+        actionCardContent.setOpaque(false);
+
+        JTextField paletteNameField = new JTextField();
+        configureCompactPaletteField(paletteNameField);
+        actionCardContent.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_PALETTE, paletteNameField));
+
+        JComboBox<String> savedPaletteSelector = new JComboBox<>();
+        configureCompactPaletteSelector(savedPaletteSelector);
+        savedPaletteSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+        savedPaletteSelector.setBackground(Styling.surfaceColour);
+        savedPaletteSelector.setForeground(accentColour);
+
+        JButton loadPaletteButton = createSecondaryButton(UiText.PaletteManager.LOAD_BUTTON);
+        configureCompactPaletteButton(loadPaletteButton);
+        loadPaletteButton.addActionListener(event -> {
+            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+            if (selectedPalette == null || selectedPalette.isBlank()) {
+                return;
+            }
+            if (Config.LoadPalette(selectedPalette)) {
+                refreshPaletteDetails();
+            }
+        });
+
+        JButton deletePaletteButton = createSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
+        configureCompactPaletteButton(deletePaletteButton);
+        deletePaletteButton.addActionListener(event -> {
+            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+            if (selectedPalette == null || selectedPalette.isBlank()) {
+                return;
+            }
+
+            int result = JOptionPane.showConfirmDialog(this,
+                    UiText.PaletteManager.DeleteConfirmMessage(false, selectedPalette),
+                    UiText.PaletteManager.DeleteConfirmTitle(false),
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+            if (result != JOptionPane.YES_OPTION) {
+                return;
+            }
+
+            Config.DeletePalette(selectedPalette);
+            refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
+        });
+
+        JButton importPaletteButton = createSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
+        configureCompactPaletteButton(importPaletteButton);
+        importPaletteButton.addActionListener(event -> {
+            importSavedPalettes(false);
+            refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
+        });
+
+        JButton savePaletteButton = createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
+        configureCompactPaletteButton(savePaletteButton);
+        savePaletteButton.addActionListener(event -> {
+            String name = paletteNameField.getText().trim();
+            if (name.isEmpty()) {
+                JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteNameRequiredMessage(),
+                        UiText.Common.WARNING_TITLE,
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            Config.SavePalette(name);
+            JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteSavedMessage(name));
+            refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
+            savedPaletteSelector.setSelectedItem(name);
+        });
+
+        actionCardContent.add(Box.createVerticalStrut(6));
+        actionCardContent.add(createResponsiveGroup(96, 2, savePaletteButton, importPaletteButton));
+
+        JPanel savedPaletteCardContent = new JPanel();
+        savedPaletteCardContent.setLayout(new BoxLayout(savedPaletteCardContent, BoxLayout.Y_AXIS));
+        savedPaletteCardContent.setOpaque(false);
+        savedPaletteCardContent.add(createFieldCard(UiText.OptionsWindow.SAVED_PALETTE_LABEL, savedPaletteSelector));
+        savedPaletteCardContent.add(Box.createVerticalStrut(6));
+        savedPaletteCardContent.add(createResponsiveGroup(96, 2, loadPaletteButton, deletePaletteButton));
+        content.add(createResponsiveGroup(
+                240,
+                2,
+                createCompactWindowOptionCard(actionCardContent),
+                createCompactWindowOptionCard(savedPaletteCardContent)));
+        content.add(Box.createVerticalStrut(6));
+
+        JButton resetPaletteButton = createSecondaryButton(UiText.OptionsWindow.RESET_PALETTE_BUTTON);
+        configureCompactPaletteButton(resetPaletteButton, 120);
+        resetPaletteButton.addActionListener(event -> {
+            Settings.ResetPalette();
+            refreshPaletteDetails();
+            Config.Save();
+        });
+
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        actions.setOpaque(false);
+        actions.add(resetPaletteButton);
+        content.add(actions);
+        refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
+        return content;
+    }
+
+    private JComponent createGbcPalettePanel() {
+        JPanel container = new JPanel();
+        container.setLayout(new BoxLayout(container, BoxLayout.Y_AXIS));
+        container.setOpaque(false);
+
+        gbcCompatiblePaletteModeSelector = new JComboBox<>(GbcCompatiblePaletteModeOption.values());
+        configureCompactPaletteSelector(gbcCompatiblePaletteModeSelector);
+        gbcCompatiblePaletteModeSelector.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+        gbcCompatiblePaletteModeSelector.setSelectedItem(
+                GbcCompatiblePaletteModeOption.fromSetting(Settings.preferDmgModeForGbcCompatibleGames));
+        gbcCompatiblePaletteModeSelector.addActionListener(event -> {
+            Object selectedItem = gbcCompatiblePaletteModeSelector.getSelectedItem();
+            if (selectedItem instanceof GbcCompatiblePaletteModeOption selectedMode) {
+                Settings.preferDmgModeForGbcCompatibleGames = selectedMode.preferDmgModeForCompatibleGames;
+            }
+            Config.Save();
+        });
+
+        JPanel paletteGrid = createResponsiveGroup(132, 3);
+        paletteGrid.add(createGbcPaletteRow(0, UiText.OptionsWindow.GBC_BACKGROUND_PALETTE_TITLE,
+                UiText.OptionsWindow.GBC_BACKGROUND_PALETTE_HELPER,
+                Settings.CurrentGbcBackgroundPalette()));
+        paletteGrid.add(createGbcPaletteRow(1, UiText.OptionsWindow.GBC_SPRITE0_PALETTE_TITLE,
+                UiText.OptionsWindow.GBC_SPRITE0_PALETTE_HELPER,
+                Settings.CurrentGbcSpritePalette0()));
+        paletteGrid.add(createGbcPaletteRow(2, UiText.OptionsWindow.GBC_SPRITE1_PALETTE_TITLE,
+                UiText.OptionsWindow.GBC_SPRITE1_PALETTE_HELPER,
+                Settings.CurrentGbcSpritePalette1()));
+
+        JPanel actionCardContent = new JPanel();
+        actionCardContent.setLayout(new BoxLayout(actionCardContent, BoxLayout.Y_AXIS));
+        actionCardContent.setOpaque(false);
+
+        JTextField paletteNameField = new JTextField();
+        configureCompactPaletteField(paletteNameField);
+        actionCardContent.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_GBC_PALETTE, paletteNameField));
+
+        JComboBox<String> savedPaletteSelector = new JComboBox<>();
+        configureCompactPaletteSelector(savedPaletteSelector);
+        savedPaletteSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+        savedPaletteSelector.setBackground(Styling.surfaceColour);
+        savedPaletteSelector.setForeground(accentColour);
+
+        JButton loadPaletteButton = createSecondaryButton(UiText.PaletteManager.LOAD_BUTTON);
+        configureCompactPaletteButton(loadPaletteButton);
+        loadPaletteButton.addActionListener(event -> {
+            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+            if (selectedPalette == null || selectedPalette.isBlank()) {
+                return;
+            }
+            if (Config.LoadGbcPalette(selectedPalette)) {
+                refreshPaletteDetails();
+            }
+        });
+
+        JButton deletePaletteButton = createSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
+        configureCompactPaletteButton(deletePaletteButton);
+        deletePaletteButton.addActionListener(event -> {
+            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+            if (selectedPalette == null || selectedPalette.isBlank()) {
+                return;
+            }
+
+            int result = JOptionPane.showConfirmDialog(this,
+                    UiText.PaletteManager.DeleteConfirmMessage(true, selectedPalette),
+                    UiText.PaletteManager.DeleteConfirmTitle(true),
+                    JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+            if (result != JOptionPane.YES_OPTION) {
+                return;
+            }
+
+            Config.DeleteGbcPalette(selectedPalette);
+            refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
+        });
+
+        JButton importPaletteButton = createSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
+        configureCompactPaletteButton(importPaletteButton);
+        importPaletteButton.addActionListener(event -> {
+            importSavedPalettes(true);
+            refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
+        });
+
+        JButton savePaletteButton = createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
+        configureCompactPaletteButton(savePaletteButton);
+        savePaletteButton.addActionListener(event -> {
+            String name = paletteNameField.getText().trim();
+            if (name.isEmpty()) {
+                JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteNameRequiredMessage(),
+                        UiText.Common.WARNING_TITLE,
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            Config.SaveGbcPalette(name);
+            JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteSavedMessage(name));
+            refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
+            savedPaletteSelector.setSelectedItem(name);
+        });
+
+        actionCardContent.add(Box.createVerticalStrut(6));
+        actionCardContent.add(createResponsiveGroup(96, 2, savePaletteButton, importPaletteButton));
 
         JButton resetGbcPaletteButton = createSecondaryButton(UiText.OptionsWindow.RESET_GBC_SETTINGS_BUTTON);
+        configureCompactPaletteButton(resetGbcPaletteButton, 132);
         resetGbcPaletteButton.addActionListener(event -> {
             Settings.ResetGbcPaletteMode();
             if (gbcCompatiblePaletteModeSelector != null) {
@@ -648,18 +1020,31 @@ public class OptionsWindow extends DuckWindow {
             Config.Save();
         });
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         actions.setOpaque(false);
         actions.add(resetGbcPaletteButton);
         actions.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        container.add(toggleStack);
-        container.add(Box.createVerticalStrut(10));
+        container.add(createCompactSelectorWindowOptionCard(
+                UiText.OptionsWindow.GBC_COMPATIBLE_MODE_TITLE,
+                gbcCompatiblePaletteModeSelector));
+        container.add(Box.createVerticalStrut(6));
         container.add(paletteGrid);
-        container.add(Box.createVerticalStrut(10));
-        container.add(actionCard);
-        container.add(Box.createVerticalStrut(10));
+        container.add(Box.createVerticalStrut(6));
+        JPanel savedPaletteCardContent = new JPanel();
+        savedPaletteCardContent.setLayout(new BoxLayout(savedPaletteCardContent, BoxLayout.Y_AXIS));
+        savedPaletteCardContent.setOpaque(false);
+        savedPaletteCardContent.add(createFieldCard(UiText.OptionsWindow.SAVED_GBC_PALETTE_LABEL, savedPaletteSelector));
+        savedPaletteCardContent.add(Box.createVerticalStrut(6));
+        savedPaletteCardContent.add(createResponsiveGroup(96, 2, loadPaletteButton, deletePaletteButton));
+        container.add(createResponsiveGroup(
+                240,
+                2,
+                createCompactWindowOptionCard(actionCardContent),
+                createCompactWindowOptionCard(savedPaletteCardContent)));
+        container.add(Box.createVerticalStrut(6));
         container.add(actions);
+        refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
         return container;
     }
 
@@ -709,33 +1094,23 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createGbcPaletteRow(int paletteIndex, String titleText, String helperText, GBColor[] palette) {
-        JPanel card = new JPanel(new BorderLayout(0, 10));
+        JPanel card = new JPanel(new BorderLayout(0, 4));
         card.setBackground(Styling.cardTintColour);
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(10, 10, 10, 10)));
-
-        JPanel text = new JPanel();
-        text.setLayout(new BoxLayout(text, BoxLayout.Y_AXIS));
-        text.setOpaque(false);
+                BorderFactory.createEmptyBorder(5, 5, 5, 5)));
 
         JLabel title = new JLabel(titleText);
-        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
         title.setForeground(accentColour);
 
-        text.add(title);
-        if (shouldRenderUiText(helperText)) {
-            text.add(Box.createVerticalStrut(3));
-            text.add(createBodyTextArea(helperText, 12f));
-        }
-
-        JPanel swatchGrid = new JPanel(new GridLayout(2, 2, 8, 8));
+        JPanel swatchGrid = new JPanel(new GridLayout(1, 4, 4, 0));
         swatchGrid.setOpaque(false);
         for (int colourIndex = 0; colourIndex < palette.length; colourIndex++) {
             swatchGrid.add(createGbcPaletteSwatch(paletteIndex, titleText, colourIndex, palette[colourIndex]));
         }
 
-        card.add(text, BorderLayout.NORTH);
+        card.add(title, BorderLayout.NORTH);
         card.add(swatchGrid, BorderLayout.CENTER);
         return card;
     }
@@ -750,52 +1125,17 @@ public class OptionsWindow extends DuckWindow {
         };
 
         JPanel swatch = new JPanel();
-        swatch.setPreferredSize(new Dimension(52, 52));
+        swatch.setPreferredSize(new Dimension(24, 24));
         swatch.setBackground(colour.ToColour());
         swatch.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(58, 92, 132, 45), 1, true),
-                BorderFactory.createEmptyBorder(3, 3, 3, 3)));
+                BorderFactory.createEmptyBorder(1, 1, 1, 1)));
         swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         swatch.setToolTipText(UiText.OptionsWindow.ChooseColorTitle(
                 paletteTitle + " " + UiText.OptionsWindow.GbcPaletteButtonLabel(colourIndex)));
         swatch.addMouseListener(chooseListener);
         gbcColorPreviews[flatIndex] = swatch;
-
-        JLabel hexLabel = new JLabel(colour.ToHex().toUpperCase());
-        hexLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 9f));
-        hexLabel.setForeground(accentColour);
-        hexLabel.setOpaque(true);
-        hexLabel.setBackground(new Color(255, 255, 255, 180));
-        hexLabel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(new Color(160, 186, 216), 1, true),
-                BorderFactory.createEmptyBorder(2, 3, 2, 3)));
-        gbcColorHexLabels[flatIndex] = hexLabel;
-
-        JPanel hexWrap = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        hexWrap.setOpaque(false);
-        hexWrap.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        hexWrap.addMouseListener(chooseListener);
-        hexLabel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        hexLabel.addMouseListener(chooseListener);
-        hexWrap.add(hexLabel);
-
-        swatch.setLayout(new BorderLayout());
-        swatch.add(hexWrap, BorderLayout.SOUTH);
-
-        JButton chooseButton = createSecondaryButton(UiText.OptionsWindow.GbcPaletteButtonLabel(colourIndex));
-        chooseButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
-        chooseButton.setPreferredSize(new Dimension(52, 24));
-        chooseButton.addActionListener(event -> chooseGbcPaletteColor(paletteIndex, colourIndex));
-
-        JPanel cell = new JPanel();
-        cell.setLayout(new BoxLayout(cell, BoxLayout.Y_AXIS));
-        cell.setOpaque(false);
-        swatch.setAlignmentX(Component.CENTER_ALIGNMENT);
-        chooseButton.setAlignmentX(Component.CENTER_ALIGNMENT);
-        cell.add(swatch);
-        cell.add(Box.createVerticalStrut(4));
-        cell.add(chooseButton);
-        return cell;
+        return swatch;
     }
 
     private JComponent createThemeLibraryPanel() {
@@ -884,65 +1224,33 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createControlsPanel() {
-        JPanel container = new JPanel(new BorderLayout(0, 18));
+        JPanel container = new JPanel();
+        container.setLayout(new BoxLayout(container, BoxLayout.Y_AXIS));
         container.setOpaque(false);
-        container.add(createInputMapperLauncherCard(), BorderLayout.CENTER);
+        container.add(createControllerHubCard());
+        container.add(Box.createVerticalStrut(10));
+        container.add(createBindingListSection(
+                UiText.OptionsWindow.PLAYER_CONTROLS_TITLE,
+                UiText.OptionsWindow.PLAYER_CONTROLS_DESCRIPTION,
+                createControlBindingList(),
+                true));
+        container.add(Box.createVerticalStrut(8));
+        container.add(createBindingListSection(
+                UiText.OptionsWindow.WINDOW_SHORTCUTS_TITLE,
+                UiText.OptionsWindow.WINDOW_SHORTCUTS_DESCRIPTION,
+                createShortcutBindingList(),
+                false));
         return container;
     }
 
     private JComponent createControllerPanel() {
-        JPanel container = new JPanel(new BorderLayout(0, 18));
-        container.setOpaque(false);
-
-        JPanel stack = new JPanel();
-        stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
-        stack.setOpaque(false);
-
-        stack.add(createControllerSettingsCard());
-        stack.add(Box.createVerticalStrut(12));
-        stack.add(createControllerLiveTesterCard());
-
-        container.add(stack, BorderLayout.CENTER);
-        return container;
+        return createControllerHubCard();
     }
 
-    private JComponent createInputMapperLauncherCard() {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(Styling.sectionHighlightColour);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
-
-        JPanel textBlock = createInfoTextBlock(
-                UiText.OptionsWindow.INPUT_MAPPER_LAUNCH_TITLE,
-                UiText.OptionsWindow.INPUT_MAPPER_LAUNCH_DESCRIPTION,
-                18f);
-
-        JPanel actionColumn = new JPanel();
-        actionColumn.setOpaque(false);
-        actionColumn.setLayout(new BoxLayout(actionColumn, BoxLayout.Y_AXIS));
-
-        JButton openMapperButton = createPrimaryButton(UiText.OptionsWindow.INPUT_MAPPER_OPEN_BUTTON);
-        openMapperButton.setAlignmentX(Component.RIGHT_ALIGNMENT);
-        openMapperButton.addActionListener(event -> new InputMappingWindow(this, mainWindow));
-
-        JLabel badgeLabel = createBadgeLabel(controlBadgeText());
-        badgeLabel.setAlignmentX(Component.RIGHT_ALIGNMENT);
-
-        actionColumn.add(badgeLabel);
-        actionColumn.add(Box.createVerticalStrut(10));
-        actionColumn.add(openMapperButton);
-
-        card.add(createResponsiveGroup(280, 2, textBlock, actionColumn), BorderLayout.CENTER);
-        return card;
-    }
-
-    private JComponent createControllerSettingsCard() {
-        JPanel card = new JPanel(new BorderLayout(0, 14));
-        card.setBackground(Styling.cardTintColour);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(14, 14, 14, 14)));
+    private JComponent createControllerHubCard() {
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
 
         controllerEnabledCheckBox = new JCheckBox(UiText.OptionsWindow.CONTROLLER_ENABLE_CHECKBOX,
                 Settings.controllerInputEnabled);
@@ -962,14 +1270,14 @@ public class OptionsWindow extends DuckWindow {
         });
 
         JButton refreshControllerButton = createSecondaryButton(UiText.OptionsWindow.CONTROLLER_REFRESH_BUTTON);
+        configureCompactPaletteButton(refreshControllerButton, 132);
         refreshControllerButton.addActionListener(event -> {
             controllerInputService.RefreshControllers();
             refreshControllerStatus();
         });
 
-        JPanel topRow = createResponsiveGroup(220, 2, controllerEnabledCheckBox, refreshControllerButton);
-
         controllerSelector = new JComboBox<>();
+        configureCompactPaletteSelector(controllerSelector);
         controllerSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
         controllerSelector.addActionListener(event -> {
             if (updatingControllerUi) {
@@ -986,6 +1294,7 @@ public class OptionsWindow extends DuckWindow {
         });
 
         controllerPollingModeSelector = new JComboBox<>(ControllerPollingMode.values());
+        configureCompactPaletteSelector(controllerPollingModeSelector);
         controllerPollingModeSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
         controllerPollingModeSelector.setSelectedItem(Settings.controllerPollingMode);
         controllerPollingModeSelector.addActionListener(event -> {
@@ -1029,57 +1338,181 @@ public class OptionsWindow extends DuckWindow {
         controllerDeadzoneValueLabel = createValueLabel(
                 UiText.OptionsWindow.PercentValue(Settings.controllerDeadzonePercent));
 
-        JPanel grid = createResponsiveGroup(240, 2);
-        grid.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_SELECTION_LABEL, controllerSelector));
-        grid.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_ACTIVE_LABEL, controllerActiveValueLabel));
-        grid.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_POLLING_MODE_LABEL, wrapControllerPollingModeControls()));
-        grid.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_DEADZONE_LABEL, wrapControllerDeadzoneControls()));
-        grid.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_STATUS_LABEL, wrapControllerStatusControls()));
-
-        card.add(topRow, BorderLayout.NORTH);
-        card.add(grid, BorderLayout.CENTER);
-        return card;
-    }
-
-    private JComponent createControllerLiveTesterCard() {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(Styling.cardTintColour);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(14, 14, 14, 14)));
-
         controllerLiveInputsArea = createCompactReadoutLabel(UiText.OptionsWindow.CONTROLLER_LIVE_NONE);
         controllerMappedButtonsArea = createCompactReadoutLabel(UiText.OptionsWindow.CONTROLLER_MAPPED_NONE);
-
-        card.add(createResponsiveGroup(
-                260,
+        content.add(createResponsiveGroup(180, 2, controllerEnabledCheckBox, refreshControllerButton));
+        content.add(Box.createVerticalStrut(8));
+        content.add(createResponsiveGroup(
+                240,
                 2,
-                createFieldCard(UiText.OptionsWindow.CONTROLLER_LIVE_INPUTS_LABEL, controllerLiveInputsArea),
-                createFieldCard(UiText.OptionsWindow.CONTROLLER_MAPPED_BUTTONS_LABEL, controllerMappedButtonsArea)),
-                BorderLayout.CENTER);
-        return card;
+                createFieldCard(UiText.OptionsWindow.CONTROLLER_SELECTION_LABEL, controllerSelector),
+                createFieldCard(UiText.OptionsWindow.CONTROLLER_POLLING_MODE_LABEL, controllerPollingModeSelector)));
+        content.add(Box.createVerticalStrut(8));
+        content.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_DEADZONE_LABEL, wrapControllerDeadzoneControls()));
+        content.add(Box.createVerticalStrut(8));
+        content.add(createCompactDisclosurePanel(
+                UiText.OptionsWindow.CONTROLLER_DETAILS_TITLE,
+                createControllerDetailRows(),
+                false));
+        return createCompactWindowOptionCard(content);
+    }
+
+    private JComponent createControllerDetailRows() {
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
+        content.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_LIVE_INPUTS_LABEL, controllerLiveInputsArea));
+        content.add(Box.createVerticalStrut(6));
+        content.add(createFieldCard(UiText.OptionsWindow.CONTROLLER_MAPPED_BUTTONS_LABEL, controllerMappedButtonsArea));
+        return content;
     }
 
     private JComponent createShortcutPanel() {
-        JPanel container = new JPanel(new BorderLayout(0, 18));
-        container.setOpaque(false);
+        return createShortcutBindingList();
+    }
 
-        JPanel stack = createFillStackPanel();
-        addFillStackRow(stack, createBindingIntroCard(
-                UiText.OptionsWindow.WINDOW_SHORTCUTS_TITLE,
-                UiText.OptionsWindow.WINDOW_SHORTCUTS_DESCRIPTION,
-                UiText.OptionsWindow.WINDOW_SHORTCUTS_BADGE), 0, 0);
+    private JComponent createBindingListSection(String title, String description, JComponent body, boolean expanded) {
+        JPanel content = new JPanel(new BorderLayout(0, 8));
+        content.setOpaque(false);
 
-        JPanel grid = createResponsiveGroup(280, AppShortcut.values().length);
+        JButton toggleButton = new JButton();
+        toggleButton.setBorder(BorderFactory.createEmptyBorder());
+        toggleButton.setContentAreaFilled(false);
+        toggleButton.setFocusPainted(false);
+        toggleButton.setHorizontalAlignment(SwingConstants.LEFT);
+        toggleButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+        toggleButton.setForeground(accentColour);
 
-        for (AppShortcut shortcut : AppShortcut.values()) {
-            grid.add(createShortcutCard(shortcut));
+        JTextArea descriptionLabel = createBodyTextArea(description, 11f);
+
+        JPanel bodyWrap = new JPanel(new BorderLayout());
+        bodyWrap.setOpaque(false);
+        bodyWrap.add(body, BorderLayout.CENTER);
+        bodyWrap.setVisible(expanded);
+
+        Runnable syncState = () -> toggleButton.setText(title + (bodyWrap.isVisible() ? "  -" : "  +"));
+        syncState.run();
+        toggleButton.addActionListener(event -> {
+            bodyWrap.setVisible(!bodyWrap.isVisible());
+            syncState.run();
+            content.revalidate();
+            content.repaint();
+        });
+
+        JPanel header = new JPanel();
+        header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
+        header.setOpaque(false);
+        header.add(toggleButton);
+        if (shouldRenderUiText(description)) {
+            header.add(Box.createVerticalStrut(2));
+            header.add(descriptionLabel);
         }
 
-        addFillStackRow(stack, grid, 1, 10);
-        container.add(stack, BorderLayout.CENTER);
+        content.add(header, BorderLayout.NORTH);
+        content.add(bodyWrap, BorderLayout.CENTER);
+        return createCompactWindowOptionCard(content);
+    }
 
+    private JComponent createCompactDisclosurePanel(String title, JComponent body, boolean expanded) {
+        JPanel content = new JPanel(new BorderLayout(0, 6));
+        content.setOpaque(false);
+
+        JButton toggleButton = new JButton();
+        toggleButton.setBorder(BorderFactory.createEmptyBorder());
+        toggleButton.setContentAreaFilled(false);
+        toggleButton.setFocusPainted(false);
+        toggleButton.setHorizontalAlignment(SwingConstants.LEFT);
+        toggleButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+        toggleButton.setForeground(accentColour);
+
+        JPanel bodyWrap = new JPanel(new BorderLayout());
+        bodyWrap.setOpaque(false);
+        bodyWrap.add(body, BorderLayout.CENTER);
+        bodyWrap.setVisible(expanded);
+
+        Runnable syncState = () -> toggleButton.setText(title + (bodyWrap.isVisible() ? "  -" : "  +"));
+        syncState.run();
+        toggleButton.addActionListener(event -> {
+            bodyWrap.setVisible(!bodyWrap.isVisible());
+            syncState.run();
+            content.revalidate();
+            content.repaint();
+        });
+
+        content.add(toggleButton, BorderLayout.NORTH);
+        content.add(bodyWrap, BorderLayout.CENTER);
+        return content;
+    }
+
+    private JComponent createControlBindingList() {
+        keyboardBindingButtons.clear();
+        controllerBindingButtons.clear();
+
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
+        content.add(createBindingListHeader());
+        content.add(Box.createVerticalStrut(4));
+
+        boolean firstRow = true;
+        for (EmulatorButton button : backendProfile().controlButtons()) {
+            if (!firstRow) {
+                content.add(Box.createVerticalStrut(2));
+            }
+            content.add(createControlBindingRow(button));
+            firstRow = false;
+        }
+
+        content.add(Box.createVerticalStrut(8));
+        JButton resetKeyboardControlsButton = createSecondaryButton(UiText.OptionsWindow.RESET_CONTROLS_BUTTON);
+        configureCompactPaletteButton(resetKeyboardControlsButton, 124);
+        resetKeyboardControlsButton.addActionListener(event -> {
+            Settings.ResetControls();
+            refreshKeyboardBindingButtons();
+            Config.Save();
+        });
+
+        JButton resetControllerControlsButton = createSecondaryButton(UiText.OptionsWindow.CONTROLLER_RESET_BUTTON);
+        configureCompactPaletteButton(resetControllerControlsButton, 150);
+        resetControllerControlsButton.addActionListener(event -> {
+            Settings.ResetControllerControls();
+            refreshControllerBindingButtons();
+            controllerInputService.RefreshControllers();
+            if (mainWindow != null) {
+                mainWindow.RefreshControllerInputRouting();
+            }
+            refreshControllerStatus();
+            Config.Save();
+        });
+
+        JPanel actions = createResponsiveGroup(160, 2, resetKeyboardControlsButton, resetControllerControlsButton);
+        actions.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(actions);
+        return content;
+    }
+
+    private JComponent createShortcutBindingList() {
+        shortcutButtons.clear();
+        controllerShortcutButtons.clear();
+
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
+        content.add(createBindingListHeader());
+        content.add(Box.createVerticalStrut(4));
+
+        boolean firstRow = true;
+        for (AppShortcut shortcut : AppShortcut.values()) {
+            if (!firstRow) {
+                content.add(Box.createVerticalStrut(2));
+            }
+            content.add(createShortcutListRow(shortcut));
+            firstRow = false;
+        }
+
+        content.add(Box.createVerticalStrut(8));
         JButton resetShortcutsButton = createSecondaryButton(UiText.OptionsWindow.RESET_SHORTCUTS_BUTTON);
+        configureCompactPaletteButton(resetShortcutsButton, 156);
         resetShortcutsButton.addActionListener(event -> {
             Settings.ResetAppShortcuts();
             refreshShortcutButtons();
@@ -1089,77 +1522,98 @@ public class OptionsWindow extends DuckWindow {
             Config.Save();
         });
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         actions.setOpaque(false);
         actions.add(resetShortcutsButton);
-        container.add(actions, BorderLayout.SOUTH);
-
-        return container;
+        content.add(actions);
+        return content;
     }
 
-    private JComponent createShortcutCard(AppShortcut shortcut) {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(Styling.cardTintColour);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(8, 10, 8, 10)));
+    private JComponent createBindingListHeader() {
+        JPanel header = new JPanel(new BorderLayout(10, 0));
+        header.setOpaque(false);
+        header.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(58, 92, 132, 28)));
 
-        JLabel titleLabel = new JLabel(shortcut.Label());
-        titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        titleLabel.setForeground(accentColour);
+        JLabel actionLabel = new JLabel("Action");
+        actionLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
+        actionLabel.setForeground(mutedText);
 
-        JPanel labelPanel = new JPanel(new BorderLayout(0, 3));
-        labelPanel.setOpaque(false);
-        JPanel titleRow = new JPanel(new BorderLayout());
-        titleRow.setOpaque(false);
-        titleRow.add(titleLabel, BorderLayout.WEST);
-        titleRow.add(createBadgeLabel(UiText.OptionsWindow.APP_BADGE), BorderLayout.EAST);
-        labelPanel.add(titleRow, BorderLayout.NORTH);
-        labelPanel.add(createBodyTextArea(shortcut.Description(), 11f), BorderLayout.CENTER);
+        JPanel columns = new JPanel(new GridLayout(1, 2, 6, 0));
+        columns.setOpaque(false);
+        JLabel keyboardLabel = new JLabel(UiText.OptionsWindow.SHORTCUT_KEYBOARD_LABEL, SwingConstants.CENTER);
+        keyboardLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 10f));
+        keyboardLabel.setForeground(mutedText);
+        JLabel controllerLabel = new JLabel(UiText.OptionsWindow.SHORTCUT_CONTROLLER_LABEL, SwingConstants.CENTER);
+        controllerLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 10f));
+        controllerLabel.setForeground(mutedText);
+        columns.add(keyboardLabel);
+        columns.add(controllerLabel);
 
+        JPanel columnsWrap = new JPanel(new BorderLayout());
+        columnsWrap.setOpaque(false);
+        columnsWrap.setPreferredSize(new Dimension(204, 20));
+        columnsWrap.add(columns, BorderLayout.CENTER);
+
+        header.add(actionLabel, BorderLayout.CENTER);
+        header.add(columnsWrap, BorderLayout.EAST);
+        return header;
+    }
+
+    private JComponent createControlBindingRow(EmulatorButton button) {
+        JButton keyboardButton = createPrimaryButton(Settings.inputBindings.GetKeyText(button));
+        configureCompactPaletteButton(keyboardButton, 96);
+        keyboardButton.addActionListener(event -> captureKeyboardBinding(button));
+        keyboardBindingButtons.put(button, keyboardButton);
+
+        JButton controllerButton = createSecondaryButton(Settings.controllerBindings.GetBindingText(button));
+        configureCompactPaletteButton(controllerButton, 102);
+        controllerButton.addActionListener(event -> captureControllerBinding(button));
+        controllerBindingButtons.put(button, controllerButton);
+
+        return createMinimalBindingRow(
+                formatControlButtonName(button),
+                backendProfile().controlButtonHelper(button),
+                keyboardButton,
+                controllerButton);
+    }
+
+    private JComponent createShortcutListRow(AppShortcut shortcut) {
         JButton keyboardButton = createPrimaryButton(Settings.appShortcutBindings.GetKeyText(shortcut));
-        keyboardButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
-        keyboardButton.setPreferredSize(new Dimension(108, 30));
+        configureCompactPaletteButton(keyboardButton, 96);
         keyboardButton.addActionListener(event -> captureShortcut(shortcut));
         shortcutButtons.put(shortcut, keyboardButton);
 
-        JButton controllerButton = createSecondaryButton(
-                Settings.appShortcutControllerBindings.GetBindingText(shortcut));
-        controllerButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
-        controllerButton.setPreferredSize(new Dimension(108, 28));
+        JButton controllerButton = createSecondaryButton(Settings.appShortcutControllerBindings.GetBindingText(shortcut));
+        configureCompactPaletteButton(controllerButton, 102);
         controllerButton.addActionListener(event -> captureControllerShortcut(shortcut));
         controllerShortcutButtons.put(shortcut, controllerButton);
 
-        JPanel bindingsStack = new JPanel();
-        bindingsStack.setLayout(new BoxLayout(bindingsStack, BoxLayout.Y_AXIS));
-        bindingsStack.setOpaque(false);
-        bindingsStack.add(createShortcutBindingRow(UiText.OptionsWindow.SHORTCUT_KEYBOARD_LABEL, keyboardButton));
-        bindingsStack.add(Box.createVerticalStrut(6));
-        bindingsStack.add(createShortcutBindingRow(UiText.OptionsWindow.SHORTCUT_CONTROLLER_LABEL, controllerButton));
-
-        card.add(createResponsiveGroup(240, 2, labelPanel, bindingsStack), BorderLayout.CENTER);
-        return card;
+        return createMinimalBindingRow(shortcut.Label(), shortcut.Description(), keyboardButton, controllerButton);
     }
 
-    private JComponent createShortcutBindingRow(String labelText, JButton actionButton) {
-        JPanel row = new JPanel(new BorderLayout(8, 0));
-        row.setOpaque(true);
-        row.setBackground(Styling.sectionHighlightColour);
+    private JComponent createMinimalBindingRow(String titleText, String helperText, JButton keyboardButton,
+            JButton controllerButton) {
+        JPanel row = new JPanel(new BorderLayout(10, 0));
+        row.setOpaque(false);
         row.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(6, 8, 6, 8)));
+                BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(58, 92, 132, 18)),
+                BorderFactory.createEmptyBorder(6, 0, 6, 0)));
 
-        JLabel rowLabel = new JLabel(labelText);
-        rowLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 9f));
-        rowLabel.setForeground(mutedText);
-        rowLabel.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 4));
+        JLabel titleLabel = new JLabel(titleText);
+        titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+        titleLabel.setForeground(accentColour);
+        if (shouldRenderUiText(helperText)) {
+            titleLabel.setToolTipText(helperText);
+        }
 
-        JPanel buttonWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        buttonWrap.setOpaque(false);
-        buttonWrap.add(actionButton);
+        JPanel buttons = new JPanel(new GridLayout(1, 2, 6, 0));
+        buttons.setOpaque(false);
+        buttons.setPreferredSize(new Dimension(204, 26));
+        buttons.add(keyboardButton);
+        buttons.add(controllerButton);
 
-        row.add(rowLabel, BorderLayout.WEST);
-        row.add(buttonWrap, BorderLayout.CENTER);
+        row.add(titleLabel, BorderLayout.CENTER);
+        row.add(buttons, BorderLayout.EAST);
         return row;
     }
 
@@ -1227,28 +1681,22 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createPalettePreviewBanner() {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(Styling.sectionHighlightColour);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(12, 14, 12, 14)));
+        JPanel content = new JPanel(new BorderLayout(8, 0));
+        content.setOpaque(false);
 
-        JPanel textBlock = createInfoTextBlock(
-                UiText.OptionsWindow.ACTIVE_DMG_PALETTE_TITLE,
-                UiText.OptionsWindow.ACTIVE_DMG_PALETTE_HELPER,
-                16f);
-
-        JPanel swatchStrip = createResponsiveGroup(52, 4);
+        JLabel titleLabel = createFieldLabel(UiText.OptionsWindow.ACTIVE_DMG_PALETTE_TITLE);
+        titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+        JPanel swatchStrip = createResponsiveGroup(30, 4);
 
         GBColor[] palette = Settings.CurrentPalette();
         String[] toneNames = UiText.OptionsWindow.DMG_TONE_NAMES;
         for (int i = 0; i < palette.length; i++) {
             JPanel swatch = new JPanel();
-            swatch.setPreferredSize(new Dimension(48, 48));
+            swatch.setPreferredSize(new Dimension(28, 28));
             swatch.setBackground(palette[i].ToColour());
             swatch.setBorder(BorderFactory.createCompoundBorder(
                     BorderFactory.createLineBorder(new Color(58, 92, 132, 60), 1, true),
-                    BorderFactory.createEmptyBorder(4, 4, 4, 4)));
+                    BorderFactory.createEmptyBorder(1, 1, 1, 1)));
             swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
             swatch.setToolTipText(UiText.OptionsWindow.EditPaletteToneTooltip(toneNames[i]));
             final int paletteIndex = i;
@@ -1262,8 +1710,9 @@ public class OptionsWindow extends DuckWindow {
             swatchStrip.add(swatch);
         }
 
-        card.add(createResponsiveGroup(260, 2, textBlock, swatchStrip), BorderLayout.CENTER);
-        return card;
+        content.add(titleLabel, BorderLayout.WEST);
+        content.add(swatchStrip, BorderLayout.CENTER);
+        return createCompactWindowOptionCard(content);
     }
 
     private JComponent createThemePreviewBanner() {
@@ -2374,8 +2823,9 @@ public class OptionsWindow extends DuckWindow {
         JPanel container = new JPanel(new BorderLayout(0, 14));
         container.setOpaque(false);
 
-        JPanel stack = createFillStackPanel();
-        int stackRow = 0;
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
 
         JCheckBox fillWindowCheckBox = new JCheckBox(UiText.OptionsWindow.WINDOW_FILL_CHECKBOX,
                 Settings.fillWindowOutput);
@@ -2442,17 +2892,11 @@ public class OptionsWindow extends DuckWindow {
             }
         });
 
-        JPanel optionStack = createFillStackPanel();
-        addFillStackRow(optionStack, createSimpleWindowOptionCard(fillWindowCheckBox), 0, 0);
-        addFillStackRow(optionStack, createSimpleWindowOptionCard(integerScaleCheckBox), 1, 10);
-        addFillStackRow(optionStack, createSimpleWindowOptionCard(frameBlendingEnabledCheckBox), 2, 10);
-        addFillStackRow(optionStack, createSimpleWindowOptionCard(showDisplayFpsCheckBox), 3, 10);
-        addFillStackRow(optionStack, createSimpleWindowOptionCard(serialOutputCheckBox), 4, 10);
-        addFillStackRow(stack, optionStack, stackRow++, 0);
-
         JComboBox<GameArtDisplayMode> gameArtModeSelector = new JComboBox<>(GameArtDisplayMode.values());
         gameArtModeSelector.setSelectedItem(Settings.gameArtDisplayMode);
         gameArtModeSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+        gameArtModeSelector.setBackground(Styling.surfaceColour);
+        gameArtModeSelector.setForeground(accentColour);
         gameArtModeSelector.addActionListener(event -> {
             Object selectedItem = gameArtModeSelector.getSelectedItem();
             if (!(selectedItem instanceof GameArtDisplayMode selectedMode)) {
@@ -2465,41 +2909,13 @@ public class OptionsWindow extends DuckWindow {
                 mainWindow.RefreshWindowPanels();
             }
         });
-        addFillStackRow(stack,
-                createSelectorWindowOptionCard(UiText.OptionsWindow.GAME_ART_MODE_LABEL, gameArtModeSelector),
-                stackRow++, 10);
 
         JComboBox<DisplayBorderChoice> borderSelector = new JComboBox<>();
         borderSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-
-        JLabel borderSourceValueLabel = createValueLabel("");
-        JLabel borderPathValueLabel = createCompactReadoutLabel("");
-        JLabel borderCutoutValueLabel = createValueLabel("");
-        JLabel borderStatusValueLabel = createCompactReadoutLabel("");
-        ImagePreviewSurface borderPreviewSurface = new ImagePreviewSurface(
-                UiText.BorderManagerWindow.PREVIEW_UNAVAILABLE,
-                280,
-                210);
-        borderPreviewSurface.setBorder(WindowUiSupport.createLineBorder(Styling.surfaceBorderColour));
+        borderSelector.setBackground(Styling.surfaceColour);
+        borderSelector.setForeground(accentColour);
 
         final boolean[] updatingBorderSelector = { false };
-
-        Runnable refreshBorderDetails = () -> {
-            DisplayBorderChoice selectedChoice = (DisplayBorderChoice) borderSelector.getSelectedItem();
-            LoadedDisplayBorder border = DisplayBorderManager.Resolve(
-                    selectedChoice == null ? Settings.displayBorderId : selectedChoice.id());
-
-            DisplayBorderPreviewRenderer.PreviewImages previewImages = DisplayBorderPreviewRenderer.render(border);
-            borderPreviewSurface.setImage(previewImages.previewImage());
-            borderSourceValueLabel.setText(border.sourceLabel());
-            setCompactReadout(borderPathValueLabel, border.sourcePathText().isBlank()
-                    ? UiText.OptionsWindow.BORDER_PATH_BUILT_IN
-                    : border.sourcePathText());
-            borderCutoutValueLabel.setText(border.screenRect() == null
-                    ? UiText.BorderManagerWindow.CUTOUT_NOT_AVAILABLE
-                    : border.screenRect().width + " x " + border.screenRect().height);
-            updateBorderStatusLabel(borderStatusValueLabel);
-        };
 
         Runnable refreshBorderSelector = () -> {
             List<LoadedDisplayBorder> availableBorders = DisplayBorderManager.GetAvailableBorders();
@@ -2529,7 +2945,6 @@ public class OptionsWindow extends DuckWindow {
             } finally {
                 updatingBorderSelector[0] = false;
             }
-            refreshBorderDetails.run();
         };
 
         borderSelector.addActionListener(event -> {
@@ -2544,103 +2959,17 @@ public class OptionsWindow extends DuckWindow {
 
             Settings.displayBorderId = selectedChoice.id();
             Config.Save();
-            refreshBorderDetails.run();
             if (mainWindow != null) {
                 mainWindow.RefreshDisplayBorder();
             }
         });
-
-        addFillStackRow(stack,
-                createSelectorWindowOptionCard(UiText.OptionsWindow.DISPLAY_BORDER_LABEL, borderSelector),
-                stackRow++, 10);
-
-        JPanel borderDetailGrid = createResponsiveGroup(
-                220,
-                2,
-                createFieldCard(UiText.OptionsWindow.BORDER_SOURCE_LABEL, borderSourceValueLabel),
-                createFieldCard(UiText.OptionsWindow.BORDER_PATH_LABEL, borderPathValueLabel),
-                createFieldCard(UiText.OptionsWindow.BORDER_CUTOUT_LABEL, borderCutoutValueLabel),
-                createFieldCard(UiText.OptionsWindow.BORDER_STATUS_LABEL, borderStatusValueLabel));
-        JPanel borderPreviewCard = createResponsiveGroup(
-                300,
-                2,
-                createFieldCard(UiText.OptionsWindow.BORDER_PREVIEW_LABEL, borderPreviewSurface),
-                borderDetailGrid);
-        addFillStackRow(stack, createSimpleWindowOptionCard(borderPreviewCard), stackRow, 10);
-
-        container.add(stack, BorderLayout.CENTER);
-
-        JButton borderManagerButton = createSecondaryButton(UiText.OptionsWindow.OPEN_BORDER_MANAGER_BUTTON);
-        borderManagerButton.addActionListener(event -> new DisplayBorderManagerWindow(() -> {
-            DisplayBorderManager.Reload();
-            refreshBorderSelector.run();
-            if (mainWindow != null) {
-                mainWindow.RefreshDisplayBorder();
-            }
-        }));
-
-        JButton resetWindowButton = createSecondaryButton(UiText.OptionsWindow.RESET_WINDOW_BUTTON);
-        resetWindowButton.addActionListener(event -> {
-            Settings.fillWindowOutput = false;
-            Settings.integerScaleWindowOutput = false;
-            Settings.showSerialOutput = true;
-            Settings.gameArtDisplayMode = GameArtDisplayMode.BOX_ART;
-            Settings.displayBorderId = "none";
-            fillWindowCheckBox.setSelected(Settings.fillWindowOutput);
-            integerScaleCheckBox.setSelected(Settings.integerScaleWindowOutput);
-            serialOutputCheckBox.setSelected(Settings.showSerialOutput);
-            gameArtModeSelector.setSelectedItem(Settings.gameArtDisplayMode);
-            refreshBorderSelector.run();
-            Config.Save();
-            if (mainWindow != null) {
-                mainWindow.RefreshWindowPanels();
-                mainWindow.RefreshDisplayBorder();
-            }
-        });
-
-        JPanel actions = createResponsiveGroup(180, 2, borderManagerButton, resetWindowButton);
-        container.add(actions, BorderLayout.SOUTH);
-        refreshBorderSelector.run();
-        return container;
-    }
-
-    private JComponent createDisplayShaderPanel() {
-        JPanel container = new JPanel(new BorderLayout(0, 14));
-        container.setOpaque(false);
-
-        JPanel stack = new JPanel();
-        stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
-        stack.setOpaque(false);
 
         JComboBox<DisplayShaderChoice> shaderSelector = new JComboBox<>();
         shaderSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-
-        JTextArea descriptionArea = createWrappingTextArea("");
-        descriptionArea.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
-        descriptionArea.setForeground(mutedText);
-
-        JLabel sourceValueLabel = createValueLabel("");
-        JLabel pathValueLabel = createCompactReadoutLabel("");
-        JLabel statusValueLabel = createCompactReadoutLabel("");
+        shaderSelector.setBackground(Styling.surfaceColour);
+        shaderSelector.setForeground(accentColour);
 
         final boolean[] updatingShaderSelector = { false };
-
-        Runnable refreshShaderDetails = () -> {
-            DisplayShaderChoice selectedChoice = (DisplayShaderChoice) shaderSelector.getSelectedItem();
-            LoadedDisplayShader shader = DisplayShaderManager.Resolve(
-                    selectedChoice == null ? Settings.displayShaderId : selectedChoice.id());
-
-            String description = shader.description();
-            descriptionArea.setText(description == null || description.isBlank()
-                    ? UiText.OptionsWindow.SHADER_DESCRIPTION_FALLBACK
-                    : description);
-            descriptionArea.setCaretPosition(0);
-            sourceValueLabel.setText(shader.sourceLabel());
-            setCompactReadout(pathValueLabel, shader.sourcePathText().isBlank()
-                    ? UiText.OptionsWindow.SHADER_PATH_BUILT_IN
-                    : shader.sourcePathText());
-            updateShaderStatusLabel(statusValueLabel);
-        };
 
         Runnable refreshShaderSelector = () -> {
             List<LoadedDisplayShader> availableShaders = DisplayShaderManager.GetAvailableShaders();
@@ -2670,7 +2999,6 @@ public class OptionsWindow extends DuckWindow {
             } finally {
                 updatingShaderSelector[0] = false;
             }
-            refreshShaderDetails.run();
         };
 
         shaderSelector.addActionListener(event -> {
@@ -2685,37 +3013,19 @@ public class OptionsWindow extends DuckWindow {
 
             Settings.displayShaderId = selectedChoice.id();
             Config.Save();
-            refreshShaderDetails.run();
             if (mainWindow != null) {
                 mainWindow.RefreshDisplayShader();
             }
         });
 
-        stack.add(createSelectorWindowOptionCard(UiText.OptionsWindow.DISPLAY_SHADER_LABEL, shaderSelector));
-        stack.add(Box.createVerticalStrut(10));
-
-        JPanel detailGrid = createResponsiveGroup(
-                220,
-                2,
-                createFieldCard(UiText.OptionsWindow.SHADER_DESCRIPTION_LABEL, descriptionArea),
-                createFieldCard(UiText.OptionsWindow.SHADER_SOURCE_LABEL, sourceValueLabel),
-                createFieldCard(UiText.OptionsWindow.SHADER_PATH_LABEL, pathValueLabel),
-                createFieldCard(UiText.OptionsWindow.SHADER_STATUS_LABEL, statusValueLabel));
-        stack.add(createSimpleWindowOptionCard(detailGrid));
-
-        container.add(stack, BorderLayout.CENTER);
-
-        JButton reloadShadersButton = createSecondaryButton(UiText.OptionsWindow.RELOAD_SHADERS_BUTTON);
-        reloadShadersButton.addActionListener(event -> {
-            DisplayShaderManager.Reload();
-            refreshShaderSelector.run();
+        JButton borderManagerButton = createSecondaryButton(UiText.OptionsWindow.OPEN_BORDER_MANAGER_BUTTON);
+        borderManagerButton.addActionListener(event -> new DisplayBorderManagerWindow(() -> {
+            DisplayBorderManager.Reload();
+            refreshBorderSelector.run();
             if (mainWindow != null) {
-                mainWindow.RefreshDisplayShader();
+                mainWindow.RefreshDisplayBorder();
             }
-        });
-
-        JButton openFolderButton = createSecondaryButton(UiText.OptionsWindow.OPEN_SHADER_FOLDER_BUTTON);
-        openFolderButton.addActionListener(event -> openDirectory(DisplayShaderManager.ShaderDirectory()));
+        }));
 
         JButton shaderEditorButton = createSecondaryButton(UiText.OptionsWindow.OPEN_SHADER_EDITOR_BUTTON);
         shaderEditorButton.addActionListener(event -> new ShaderPresetEditorWindow(() -> {
@@ -2736,15 +3046,58 @@ public class OptionsWindow extends DuckWindow {
             }
         });
 
+        JButton resetWindowButton = createSecondaryButton(UiText.OptionsWindow.RESET_WINDOW_BUTTON);
+        resetWindowButton.addActionListener(event -> {
+            Settings.fillWindowOutput = false;
+            Settings.integerScaleWindowOutput = false;
+            Settings.showSerialOutput = true;
+            Settings.enableFrameBlending = true;
+            Settings.showDisplayFps = true;
+            Settings.gameArtDisplayMode = GameArtDisplayMode.BOX_ART;
+            Settings.displayBorderId = "none";
+            fillWindowCheckBox.setSelected(Settings.fillWindowOutput);
+            integerScaleCheckBox.setSelected(Settings.integerScaleWindowOutput);
+            frameBlendingEnabledCheckBox.setSelected(Settings.enableFrameBlending);
+            showDisplayFpsCheckBox.setSelected(Settings.showDisplayFps);
+            serialOutputCheckBox.setSelected(Settings.showSerialOutput);
+            gameArtModeSelector.setSelectedItem(Settings.gameArtDisplayMode);
+            refreshBorderSelector.run();
+            refreshShaderSelector.run();
+            Config.Save();
+            if (mainWindow != null) {
+                mainWindow.RefreshWindowPanels();
+                mainWindow.RefreshDisplayStats();
+                mainWindow.RefreshDisplayBorder();
+                mainWindow.RefreshDisplayShader();
+            }
+        });
+
+        JPanel layoutOptionsGrid = createResponsiveGroup(
+                300,
+                2,
+                createSimpleWindowOptionCard(fillWindowCheckBox),
+                createSimpleWindowOptionCard(integerScaleCheckBox),
+                createSimpleWindowOptionCard(frameBlendingEnabledCheckBox),
+                createSimpleWindowOptionCard(showDisplayFpsCheckBox),
+                createSimpleWindowOptionCard(serialOutputCheckBox),
+                createSelectorWindowOptionCard(UiText.OptionsWindow.GAME_ART_MODE_LABEL, gameArtModeSelector),
+                createSelectorWindowOptionCard(UiText.OptionsWindow.DISPLAY_BORDER_LABEL, borderSelector),
+                createSelectorWindowOptionCard(UiText.OptionsWindow.DISPLAY_SHADER_LABEL, shaderSelector));
+        content.add(layoutOptionsGrid);
+        content.add(Box.createVerticalStrut(12));
+
         JPanel actions = createResponsiveGroup(
                 180,
                 4,
+                borderManagerButton,
                 shaderEditorButton,
-                reloadShadersButton,
-                openFolderButton,
-                resetShaderButton);
-        container.add(actions, BorderLayout.SOUTH);
+                resetShaderButton,
+                resetWindowButton);
+        actions.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(actions);
 
+        container.add(content, BorderLayout.CENTER);
+        refreshBorderSelector.run();
         refreshShaderSelector.run();
         return container;
     }
@@ -3208,81 +3561,77 @@ public class OptionsWindow extends DuckWindow {
         reopenWithCurrentTab();
     }
 
-    // private boolean captureBinding(EmulatorButton button) {
-    // JDialog dialog = new JDialog(this,
-    // UiText.OptionsWindow.RebindDialogTitle(formatControlButtonName(button)),
-    // true);
-    // dialog.setLayout(new BorderLayout());
-    // dialog.getContentPane().setBackground(panelBackground);
+    private boolean captureKeyboardBinding(EmulatorButton button) {
+        JDialog dialog = new JDialog(this, UiText.OptionsWindow.RebindDialogTitle(formatControlButtonName(button)), true);
+        dialog.setLayout(new BorderLayout());
+        dialog.getContentPane().setBackground(panelBackground);
 
-    // JPanel content = new JPanel(new BorderLayout(0, 8));
-    // content.setBackground(cardBackground);
-    // content.setBorder(createCardBorder());
+        JPanel content = new JPanel(new BorderLayout(0, 8));
+        content.setBackground(cardBackground);
+        content.setBorder(createCardBorder());
 
-    // JLabel title = new
-    // JLabel(UiText.OptionsWindow.RebindDialogPrompt(formatControlButtonName(button)),
-    // SwingConstants.CENTER);
-    // title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 18f));
-    // title.setForeground(accentColour);
+        JLabel title = new JLabel(UiText.OptionsWindow.RebindDialogPrompt(formatControlButtonName(button)),
+                SwingConstants.CENTER);
+        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 18f));
+        title.setForeground(accentColour);
 
-    // JLabel helper = new JLabel(UiText.OptionsWindow.PRESS_ESCAPE_TO_CANCEL,
-    // SwingConstants.CENTER);
-    // helper.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-    // helper.setForeground(mutedText);
+        JLabel helper = new JLabel(UiText.OptionsWindow.PRESS_ESCAPE_TO_CANCEL, SwingConstants.CENTER);
+        helper.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+        helper.setForeground(mutedText);
 
-    // content.add(title, BorderLayout.NORTH);
-    // content.add(helper, BorderLayout.CENTER);
-    // dialog.add(content, BorderLayout.CENTER);
-    // dialog.setSize(420, 180);
-    // dialog.setLocationRelativeTo(this);
+        content.add(title, BorderLayout.NORTH);
+        content.add(helper, BorderLayout.CENTER);
+        dialog.add(content, BorderLayout.CENTER);
+        dialog.setSize(420, 180);
+        dialog.setLocationRelativeTo(this);
 
-    // KeyboardFocusManager focusManager =
-    // KeyboardFocusManager.getCurrentKeyboardFocusManager();
-    // final boolean[] removed = { false };
-    // final boolean[] captured = { false };
+        KeyboardFocusManager focusManager = KeyboardFocusManager.getCurrentKeyboardFocusManager();
+        final boolean[] removed = { false };
+        final boolean[] captured = { false };
 
-    // KeyEventDispatcher dispatcher = event -> {
-    // if (event.getID() != KeyEvent.KEY_PRESSED) {
-    // return false;
-    // }
+        KeyEventDispatcher dispatcher = event -> {
+            if (event.getID() != KeyEvent.KEY_PRESSED) {
+                return false;
+            }
 
-    // if (event.getKeyCode() == KeyEvent.VK_ESCAPE) {
-    // dialog.dispose();
-    // return true;
-    // }
+            if (event.getKeyCode() == KeyEvent.VK_ESCAPE) {
+                dialog.dispose();
+                return true;
+            }
 
-    // Settings.inputBindings.SetKeyCode(button, event.getKeyCode());
-    // captured[0] = true;
-    // Config.Save();
-    // dialog.dispose();
-    // return true;
-    // };
+            Settings.inputBindings.SetKeyCode(button, event.getKeyCode());
+            refreshKeyboardBindingButtons();
+            captured[0] = true;
+            Config.Save();
+            dialog.dispose();
+            return true;
+        };
 
-    // Runnable removeDispatcher = () -> {
-    // if (!removed[0]) {
-    // focusManager.removeKeyEventDispatcher(dispatcher);
-    // removed[0] = true;
-    // }
-    // };
+        Runnable removeDispatcher = () -> {
+            if (!removed[0]) {
+                focusManager.removeKeyEventDispatcher(dispatcher);
+                removed[0] = true;
+            }
+        };
 
-    // dialog.addWindowListener(new WindowAdapter() {
-    // @Override
-    // public void windowClosed(WindowEvent e) {
-    // removeDispatcher.run();
-    // }
+        dialog.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(WindowEvent e) {
+                removeDispatcher.run();
+            }
 
-    // @Override
-    // public void windowClosing(WindowEvent e) {
-    // removeDispatcher.run();
-    // }
-    // });
+            @Override
+            public void windowClosing(WindowEvent e) {
+                removeDispatcher.run();
+            }
+        });
 
-    // focusManager.addKeyEventDispatcher(dispatcher);
-    // SwingUtilities.invokeLater(dialog::requestFocusInWindow);
-    // dialog.setVisible(true);
-    // removeDispatcher.run();
-    // return captured[0];
-    // }
+        focusManager.addKeyEventDispatcher(dispatcher);
+        SwingUtilities.invokeLater(dialog::requestFocusInWindow);
+        dialog.setVisible(true);
+        removeDispatcher.run();
+        return captured[0];
+    }
 
     private void captureShortcut(AppShortcut shortcut) {
         JDialog dialog = new JDialog(this, UiText.OptionsWindow.ShortcutDialogTitle(shortcut.Label()), true);
@@ -3371,16 +3720,17 @@ public class OptionsWindow extends DuckWindow {
                 });
     }
 
-    // private boolean captureControllerBinding(EmulatorButton button) {
-    // return captureControllerInput(
-    // UiText.OptionsWindow.ControllerRebindDialogTitle(formatControlButtonName(button)),
-    // UiText.OptionsWindow.ControllerRebindDialogPrompt(formatControlButtonName(button)),
-    // binding -> {
-    // Settings.controllerBindings.SetBinding(button, binding);
-    // refreshControllerStatus();
-    // Config.Save();
-    // });
-    // }
+    private boolean captureControllerBinding(EmulatorButton button) {
+        return captureControllerInput(
+                UiText.OptionsWindow.ControllerRebindDialogTitle(formatControlButtonName(button)),
+                UiText.OptionsWindow.ControllerRebindDialogPrompt(formatControlButtonName(button)),
+                binding -> {
+                    Settings.controllerBindings.SetBinding(button, binding);
+                    refreshControllerBindingButtons();
+                    refreshControllerStatus();
+                    Config.Save();
+                });
+    }
 
     private boolean captureControllerInput(String dialogTitle, String dialogPrompt,
             Consumer<ControllerBinding> onCapture) {
@@ -3653,6 +4003,24 @@ public class OptionsWindow extends DuckWindow {
         }
     }
 
+    private void refreshKeyboardBindingButtons() {
+        for (EmulatorButton button : backendProfile().controlButtons()) {
+            JButton bindingButton = keyboardBindingButtons.get(button);
+            if (bindingButton != null) {
+                bindingButton.setText(Settings.inputBindings.GetKeyText(button));
+            }
+        }
+    }
+
+    private void refreshControllerBindingButtons() {
+        for (EmulatorButton button : backendProfile().controlButtons()) {
+            JButton bindingButton = controllerBindingButtons.get(button);
+            if (bindingButton != null) {
+                bindingButton.setText(Settings.controllerBindings.GetBindingText(button));
+            }
+        }
+    }
+
     private String formatControlButtonName(EmulatorButton button) {
         return backendProfile().controlButtonLabel(button);
     }
@@ -3733,6 +4101,17 @@ public class OptionsWindow extends DuckWindow {
         return card;
     }
 
+    private JComponent createCompactWindowOptionCard(JComponent component) {
+        JPanel card = new JPanel(new BorderLayout());
+        card.setOpaque(true);
+        card.setBackground(Styling.cardTintColour);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
+                BorderFactory.createEmptyBorder(8, 8, 8, 8)));
+        card.add(component, BorderLayout.CENTER);
+        return card;
+    }
+
     private JComponent createSelectorWindowOptionCard(String labelText, JComponent selector) {
         JPanel card = new JPanel(new BorderLayout(0, 10));
         card.setOpaque(true);
@@ -3745,6 +4124,105 @@ public class OptionsWindow extends DuckWindow {
         card.add(label, BorderLayout.NORTH);
         card.add(selector, BorderLayout.CENTER);
         return card;
+    }
+
+    private JComponent createCompactSelectorWindowOptionCard(String labelText, JComponent selector) {
+        JPanel card = new JPanel(new BorderLayout(0, 6));
+        card.setOpaque(true);
+        card.setBackground(Styling.cardTintColour);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
+                BorderFactory.createEmptyBorder(8, 8, 8, 8)));
+
+        JLabel label = createFieldLabel(labelText);
+        label.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+        card.add(label, BorderLayout.NORTH);
+        card.add(selector, BorderLayout.CENTER);
+        return card;
+    }
+
+    private void configureCompactPaletteField(JTextField field) {
+        field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
+        field.setPreferredSize(new Dimension(220, 32));
+        field.setFont(Styling.menuFont.deriveFont(12f));
+        field.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(cardBorder, 1, true),
+                BorderFactory.createEmptyBorder(5, 8, 5, 8)));
+    }
+
+    private void configureCompactPaletteSelector(JComboBox<?> selector) {
+        selector.setPreferredSize(new Dimension(220, 30));
+        selector.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+    }
+
+    private void configureCompactPaletteButton(AbstractButton button) {
+        configureCompactPaletteButton(button, 88);
+    }
+
+    private void configureCompactPaletteButton(AbstractButton button, int width) {
+        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
+        button.setPreferredSize(new Dimension(width, 26));
+    }
+
+    private void refreshSavedPaletteSelector(JComboBox<String> selector, boolean gbcPalette,
+            JButton loadButton, JButton deleteButton) {
+        if (selector == null) {
+            return;
+        }
+
+        String previousSelection = selector.getSelectedItem() instanceof String selectedName
+                ? selectedName
+                : null;
+        List<String> paletteNames = gbcPalette
+                ? Config.GetSavedGbcPaletteNames()
+                : Config.GetSavedPaletteNames();
+
+        DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
+        for (String paletteName : paletteNames) {
+            model.addElement(paletteName);
+        }
+        selector.setModel(model);
+
+        if (model.getSize() > 0) {
+            if (previousSelection != null) {
+                selector.setSelectedItem(previousSelection);
+            }
+            if (selector.getSelectedIndex() < 0) {
+                selector.setSelectedIndex(0);
+            }
+        }
+
+        boolean hasSavedPalettes = model.getSize() > 0;
+        if (loadButton != null) {
+            loadButton.setEnabled(hasSavedPalettes);
+        }
+        if (deleteButton != null) {
+            deleteButton.setEnabled(hasSavedPalettes);
+        }
+        selector.setEnabled(hasSavedPalettes);
+    }
+
+    private void importSavedPalettes(boolean gbcPalette) {
+        File importFile = promptForPaletteImportFile(gbcPalette);
+        if (importFile == null) {
+            return;
+        }
+
+        try {
+            var mergeResult = gbcPalette
+                    ? Config.ImportGbcPalettes(importFile.toPath())
+                    : Config.ImportPalettes(importFile.toPath());
+            JOptionPane.showMessageDialog(this,
+                    UiText.PaletteManager.ImportSuccessMessage(
+                            gbcPalette,
+                            mergeResult.importedCount(),
+                            mergeResult.duplicateCount()));
+        } catch (IOException | IllegalArgumentException exception) {
+            JOptionPane.showMessageDialog(this,
+                    exception.getMessage(),
+                    UiText.PaletteManager.IMPORT_FAILED_TITLE,
+                    JOptionPane.ERROR_MESSAGE);
+        }
     }
 
     private void updateShaderStatusLabel(JLabel label) {
@@ -3819,6 +4297,16 @@ public class OptionsWindow extends DuckWindow {
             String lowerName = name.toLowerCase();
             return lowerName.endsWith(".bin") || lowerName.endsWith(".rom") || lowerName.endsWith(".gb");
         });
+        fileDialog.setVisible(true);
+        return fileDialog.getFiles().length == 0 ? null : fileDialog.getFiles()[0];
+    }
+
+    private File promptForPaletteImportFile(boolean gbcPalette) {
+        FileDialog fileDialog = new FileDialog(this,
+                UiText.PaletteManager.ImportDialogTitle(gbcPalette),
+                FileDialog.LOAD);
+        fileDialog.setAlwaysOnTop(true);
+        fileDialog.setFilenameFilter((directory, name) -> name.toLowerCase().endsWith(".json"));
         fileDialog.setVisible(true);
         return fileDialog.getFiles().length == 0 ? null : fileDialog.getFiles()[0];
     }

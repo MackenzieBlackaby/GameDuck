@@ -939,6 +939,8 @@ public final class UiText {
         public static final String AUDIO_ENHANCEMENTS_TITLE = "Audio Enhancements";
         public static final String AUDIO_ENHANCEMENTS_HELPER = "Apply stackable audio enhancements. Drag cards to reorder the chain and turn the knobs to shape each effect";
         public static final String AUDIO_ENHANCEMENTS_ENABLED_CHECKBOX = "Enable Effects Chain";
+        public static final String OPEN_AUDIO_CHAIN_EDITOR_BUTTON = "Edit Chain";
+        public static final String AUDIO_CHAIN_EDITOR_TITLE = "Audio Chain Editor";
         public static final String ADD_PRESET_TITLE = "Add Effect";
         public static final String ACTIVE_CHAIN_TITLE = "Active Chain";
         public static final String ACTIVE_CHAIN_HELPER = "Drag by the handle, remove with -, and use the knobs for blend and tone";

@@ -1755,12 +1755,9 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createSoundPanel() {
-        JPanel container = new JPanel(new BorderLayout(0, 18));
+        JPanel container = new JPanel();
+        container.setLayout(new BoxLayout(container, BoxLayout.Y_AXIS));
         container.setOpaque(false);
-
-        JPanel stack = new JPanel();
-        stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
-        stack.setOpaque(false);
 
         JCheckBox[] channelMuteCheckBoxes = new JCheckBox[4];
         AudioKnob[] channelVolumeKnobs = new AudioKnob[4];
@@ -1770,51 +1767,22 @@ public class OptionsWindow extends DuckWindow {
             enhancementChainModel.addElement(setting);
         }
 
-        JCheckBox soundEnabledCheckBox = new JCheckBox(UiText.OptionsWindow.SOUND_ENABLED_CHECKBOX,
-                Settings.soundEnabled);
-        soundEnabledCheckBox.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
-        soundEnabledCheckBox.setForeground(accentColour);
-        soundEnabledCheckBox.setBackground(Styling.sectionHighlightColour);
-        soundEnabledCheckBox.addActionListener(event -> {
-            Settings.soundEnabled = soundEnabledCheckBox.isSelected();
+        JCheckBox muteCheckBox = new JCheckBox(UiText.OptionsWindow.MUTE_CHECKBOX, !Settings.soundEnabled);
+        muteCheckBox.setOpaque(false);
+        muteCheckBox.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 11f));
+        muteCheckBox.setForeground(accentColour);
+        muteCheckBox.setBorder(BorderFactory.createEmptyBorder());
+        muteCheckBox.addActionListener(event -> {
+            Settings.soundEnabled = !muteCheckBox.isSelected();
             Config.Save();
             mainWindow.GetEmulation().ResetTransientAudioState();
         });
 
-        JPanel outputCard = new JPanel(new BorderLayout());
-        outputCard.setBackground(Styling.sectionHighlightColour);
-        outputCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
-
-        JPanel outputText = createInfoTextBlock(
-                UiText.OptionsWindow.PLAYBACK_TITLE,
-                UiText.OptionsWindow.PLAYBACK_HELPER,
-                16f);
-
-        JPanel toggleWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        toggleWrap.setOpaque(false);
-        toggleWrap.add(soundEnabledCheckBox);
-
-        outputCard.add(createResponsiveGroup(280, 2, outputText, toggleWrap), BorderLayout.CENTER);
-        stack.add(outputCard);
-        stack.add(Box.createVerticalStrut(10));
-
-        JPanel volumeCard = new JPanel(new BorderLayout(0, 14));
-        volumeCard.setBackground(Styling.cardTintColour);
-        volumeCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
-
-        JLabel masterValueBadge = createBadgeLabel(UiText.OptionsWindow.PercentValue(Settings.masterVolume));
-        JPanel volumeHeader = createResponsiveGroup(
-                260,
-                2,
-                createInfoTextBlock(
-                        UiText.OptionsWindow.MASTER_VOLUME_TITLE,
-                        UiText.OptionsWindow.MASTER_VOLUME_HELPER,
-                        15f),
-                masterValueBadge);
+        JPanel masterFooter = new JPanel();
+        masterFooter.setLayout(new BoxLayout(masterFooter, BoxLayout.Y_AXIS));
+        masterFooter.setOpaque(false);
+        muteCheckBox.setAlignmentX(Component.CENTER_ALIGNMENT);
+        masterFooter.add(muteCheckBox);
 
         JComponent masterKnobTile = createMixerKnobTile(
                 UiText.OptionsWindow.MASTER_VOLUME_TITLE,
@@ -1822,33 +1790,17 @@ public class OptionsWindow extends DuckWindow {
                 Settings.masterVolume,
                 (newValue, adjusting) -> {
                     Settings.masterVolume = newValue;
-                    masterValueBadge.setText(UiText.OptionsWindow.PercentValue(newValue));
                     if (!adjusting) {
                         Config.Save();
                     }
                 },
                 masterVolumeKnobHolder,
                 0,
-                null);
+                masterFooter);
 
-        volumeCard.add(volumeHeader, BorderLayout.NORTH);
-        volumeCard.add(masterKnobTile, BorderLayout.CENTER);
-        stack.add(volumeCard);
-        stack.add(Box.createVerticalStrut(10));
-
-        JPanel channelCard = new JPanel(new BorderLayout(0, 12));
-        channelCard.setBackground(Styling.cardTintColour);
-        channelCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(14, 14, 14, 14)));
-
-        JPanel channelHeader = createInfoTextBlock(
-                UiText.OptionsWindow.CHANNEL_MIXER_TITLE,
-                UiText.OptionsWindow.CHANNEL_MIXER_HELPER,
-                15f);
-
-        JPanel channelGrid = new ResponsiveTileGridPanel(116, 4);
+        JPanel channelGrid = new ResponsiveTileGridPanel(108, 5);
         channelGrid.setOpaque(false);
+        channelGrid.add(masterKnobTile);
 
         for (int channelIndex = 0; channelIndex < 4; channelIndex++) {
             channelGrid.add(createChannelMixerKnobTile(
@@ -1857,51 +1809,150 @@ public class OptionsWindow extends DuckWindow {
                     channelVolumeKnobs));
         }
 
-        channelCard.add(channelHeader, BorderLayout.NORTH);
-        channelCard.add(channelGrid, BorderLayout.CENTER);
-        stack.add(channelCard);
-        stack.add(Box.createVerticalStrut(10));
+        JPanel channelBody = new JPanel(new BorderLayout(0, 8));
+        channelBody.setOpaque(false);
+        channelBody.add(createInfoTextBlock(
+                UiText.OptionsWindow.CHANNEL_MIXER_TITLE,
+                UiText.OptionsWindow.MASTER_VOLUME_HELPER + " " + UiText.OptionsWindow.CHANNEL_MIXER_HELPER,
+                14f), BorderLayout.NORTH);
+        channelBody.add(channelGrid, BorderLayout.CENTER);
+        container.add(createCompactWindowOptionCard(channelBody));
+        container.add(Box.createVerticalStrut(8));
+
+        JButton openChainEditorButton = createSecondaryButton(UiText.OptionsWindow.OPEN_AUDIO_CHAIN_EDITOR_BUTTON);
+        configureCompactPaletteButton(openChainEditorButton, 124);
+        openChainEditorButton.addActionListener(event -> openAudioEnhancementEditor(enhancementChainModel, () -> {
+        }));
+
+        JPanel enhancementCard = new JPanel(new BorderLayout(0, 8));
+        enhancementCard.setOpaque(false);
+        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        buttonRow.setOpaque(false);
+        buttonRow.add(openChainEditorButton);
+        enhancementCard.add(createResponsiveGroup(
+                260,
+                2,
+                createInfoTextBlock(
+                        UiText.OptionsWindow.AUDIO_ENHANCEMENTS_TITLE,
+                        UiText.OptionsWindow.AUDIO_ENHANCEMENTS_HELPER,
+                        14f),
+                buttonRow), BorderLayout.CENTER);
+        container.add(createCompactWindowOptionCard(enhancementCard));
+        return container;
+    }
+
+    private void openAudioEnhancementEditor(DefaultListModel<AudioEnhancementSetting> enhancementChainModel,
+            Runnable onStateChanged) {
+        JDialog dialog = new JDialog(this, UiText.OptionsWindow.AUDIO_CHAIN_EDITOR_TITLE, false);
+        dialog.setUndecorated(true);
+        dialog.setLayout(new BorderLayout());
+        dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+        dialog.getContentPane().setBackground(panelBackground);
 
         JCheckBox enhancementEnabledCheckBox = new JCheckBox(UiText.OptionsWindow.AUDIO_ENHANCEMENTS_ENABLED_CHECKBOX,
                 Settings.IsAudioEnhancementChainEnabled());
         enhancementEnabledCheckBox.setOpaque(false);
         enhancementEnabledCheckBox.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
         enhancementEnabledCheckBox.setForeground(accentColour);
-        enhancementEnabledCheckBox.addActionListener(event -> {
-            Settings.SetAudioEnhancementChainEnabled(enhancementEnabledCheckBox.isSelected());
-            Config.Save();
-        });
+        enhancementEnabledCheckBox.addActionListener(event -> onStateChanged.run());
 
-        stack.add(createAudioEnhancementCard(enhancementChainModel, enhancementEnabledCheckBox));
-
-        container.add(stack, BorderLayout.CENTER);
-
-        JButton resetSoundButton = createSecondaryButton(UiText.OptionsWindow.RESET_SOUND_BUTTON);
-        resetSoundButton.addActionListener(event -> {
-            Settings.ResetSound();
-            soundEnabledCheckBox.setSelected(Settings.soundEnabled);
-            if (masterVolumeKnobHolder[0] != null) {
-                masterVolumeKnobHolder[0].SetValue(Settings.masterVolume);
+        ListDataListener listener = new ListDataListener() {
+            @Override
+            public void intervalAdded(ListDataEvent event) {
+                onStateChanged.run();
             }
-            masterValueBadge.setText(UiText.OptionsWindow.PercentValue(Settings.masterVolume));
-            for (int channelIndex = 0; channelIndex < 4; channelIndex++) {
-                if (channelMuteCheckBoxes[channelIndex] != null) {
-                    channelMuteCheckBoxes[channelIndex].setSelected(Settings.IsChannelMuted(channelIndex));
-                }
-                if (channelVolumeKnobs[channelIndex] != null) {
-                    channelVolumeKnobs[channelIndex].SetValue(Settings.GetChannelVolume(channelIndex));
-                }
+
+            @Override
+            public void intervalRemoved(ListDataEvent event) {
+                onStateChanged.run();
             }
-            enhancementChainModel.clear();
-            enhancementEnabledCheckBox.setSelected(Settings.IsAudioEnhancementChainEnabled());
-            Config.Save();
-            mainWindow.GetEmulation().ResetTransientAudioState();
+
+            @Override
+            public void contentsChanged(ListDataEvent event) {
+                onStateChanged.run();
+            }
+        };
+        enhancementChainModel.addListDataListener(listener);
+
+        JScrollPane scrollPane = new JScrollPane(createAudioEnhancementCard(enhancementChainModel, enhancementEnabledCheckBox));
+        scrollPane.setBorder(BorderFactory.createEmptyBorder());
+        scrollPane.getViewport().setBackground(panelBackground);
+        scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
+
+        JPanel shell = new JPanel(new BorderLayout(0, 0));
+        shell.setOpaque(true);
+        shell.setBackground(Styling.appBackgroundColour);
+        shell.setBorder(WindowUiSupport.createLineBorder(Styling.surfaceBorderColour));
+
+        JPanel titleBar = new JPanel(new BorderLayout(8, 0));
+        titleBar.setOpaque(true);
+        titleBar.setBackground(Styling.surfaceColour);
+        titleBar.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createMatteBorder(0, 0, 1, 0, Styling.surfaceBorderColour),
+                BorderFactory.createEmptyBorder(8, 12, 8, 10)));
+
+        JLabel titleLabel = new JLabel(UiText.OptionsWindow.AUDIO_CHAIN_EDITOR_TITLE);
+        titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12.5f));
+        titleLabel.setForeground(Styling.accentColour);
+
+        JButton closeButton = createCompactCloseGlyphButton(UiText.OptionsWindow.CLOSE_BUTTON, 34, 24);
+        closeButton.addActionListener(event -> dialog.dispose());
+
+        JPanel titleActions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        titleActions.setOpaque(false);
+        titleActions.add(closeButton);
+
+        titleBar.add(titleLabel, BorderLayout.CENTER);
+        titleBar.add(titleActions, BorderLayout.EAST);
+
+        final Point[] dragAnchor = { null };
+        final Point[] startLocation = { null };
+        MouseAdapter dragAdapter = new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent event) {
+                if (!SwingUtilities.isLeftMouseButton(event)) {
+                    return;
+                }
+                dragAnchor[0] = event.getLocationOnScreen();
+                startLocation[0] = dialog.getLocation();
+            }
+
+            @Override
+            public void mouseDragged(MouseEvent event) {
+                if (dragAnchor[0] == null || startLocation[0] == null || !SwingUtilities.isLeftMouseButton(event)) {
+                    return;
+                }
+                Point current = event.getLocationOnScreen();
+                dialog.setLocation(
+                        startLocation[0].x + (current.x - dragAnchor[0].x),
+                        startLocation[0].y + (current.y - dragAnchor[0].y));
+            }
+
+            @Override
+            public void mouseReleased(MouseEvent event) {
+                dragAnchor[0] = null;
+                startLocation[0] = null;
+            }
+        };
+        titleBar.addMouseListener(dragAdapter);
+        titleBar.addMouseMotionListener(dragAdapter);
+        titleLabel.addMouseListener(dragAdapter);
+        titleLabel.addMouseMotionListener(dragAdapter);
+
+        shell.add(titleBar, BorderLayout.NORTH);
+        shell.add(scrollPane, BorderLayout.CENTER);
+        dialog.setContentPane(shell);
+        WindowUiSupport.applyComponentTheme(dialog);
+        dialog.setSize(860, 720);
+        dialog.setLocationRelativeTo(this);
+        dialog.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(WindowEvent event) {
+                enhancementChainModel.removeListDataListener(listener);
+                onStateChanged.run();
+            }
         });
-
-        JPanel actions = createResponsiveGroup(180, 1, resetSoundButton);
-        container.add(actions, BorderLayout.SOUTH);
-
-        return container;
+        dialog.setVisible(true);
     }
 
     private JComponent createAudioEnhancementCard(DefaultListModel<AudioEnhancementSetting> enhancementChainModel,
@@ -2115,9 +2166,7 @@ public class OptionsWindow extends DuckWindow {
         actions.setOpaque(false);
         actions.add(createBadgeLabel("#" + (index + 1)));
 
-        JButton removeButton = createSecondaryButton("-");
-        removeButton.setToolTipText(UiText.OptionsWindow.REMOVE_BUTTON);
-        removeButton.setPreferredSize(new Dimension(38, 28));
+        JButton removeButton = createCompactCloseGlyphButton(UiText.OptionsWindow.REMOVE_BUTTON, 34, 28);
         removeButton.addActionListener(event -> {
             if (index >= 0 && index < enhancementChainModel.size()) {
                 enhancementChainModel.remove(index);
@@ -4003,6 +4052,17 @@ public class OptionsWindow extends DuckWindow {
         }
     }
 
+    private String audioEnhancementSummary(DefaultListModel<AudioEnhancementSetting> enhancementChainModel,
+            boolean enabled) {
+        int effectCount = enhancementChainModel == null ? 0 : enhancementChainModel.size();
+        if (effectCount == 0) {
+            return enabled ? "No effects added" : "Effects disabled";
+        }
+        return enabled
+                ? effectCount + " effect" + (effectCount == 1 ? "" : "s") + " enabled"
+                : effectCount + " effect" + (effectCount == 1 ? "" : "s") + " saved, disabled";
+    }
+
     private void refreshKeyboardBindingButtons() {
         for (EmulatorButton button : backendProfile().controlButtons()) {
             JButton bindingButton = keyboardBindingButtons.get(button);
@@ -4162,6 +4222,37 @@ public class OptionsWindow extends DuckWindow {
     private void configureCompactPaletteButton(AbstractButton button, int width) {
         button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
         button.setPreferredSize(new Dimension(width, 26));
+    }
+
+    private void configureCompactIconButton(AbstractButton button, int width, int height) {
+        button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
+        button.setBorder(BorderFactory.createEmptyBorder(4, 8, 4, 8));
+        button.setPreferredSize(new Dimension(width, height));
+        button.setMinimumSize(new Dimension(width, height));
+        button.setMaximumSize(new Dimension(width, height));
+    }
+
+    private JButton createCompactCloseGlyphButton(String tooltipText, int width, int height) {
+        JButton button = new JButton() {
+            @Override
+            protected void paintComponent(Graphics graphics) {
+                super.paintComponent(graphics);
+                Graphics2D graphics2d = (Graphics2D) graphics.create();
+                graphics2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                graphics2d.setStroke(new BasicStroke(1.6f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+                graphics2d.setColor(getForeground());
+                int centreX = getWidth() / 2;
+                int centreY = getHeight() / 2;
+                graphics2d.drawLine(centreX - 4, centreY - 4, centreX + 4, centreY + 4);
+                graphics2d.drawLine(centreX + 4, centreY - 4, centreX - 4, centreY + 4);
+                graphics2d.dispose();
+            }
+        };
+        WindowUiSupport.styleSecondaryButton(button, accentColour, cardBorder);
+        button.setText("");
+        button.setToolTipText(tooltipText);
+        configureCompactIconButton(button, width, height);
+        return button;
     }
 
     private void refreshSavedPaletteSelector(JComboBox<String> selector, boolean gbcPalette,

@@ -16,8 +16,8 @@ public final class GameArtScaler {
      * Scales an image to fit inside the target bounds using multi-step
      * high-quality resampling to avoid blocky thumbnails.
      *
-     * @param source source image
-     * @param maxWidth maximum target width
+     * @param source    source image
+     * @param maxWidth  maximum target width
      * @param maxHeight maximum target height
      * @return scaled image
      */
@@ -29,9 +29,9 @@ public final class GameArtScaler {
      * Scales an image to fit inside the target bounds using multi-step
      * high-quality resampling to avoid blocky thumbnails.
      *
-     * @param source source image
-     * @param maxWidth maximum target width
-     * @param maxHeight maximum target height
+     * @param source       source image
+     * @param maxWidth     maximum target width
+     * @param maxHeight    maximum target height
      * @param allowUpscale when true, smaller source images may be enlarged
      * @return scaled image
      */
@@ -56,8 +56,8 @@ public final class GameArtScaler {
      * Scales an image so it completely covers the target bounds, cropping from
      * the center when the source aspect ratio does not match.
      *
-     * @param source source image
-     * @param targetWidth target width
+     * @param source       source image
+     * @param targetWidth  target width
      * @param targetHeight target height
      * @return scaled and center-cropped image
      */
@@ -93,8 +93,8 @@ public final class GameArtScaler {
      * Scales an image to the exact target size using progressive downscaling
      * when shrinking and high-quality interpolation when enlarging.
      *
-     * @param source source image
-     * @param targetWidth target width
+     * @param source       source image
+     * @param targetWidth  target width
      * @param targetHeight target height
      * @return scaled image
      */
@@ -142,7 +142,8 @@ public final class GameArtScaler {
         Graphics2D graphics = scaledImage.createGraphics();
         graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
         graphics.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        graphics.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+        graphics.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION,
+                RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
         graphics.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_QUALITY);
         graphics.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         graphics.setRenderingHint(RenderingHints.KEY_DITHERING, RenderingHints.VALUE_DITHER_ENABLE);

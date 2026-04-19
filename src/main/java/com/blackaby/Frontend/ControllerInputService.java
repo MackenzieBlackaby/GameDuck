@@ -12,6 +12,7 @@ import com.github.strikerx3.jxinput.exceptions.XInputNotLoadedException;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
@@ -22,12 +23,14 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
 
@@ -99,6 +102,56 @@ public final class ControllerInputService {
     private record IndexedComponents(List<ComponentHandle> handles, List<JInputComponentReader> readers) {
     }
 
+    record WindowsControllerDescriptor(String name, String deviceClass) {
+    }
+
+    private static final class WindowsControllerProbeState {
+        private String deviceDescription;
+        private String className;
+        private String status;
+
+        void acceptLine(String line, List<WindowsControllerDescriptor> descriptors, LinkedHashSet<String> descriptorKeys) {
+            if (line == null || line.isBlank()) {
+                flush(descriptors, descriptorKeys);
+                return;
+            }
+
+            int separatorIndex = line.indexOf(':');
+            if (separatorIndex < 0) {
+                return;
+            }
+
+            String key = line.substring(0, separatorIndex).trim();
+            String value = line.substring(separatorIndex + 1).trim();
+            switch (key) {
+                case "Device Description" -> deviceDescription = value;
+                case "Class Name" -> className = value;
+                case "Status" -> status = value;
+                default -> {
+                }
+            }
+        }
+
+        void flush(List<WindowsControllerDescriptor> descriptors, LinkedHashSet<String> descriptorKeys) {
+            String description = deviceDescription == null ? "" : deviceDescription.trim();
+            String deviceClassName = className == null ? "" : className.trim();
+            String deviceStatus = status == null ? "" : status.trim();
+
+            if ("Started".equalsIgnoreCase(deviceStatus)
+                    && IsFriendlyControllerName(description)
+                    && IsRelevantWindowsControllerClass(deviceClassName)) {
+                String key = description + "|" + deviceClassName;
+                if (descriptorKeys.add(key)) {
+                    descriptors.add(new WindowsControllerDescriptor(description, deviceClassName));
+                }
+            }
+
+            deviceDescription = null;
+            className = null;
+            status = null;
+        }
+    }
+
     private static final ControllerInputService instance = new ControllerInputService();
     private static final long rescanIntervalMillis = 2000L;
     private static final long uiSnapshotMaxAgeMillis = 60L;
@@ -110,6 +163,8 @@ public final class ControllerInputService {
     private static final String winTabPluginClassName = "net.java.games.input.WinTabEnvironmentPlugin";
     private static final String linuxPluginClassName = "net.java.games.input.LinuxEnvironmentPlugin";
     private static final String osxPluginClassName = "net.java.games.input.OSXEnvironmentPlugin";
+    private static final List<String> windowsControllerClasses = List.of("Bluetooth", "HIDClass", "USB",
+            "XnaComposite");
     private static final String povComponentId = "pov";
     private static final String xInputPrefix = "xinput|";
     private static final float povUpLeft = 0.125f;
@@ -216,7 +271,11 @@ public final class ControllerInputService {
      */
     public void RefreshControllers() {
         synchronized (pollLock) {
-            ScanControllersLocked();
+            if (shouldDeferUiRescan(SwingUtilities.isEventDispatchThread(), testScanner != null)) {
+                ScheduleUiRescanLocked(true);
+            } else {
+                ScanControllersLocked();
+            }
         }
     }
 
@@ -329,7 +388,13 @@ public final class ControllerInputService {
     }
 
     private void EnsureInitialScanLocked() {
-        if (!initialScanComplete) {
+        if (initialScanComplete) {
+            return;
+        }
+
+        if (shouldDeferUiRescan(SwingUtilities.isEventDispatchThread(), testScanner != null)) {
+            ScheduleUiRescanLocked(true);
+        } else {
             ScanControllersLocked();
         }
     }
@@ -340,7 +405,7 @@ public final class ControllerInputService {
         }
 
         if (shouldDeferUiRescan(SwingUtilities.isEventDispatchThread(), testScanner != null)) {
-            ScheduleUiRescanLocked();
+            ScheduleUiRescanLocked(false);
         } else {
             ScanControllersLocked();
         }
@@ -350,7 +415,7 @@ public final class ControllerInputService {
         return onEdt && !testScannerPresent;
     }
 
-    private void ScheduleUiRescanLocked() {
+    private void ScheduleUiRescanLocked(boolean force) {
         if (!uiRescanQueued.compareAndSet(false, true)) {
             return;
         }
@@ -358,7 +423,7 @@ public final class ControllerInputService {
         EnsureUiRescanExecutorLocked().execute(() -> {
             synchronized (pollLock) {
                 try {
-                    if ((currentTimeMillis.getAsLong() - lastScanTimestamp) >= rescanIntervalMillis) {
+                    if (force || (currentTimeMillis.getAsLong() - lastScanTimestamp) >= rescanIntervalMillis) {
                         ScanControllersLocked();
                     }
                 } finally {
@@ -472,7 +537,9 @@ public final class ControllerInputService {
         DiscoverXInputControllers(discoveredControllers, backendErrors);
         DiscoverJInputControllers(discoveredControllers, backendErrors);
 
-        controllerHandles = List.copyOf(discoveredControllers);
+        controllerHandles = List.copyOf(ApplyFriendlyControllerNames(
+                discoveredControllers,
+                LoadWindowsFriendlyControllerDescriptors()));
         activeController = null;
         SelectActiveControllerLocked();
         initialisationError = DetermineInitialisationError(backendErrors, discoveredControllers.isEmpty());
@@ -518,6 +585,202 @@ public final class ControllerInputService {
                 () -> device.poll() && device.isConnected(),
                 componentValues -> PollXInputComponentValues(device, componentValues),
                 xInputComponents);
+    }
+
+    static List<ControllerHandle> ApplyFriendlyControllerNames(List<ControllerHandle> discoveredControllers,
+            List<WindowsControllerDescriptor> friendlyDescriptors) {
+        if (discoveredControllers == null || discoveredControllers.isEmpty()) {
+            return List.of();
+        }
+
+        if (friendlyDescriptors.isEmpty()) {
+            return List.copyOf(discoveredControllers);
+        }
+
+        List<ControllerHandle> renamedHandles = new ArrayList<>(discoveredControllers.size());
+        for (ControllerHandle handle : discoveredControllers) {
+            if (handle == null || handle.device() == null) {
+                renamedHandles.add(handle);
+                continue;
+            }
+
+            if (!ShouldReplaceWithFriendlyName(handle.device().displayName())) {
+                renamedHandles.add(handle);
+                continue;
+            }
+
+            String friendlyName = ResolveFriendlyControllerName(handle.device(), friendlyDescriptors);
+            if (friendlyName == null || friendlyName.isBlank()) {
+                renamedHandles.add(handle);
+                continue;
+            }
+
+            String deviceId = handle.device().id();
+            ControllerDevice renamedDevice = new ControllerDevice(deviceId, friendlyName);
+            renamedHandles.add(new ControllerHandle(
+                    renamedDevice,
+                    handle.poller(),
+                    handle.componentPoller(),
+                    handle.components()));
+        }
+        return List.copyOf(renamedHandles);
+    }
+
+    private List<WindowsControllerDescriptor> LoadWindowsFriendlyControllerDescriptors() {
+        if (!IsWindows()) {
+            return List.of();
+        }
+
+        LinkedHashSet<String> descriptorKeys = new LinkedHashSet<>();
+        List<WindowsControllerDescriptor> descriptors = new ArrayList<>();
+        for (String controllerClass : windowsControllerClasses) {
+            CollectWindowsControllerDescriptorsForClass(controllerClass, descriptors, descriptorKeys);
+        }
+        return List.copyOf(descriptors);
+    }
+
+    private void CollectWindowsControllerDescriptorsForClass(String controllerClass,
+            List<WindowsControllerDescriptor> descriptors, LinkedHashSet<String> descriptorKeys) {
+        Process process = null;
+        try {
+            process = new ProcessBuilder(
+                    "pnputil",
+                    "/enum-devices",
+                    "/connected",
+                    "/class",
+                    controllerClass)
+                    .redirectErrorStream(true)
+                    .start();
+            boolean finished = process.waitFor(2, TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                return;
+            }
+            if (process.exitValue() != 0) {
+                return;
+            }
+
+            WindowsControllerProbeState probeState = new WindowsControllerProbeState();
+            String output = new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+            for (String line : output.lines().toList()) {
+                probeState.acceptLine(line, descriptors, descriptorKeys);
+            }
+            probeState.flush(descriptors, descriptorKeys);
+        } catch (IOException | InterruptedException exception) {
+            if (exception instanceof InterruptedException) {
+                Thread.currentThread().interrupt();
+            }
+            return;
+        } finally {
+            if (process != null) {
+                process.destroy();
+            }
+        }
+    }
+
+    private static String ResolveFriendlyControllerName(ControllerDevice device,
+            List<WindowsControllerDescriptor> friendlyDescriptors) {
+        if (device == null || friendlyDescriptors == null || friendlyDescriptors.isEmpty()) {
+            return null;
+        }
+
+        String deviceId = device.id() == null ? "" : device.id();
+        if (deviceId.startsWith(xInputPrefix)) {
+            String xinputName = ResolveXInputFriendlyName(friendlyDescriptors);
+            return xinputName == null || xinputName.isBlank() ? null : xinputName;
+        }
+
+        String[] idParts = deviceId.split("\\|", 4);
+        String portType = idParts.length > 1 ? idParts[1].trim().toLowerCase(Locale.ROOT) : "";
+        List<String> candidates = new ArrayList<>();
+        for (WindowsControllerDescriptor descriptor : friendlyDescriptors) {
+            String deviceClass = descriptor.deviceClass() == null ? "" : descriptor.deviceClass().trim().toLowerCase(Locale.ROOT);
+            if (portType.contains("bluetooth") && !"bluetooth".equals(deviceClass)) {
+                continue;
+            }
+            if (portType.contains("usb") && !("usb".equals(deviceClass) || "xnacomposite".equals(deviceClass))) {
+                continue;
+            }
+            if (LooksLikeXInputFriendlyName(descriptor.name(), descriptor.deviceClass())) {
+                continue;
+            }
+            candidates.add(descriptor.name());
+        }
+        return candidates.size() == 1 ? candidates.get(0) : null;
+    }
+
+    private static String ResolveXInputFriendlyName(List<WindowsControllerDescriptor> friendlyDescriptors) {
+        for (WindowsControllerDescriptor descriptor : friendlyDescriptors) {
+            if ("xnacomposite".equalsIgnoreCase(descriptor.deviceClass())
+                    && IsFriendlyControllerName(descriptor.name())) {
+                return descriptor.name();
+            }
+        }
+        for (WindowsControllerDescriptor descriptor : friendlyDescriptors) {
+            if (LooksLikeXInputFriendlyName(descriptor.name(), descriptor.deviceClass())) {
+                return descriptor.name();
+            }
+        }
+        return null;
+    }
+
+    private static boolean LooksLikeXInputFriendlyName(String name, String deviceClass) {
+        String lowerName = name == null ? "" : name.trim().toLowerCase(Locale.ROOT);
+        String lowerClass = deviceClass == null ? "" : deviceClass.trim().toLowerCase(Locale.ROOT);
+        return "xnacomposite".equals(lowerClass)
+                || lowerName.contains("xbox")
+                || lowerName.contains("xinput")
+                || lowerName.contains("controller for windows");
+    }
+
+    private static boolean ShouldReplaceWithFriendlyName(String displayName) {
+        if (displayName == null || displayName.isBlank()) {
+            return true;
+        }
+
+        String lower = displayName.trim().toLowerCase(Locale.ROOT);
+        return lower.startsWith("xinput controller ")
+                || lower.contains("hid-compliant")
+                || lower.contains("game controller")
+                || lower.contains("controller for windows")
+                || lower.contains("xinput-compatible")
+                || lower.contains("usb input device");
+    }
+
+    private static boolean IsFriendlyControllerName(String name) {
+        if (name == null || name.isBlank()) {
+            return false;
+        }
+
+        String lower = name.trim().toLowerCase(Locale.ROOT);
+        if (!(lower.contains("controller")
+                || lower.contains("gamepad")
+                || lower.contains("game pad")
+                || lower.contains("joystick")
+                || lower.contains("8bitdo")
+                || lower.contains("xbox")
+                || lower.contains("snes")
+                || lower.contains("n64"))) {
+            return false;
+        }
+
+        return !lower.contains("hid-compliant")
+                && !lower.contains("usb input device")
+                && !lower.contains("bluetooth hid device")
+                && !lower.contains("xinput-compatible")
+                && !lower.contains("host controller")
+                && !lower.contains("system controller");
+    }
+
+    private static boolean IsRelevantWindowsControllerClass(String className) {
+        if (className == null || className.isBlank()) {
+            return false;
+        }
+        String lower = className.trim().toLowerCase(Locale.ROOT);
+        return "bluetooth".equals(lower)
+                || "hidclass".equals(lower)
+                || "usb".equals(lower)
+                || "xnacomposite".equals(lower);
     }
 
     private void DiscoverJInputControllers(List<ControllerHandle> discoveredControllers, List<String> backendErrors) {

@@ -143,6 +143,34 @@ class ControllerInputServiceTest {
         assertFalse(ControllerInputService.shouldDeferUiRescan(true, true));
     }
 
+    @Test
+    void genericControllerLabelsAreReplacedWithFriendlyNames() {
+        ControllerInputService.ControllerHandle xinputHandle = new ControllerInputService.ControllerHandle(
+                new ControllerInputService.ControllerDevice("xinput|0", "XInput Controller 1"),
+                () -> true,
+                componentValues -> {
+                },
+                List.of());
+        ControllerInputService.ControllerHandle hidHandle = new ControllerInputService.ControllerHandle(
+                new ControllerInputService.ControllerDevice("hid|0", "HID-compliant game controller"),
+                () -> true,
+                componentValues -> {
+                },
+                List.of());
+
+        List<ControllerInputService.ControllerHandle> renamedHandles = ControllerInputService
+                .ApplyFriendlyControllerNames(
+                        List.of(xinputHandle, hidHandle),
+                        List.of(
+                                new ControllerInputService.WindowsControllerDescriptor("Xbox 360 Controller for Windows",
+                                        "XnaComposite"),
+                                new ControllerInputService.WindowsControllerDescriptor("SNES Controller", "Bluetooth")));
+
+        assertEquals("Xbox 360 Controller for Windows", renamedHandles.get(0).device().displayName());
+        assertEquals("xinput|0", renamedHandles.get(0).device().id());
+        assertEquals("SNES Controller", renamedHandles.get(1).device().displayName());
+    }
+
     private ControllerInputService.ControllerHandle controllerHandle(String deviceId, AtomicInteger pollCount,
             AtomicInteger componentPollCount, Map<String, Float> values) {
         List<ControllerInputService.ComponentHandle> components = values.keySet().stream()

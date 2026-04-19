@@ -2052,14 +2052,31 @@ public class OptionsWindow extends DuckWindow {
         container.add(createCompactWindowOptionCard(channelBody));
         container.add(Box.createVerticalStrut(8));
 
+        JCheckBox enhancementEnabledCheckBox = new JCheckBox(UiText.OptionsWindow.AUDIO_ENHANCEMENTS_ENABLED_CHECKBOX,
+                Settings.IsAudioEnhancementChainEnabled());
+        enhancementEnabledCheckBox.setOpaque(false);
+        enhancementEnabledCheckBox.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+        enhancementEnabledCheckBox.setForeground(accentColour);
+        enhancementEnabledCheckBox.setBorder(BorderFactory.createEmptyBorder());
+
         JButton openChainEditorButton = createSecondaryButton(UiText.OptionsWindow.OPEN_AUDIO_CHAIN_EDITOR_BUTTON);
         configureCompactPaletteButton(openChainEditorButton, 124);
-        openChainEditorButton.addActionListener(event -> openAudioEnhancementEditor(enhancementChainModel, () -> {
-        }));
+        openChainEditorButton.setVisible(enhancementEnabledCheckBox.isSelected());
+        openChainEditorButton.addActionListener(event -> openAudioEnhancementEditor(enhancementChainModel));
+
+        enhancementEnabledCheckBox.addActionListener(event -> {
+            boolean enabled = enhancementEnabledCheckBox.isSelected();
+            Settings.SetAudioEnhancementChainEnabled(enabled);
+            Config.Save();
+            mainWindow.GetEmulation().ResetTransientAudioState();
+            openChainEditorButton.setVisible(enabled);
+            openChainEditorButton.getParent().revalidate();
+            openChainEditorButton.getParent().repaint();
+        });
 
         JPanel enhancementCard = new JPanel(new BorderLayout(0, 8));
         enhancementCard.setOpaque(false);
-        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        JPanel buttonRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
         buttonRow.setOpaque(false);
         buttonRow.add(openChainEditorButton);
         enhancementCard.add(createResponsiveGroup(
@@ -2070,44 +2087,38 @@ public class OptionsWindow extends DuckWindow {
                         UiText.OptionsWindow.AUDIO_ENHANCEMENTS_HELPER,
                         14f),
                 buttonRow), BorderLayout.CENTER);
+
+        JPanel enhancementToggleWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        enhancementToggleWrap.setOpaque(false);
+        enhancementToggleWrap.add(enhancementEnabledCheckBox);
+        enhancementCard.add(enhancementToggleWrap, BorderLayout.NORTH);
         container.add(createCompactWindowOptionCard(enhancementCard));
         return container;
     }
 
-    private void openAudioEnhancementEditor(DefaultListModel<AudioEnhancementSetting> enhancementChainModel,
-            Runnable onStateChanged) {
+    private void openAudioEnhancementEditor(DefaultListModel<AudioEnhancementSetting> enhancementChainModel) {
         JDialog dialog = new JDialog(this, UiText.OptionsWindow.AUDIO_CHAIN_EDITOR_TITLE, false);
         dialog.setUndecorated(true);
         dialog.setLayout(new BorderLayout());
         dialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
         dialog.getContentPane().setBackground(panelBackground);
 
-        JCheckBox enhancementEnabledCheckBox = new JCheckBox(UiText.OptionsWindow.AUDIO_ENHANCEMENTS_ENABLED_CHECKBOX,
-                Settings.IsAudioEnhancementChainEnabled());
-        enhancementEnabledCheckBox.setOpaque(false);
-        enhancementEnabledCheckBox.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        enhancementEnabledCheckBox.setForeground(accentColour);
-        enhancementEnabledCheckBox.addActionListener(event -> onStateChanged.run());
-
         ListDataListener listener = new ListDataListener() {
             @Override
             public void intervalAdded(ListDataEvent event) {
-                onStateChanged.run();
             }
 
             @Override
             public void intervalRemoved(ListDataEvent event) {
-                onStateChanged.run();
             }
 
             @Override
             public void contentsChanged(ListDataEvent event) {
-                onStateChanged.run();
             }
         };
         enhancementChainModel.addListDataListener(listener);
 
-        JScrollPane scrollPane = new JScrollPane(createAudioEnhancementCard(enhancementChainModel, enhancementEnabledCheckBox));
+        JScrollPane scrollPane = new JScrollPane(createAudioEnhancementCard(enhancementChainModel));
         scrollPane.setBorder(BorderFactory.createEmptyBorder());
         scrollPane.getViewport().setBackground(panelBackground);
         scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_NEVER);
@@ -2182,32 +2193,25 @@ public class OptionsWindow extends DuckWindow {
             @Override
             public void windowClosed(WindowEvent event) {
                 enhancementChainModel.removeListDataListener(listener);
-                onStateChanged.run();
             }
         });
         dialog.setVisible(true);
     }
 
-    private JComponent createAudioEnhancementCard(DefaultListModel<AudioEnhancementSetting> enhancementChainModel,
-            JCheckBox enhancementEnabledCheckBox) {
+    private JComponent createAudioEnhancementCard(DefaultListModel<AudioEnhancementSetting> enhancementChainModel) {
         JPanel card = new JPanel(new BorderLayout(0, 16));
         card.setBackground(Styling.surfaceColour);
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
                 BorderFactory.createEmptyBorder(16, 16, 16, 16)));
 
-        JPanel toggleWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        toggleWrap.setOpaque(false);
-        toggleWrap.add(enhancementEnabledCheckBox);
-
         JPanel header = createResponsiveGroup(
                 280,
-                2,
+                1,
                 createInfoTextBlock(
                         UiText.OptionsWindow.AUDIO_ENHANCEMENTS_TITLE,
                         UiText.OptionsWindow.AUDIO_ENHANCEMENTS_HELPER,
-                        15f),
-                toggleWrap);
+                        15f));
 
         JPanel composer = new JPanel(new BorderLayout(8, 8));
         composer.setOpaque(true);

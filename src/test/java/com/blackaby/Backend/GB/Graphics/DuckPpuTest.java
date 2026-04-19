@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.blackaby.Backend.GB.CPU.GBProcessor;
+import com.blackaby.Backend.GB.Graphics.GBColor;
 import com.blackaby.Backend.GB.Memory.GBMemAddresses;
 import com.blackaby.Backend.GB.Memory.GBMemory;
 import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
@@ -157,5 +158,53 @@ class DuckPpuTest {
 
         DuckDisplay.FrameState frame = display.SnapshotFrameState();
         assertEquals(0xFFFFFFFF, frame.backBuffer()[0]);
+    }
+
+    @Test
+    void dmgCompatibilityModeUsesObpSelectionWithCgbObjectPalettes() {
+        GBMemory memory = new GBMemory();
+        memory.LoadRom(EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "compat.gb", "compat"), true);
+        GBProcessor cpu = new GBProcessor(memory, null,
+                EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "compat.gb", "compat"));
+        memory.SetCpu(cpu);
+        memory.InitialiseCgbBootState();
+        memory.SeedDmgCompatibilityPalettes(
+                new GBColor[] {
+                        new GBColor(255, 255, 255),
+                        new GBColor(255, 255, 255),
+                        new GBColor(255, 255, 255),
+                        new GBColor(255, 255, 255)
+                },
+                new GBColor[] {
+                        new GBColor(255, 255, 255),
+                        new GBColor(0, 0, 0),
+                        new GBColor(255, 255, 255),
+                        new GBColor(255, 255, 255)
+                },
+                new GBColor[] {
+                        new GBColor(255, 255, 255),
+                        new GBColor(0, 0, 255),
+                        new GBColor(255, 255, 255),
+                        new GBColor(255, 255, 255)
+                });
+
+        memory.Write(GBMemAddresses.LCDC, memory.Read(GBMemAddresses.LCDC) | 0x02);
+        memory.Write(GBMemAddresses.OBP1, 0xE4);
+        memory.Write(0x8000, 0x80);
+        memory.Write(0x8001, 0x00);
+        memory.Write(0xFE00, 0x10);
+        memory.Write(0xFE01, 0x08);
+        memory.Write(0xFE02, 0x00);
+        memory.Write(0xFE03, 0x10);
+
+        DuckDisplay display = new DuckDisplay();
+        GBPPU ppu = new GBPPU(cpu, memory, display);
+
+        for (int index = 0; index < GBPPU.oamDuration + GBPPU.vramDuration; index++) {
+            ppu.Step();
+        }
+
+        DuckDisplay.FrameState frame = display.SnapshotFrameState();
+        assertEquals(memory.ReadCgbObjectPaletteColourRgb(1, 1), frame.backBuffer()[0]);
     }
 }

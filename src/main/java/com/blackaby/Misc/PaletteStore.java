@@ -145,21 +145,21 @@ public final class PaletteStore {
     }
 
     /**
-     * Returns whether GBC colourisation mode is enabled for monochrome games.
+     * Returns the selected colour mode for monochrome games.
      *
-     * @return {@code true} when GBC palette mode is enabled
+     * @return active non-CGB colour mode
      */
-    public boolean GbcPaletteModeEnabled() {
-        return active.gbcPaletteModeEnabled;
+    public NonGbcColourMode NonGbcColourMode() {
+        return active.nonGbcColourMode;
     }
 
     /**
-     * Sets whether GBC colourisation mode is enabled for monochrome games.
+     * Sets the colour mode for monochrome games.
      *
-     * @param enabled whether GBC palette mode is enabled
+     * @param mode non-CGB colour mode
      */
-    public void SetGbcPaletteModeEnabled(boolean enabled) {
-        active.gbcPaletteModeEnabled = enabled;
+    public void SetNonGbcColourMode(NonGbcColourMode mode) {
+        active.nonGbcColourMode = mode == null ? com.blackaby.Misc.NonGbcColourMode.GB_ORIGINAL : mode;
     }
 
     /**
@@ -415,6 +415,14 @@ public final class PaletteStore {
     private void NormalizeInPlace() {
         active = active == null ? new ActivePalettes() : active;
         active.dmg = NormalizePalette(active.dmg, DefaultDmgPalette());
+        if (active.gbcPaletteModeEnabled != null
+                && (active.nonGbcColourMode == null || active.nonGbcColourMode == NonGbcColourMode.GB_ORIGINAL)) {
+            active.nonGbcColourMode = NonGbcColourMode.FromLegacyBoolean(active.gbcPaletteModeEnabled);
+        }
+        if (active.nonGbcColourMode == null) {
+            active.nonGbcColourMode = NonGbcColourMode.GB_ORIGINAL;
+        }
+        active.gbcPaletteModeEnabled = null;
         active.gbc = active.gbc == null ? new GbcPalettes() : active.gbc;
         active.gbc.background = NormalizePalette(active.gbc.background, DefaultGbcBackgroundPalette());
         active.gbc.sprite0 = NormalizePalette(active.gbc.sprite0, DefaultGbcSpritePalette0());
@@ -461,8 +469,8 @@ public final class PaletteStore {
         store.active.dmg = ReadLegacyPalette(legacyProperties, "palette.current.", DefaultDmgPalette());
         store.active.preferDmgModeForGbcCompatibleGames = Boolean.parseBoolean(
                 legacyProperties.getProperty("palette.prefer_dmg_mode_for_gbc_compatible_games", "false"));
-        store.active.gbcPaletteModeEnabled = Boolean.parseBoolean(
-                legacyProperties.getProperty("palette.gbc_mode_enabled", "false"));
+        store.active.nonGbcColourMode = com.blackaby.Misc.NonGbcColourMode.FromLegacyBoolean(
+                Boolean.parseBoolean(legacyProperties.getProperty("palette.gbc_mode_enabled", "false")));
         store.active.gbc.background = ReadLegacyPalette(
                 legacyProperties, "palette.gbc.background.", DefaultGbcBackgroundPalette());
         store.active.gbc.sprite0 = ReadLegacyPalette(
@@ -687,7 +695,8 @@ public final class PaletteStore {
     private static final class ActivePalettes {
         private String[] dmg = DefaultDmgPalette();
         private boolean preferDmgModeForGbcCompatibleGames;
-        private boolean gbcPaletteModeEnabled;
+        private com.blackaby.Misc.NonGbcColourMode nonGbcColourMode = com.blackaby.Misc.NonGbcColourMode.GB_ORIGINAL;
+        private Boolean gbcPaletteModeEnabled;
         private GbcPalettes gbc = new GbcPalettes();
     }
 

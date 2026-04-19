@@ -63,7 +63,7 @@ class PaletteStoreTest {
         assertTrue(result.migratedFromLegacy());
         assertArrayEquals(new String[] { "#112233", "#223344", "#334455", "#445566" }, result.store().CurrentDmgPalette());
         assertTrue(result.store().PreferDmgModeForGbcCompatibleGames());
-        assertTrue(result.store().GbcPaletteModeEnabled());
+        assertEquals(NonGbcColourMode.GBC_COLOURISATION, result.store().NonGbcColourMode());
         assertArrayEquals(new String[] { "#AABBCC", "#BBCCDD", "#CCDDEE", "#DDEEFF" },
                 result.store().CurrentGbcBackgroundPalette());
         assertEquals(List.of(dmgName), result.store().SavedDmgPaletteNames());
@@ -83,7 +83,7 @@ class PaletteStoreTest {
         PaletteStore store = new PaletteStore();
         store.SetCurrentDmgPalette(new String[] { "#102030", "#203040", "#304050", "#405060" });
         store.SetPreferDmgModeForGbcCompatibleGames(true);
-        store.SetGbcPaletteModeEnabled(true);
+        store.SetNonGbcColourMode(NonGbcColourMode.CUSTOM_PALETTE);
         store.SetCurrentGbcBackgroundPalette(new String[] { "#506070", "#607080", "#708090", "#8090A0" });
         store.SetCurrentGbcSpritePalette0(new String[] { "#90A0B0", "#A0B0C0", "#B0C0D0", "#C0D0E0" });
         store.SetCurrentGbcSpritePalette1(new String[] { "#D0E0F0", "#E0F001", "#F00112", "#011223" });
@@ -107,7 +107,7 @@ class PaletteStoreTest {
         assertFalse(result.migratedFromLegacy());
         assertArrayEquals(new String[] { "#102030", "#203040", "#304050", "#405060" }, result.store().CurrentDmgPalette());
         assertTrue(result.store().PreferDmgModeForGbcCompatibleGames());
-        assertTrue(result.store().GbcPaletteModeEnabled());
+        assertEquals(NonGbcColourMode.CUSTOM_PALETTE, result.store().NonGbcColourMode());
         assertEquals(List.of("Ocean"), result.store().SavedDmgPaletteNames());
         assertArrayEquals(new String[] { "#111111", "#222222", "#333333", "#444444" },
                 result.store().FindDmgPalette("Ocean"));
@@ -118,6 +118,35 @@ class PaletteStoreTest {
         assertArrayEquals(new String[] { "#123456", "#234567", "#345678", "#456789" }, gbcPalette.background());
         assertArrayEquals(new String[] { "#56789A", "#6789AB", "#789ABC", "#89ABCD" }, gbcPalette.sprite0());
         assertArrayEquals(new String[] { "#9ABCDE", "#ABCDEF", "#BCDEF0", "#CDEF01" }, gbcPalette.sprite1());
+    }
+
+    @Test
+    void loadsLegacyPaletteJsonBooleanIntoNewModeEnum() throws IOException {
+        String json = """
+                {
+                  "active": {
+                    "dmg": ["#102030", "#203040", "#304050", "#405060"],
+                    "preferDmgModeForGbcCompatibleGames": false,
+                    "gbcPaletteModeEnabled": true,
+                    "gbc": {
+                      "background": ["#506070", "#607080", "#708090", "#8090A0"],
+                      "sprite0": ["#90A0B0", "#A0B0C0", "#B0C0D0", "#C0D0E0"],
+                      "sprite1": ["#D0E0F0", "#E0F001", "#F00112", "#011223"]
+                    }
+                  },
+                  "saved": {
+                    "dmg": [],
+                    "gbc": []
+                  }
+                }
+                """;
+        Path palettePath = tempDir.resolve("legacy-palettes.json");
+        Files.writeString(palettePath, json, StandardCharsets.UTF_8);
+
+        PaletteStore.LoadResult result = PaletteStore.Load(palettePath, new Properties());
+
+        assertFalse(result.migratedFromLegacy());
+        assertEquals(NonGbcColourMode.GBC_COLOURISATION, result.store().NonGbcColourMode());
     }
 
     @Test

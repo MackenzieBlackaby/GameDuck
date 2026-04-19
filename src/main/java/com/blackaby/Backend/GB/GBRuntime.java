@@ -26,6 +26,7 @@ import com.blackaby.Backend.Helpers.CheatStore;
 import com.blackaby.Backend.Helpers.GameLibraryStore;
 import com.blackaby.Backend.Helpers.QuickStateManager;
 import com.blackaby.Misc.BootRomManager;
+import com.blackaby.Misc.NonGbcColourMode;
 import com.blackaby.Misc.Settings;
 import com.blackaby.Misc.UiText;
 
@@ -594,8 +595,19 @@ public class GBRuntime implements Runnable, EmulatorRuntime {
         cpu.SetSP(0xFFFE);
 
         memory.InitialiseCgbBootState();
+        ApplyDmgCompatibilityPaletteFallback();
         timer.InitialiseDmgBootState();
         memory.WriteDirect(GBMemAddresses.STAT, 0x82);
+    }
+
+    private void ApplyDmgCompatibilityPaletteFallback() {
+        if (!memory.IsDmgCompatibilityMode() || Settings.nonGbcColourMode != NonGbcColourMode.GB_ORIGINAL) {
+            return;
+        }
+        memory.SeedDmgCompatibilityPalettes(
+                Settings.CurrentGbcBackgroundPalette(),
+                Settings.CurrentGbcSpritePalette0(),
+                Settings.CurrentGbcSpritePalette1());
     }
 
     private boolean ShouldUseCgbHardware() {
@@ -603,13 +615,16 @@ public class GBRuntime implements Runnable, EmulatorRuntime {
     }
 
     private boolean ShouldUseCgbHardware(GBRom loadedRom) {
-        if (loadedRom == null || !loadedRom.IsCgbCompatible()) {
+        if (loadedRom == null) {
             return false;
         }
         if (loadedRom.IsCgbOnly()) {
             return true;
         }
-        return !Settings.preferDmgModeForGbcCompatibleGames;
+        if (loadedRom.IsCgbCompatible()) {
+            return !Settings.preferDmgModeForGbcCompatibleGames;
+        }
+        return Settings.nonGbcColourMode == NonGbcColourMode.GB_ORIGINAL;
     }
 
     private int StepHardware(int tCycles) {

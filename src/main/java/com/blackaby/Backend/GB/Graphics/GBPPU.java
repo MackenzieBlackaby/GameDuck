@@ -6,6 +6,7 @@ import com.blackaby.Backend.GB.CPU.GBProcessor;
 import com.blackaby.Backend.GB.Memory.GBMemAddresses;
 import com.blackaby.Backend.GB.Memory.GBMemory;
 import com.blackaby.Frontend.DuckDisplay;
+import com.blackaby.Misc.NonGbcColourMode;
 import com.blackaby.Misc.Settings;
 
 /**
@@ -346,12 +347,13 @@ public class GBPPU {
     private void RenderNextPixel() {
         int x = pixelTransferX;
         int lcdControl = memory.ReadRegisterDirect(regLcdc);
-        boolean cgbMode = memory.IsCgbMode();
+        boolean dmgCompatibilityMode = memory.IsDmgCompatibilityMode();
+        boolean cgbMode = memory.IsCgbMode() && !dmgCompatibilityMode;
 
-        int backgroundColour = ResolveBackgroundPixel(x, lcdControl, cgbMode);
+        int backgroundColour = ResolveBackgroundPixel(x, lcdControl, cgbMode, dmgCompatibilityMode);
         display.setPixel(x, scanline, backgroundColour, false);
 
-        int spriteColour = ResolveSpritePixel(x, lcdControl, cgbMode);
+        int spriteColour = ResolveSpritePixel(x, lcdControl, cgbMode, dmgCompatibilityMode);
         if (spriteColour != noSpritePixel) {
             display.setPixel(x, scanline, spriteColour, false);
         }
@@ -359,10 +361,13 @@ public class GBPPU {
         pixelTransferX++;
     }
 
-    private int ResolveBackgroundPixel(int screenX, int lcdControl, boolean cgbMode) {
+    private int ResolveBackgroundPixel(int screenX, int lcdControl, boolean cgbMode, boolean dmgCompatibilityMode) {
         if (!cgbMode && (lcdControl & 0x01) == 0) {
             backgroundPriorityBuffer[screenX] = 0;
             backgroundTilePriorityBuffer[screenX] = false;
+            if (dmgCompatibilityMode) {
+                return ResolveDmgCompatibilityBackgroundColour(0);
+            }
             return ResolveDmgPaletteColour(memory.ReadRegisterDirect(regBgp), activeBackgroundPalette, 0);
         }
 
@@ -374,13 +379,14 @@ public class GBPPU {
                 && windowX < screenWidth;
         if (windowEnabled) {
             windowRenderedOnCurrentScanline = true;
-            return SampleBackgroundLayerPixel(screenX, lcdControl, cgbMode, true, windowX, windowLineCounter);
+            return SampleBackgroundLayerPixel(
+                    screenX, lcdControl, cgbMode, dmgCompatibilityMode, true, windowX, windowLineCounter);
         }
-        return SampleBackgroundLayerPixel(screenX, lcdControl, cgbMode, false, windowX, 0);
+        return SampleBackgroundLayerPixel(screenX, lcdControl, cgbMode, dmgCompatibilityMode, false, windowX, 0);
     }
 
-    private int SampleBackgroundLayerPixel(int screenX, int lcdControl, boolean cgbMode, boolean windowLayer,
-            int windowX, int activeWindowLine) {
+    private int SampleBackgroundLayerPixel(int screenX, int lcdControl, boolean cgbMode,
+            boolean dmgCompatibilityMode, boolean windowLayer, int windowX, int activeWindowLine) {
         boolean unsignedTileData = (lcdControl & 0x10) != 0;
         int tileMapBase = windowLayer
                 ? (((lcdControl & 0x40) != 0) ? 0x9C00 : 0x9800)
@@ -406,12 +412,16 @@ public class GBPPU {
         backgroundPriorityBuffer[screenX] = colourIndex;
         backgroundTilePriorityBuffer[screenX] = cgbMode && (backgroundTileCacheAttributes & 0x80) != 0;
 
-        return cgbMode
-                ? memory.ReadCgbBackgroundPaletteColourRgb(backgroundTileCacheAttributes & 0x07, colourIndex)
-                : ResolveDmgPaletteColour(memory.ReadRegisterDirect(regBgp), activeBackgroundPalette, colourIndex);
+        if (cgbMode) {
+            return memory.ReadCgbBackgroundPaletteColourRgb(backgroundTileCacheAttributes & 0x07, colourIndex);
+        }
+        if (dmgCompatibilityMode) {
+            return ResolveDmgCompatibilityBackgroundColour(colourIndex);
+        }
+        return ResolveDmgPaletteColour(memory.ReadRegisterDirect(regBgp), activeBackgroundPalette, colourIndex);
     }
 
-    private int ResolveSpritePixel(int screenX, int lcdControl, boolean cgbMode) {
+    private int ResolveSpritePixel(int screenX, int lcdControl, boolean cgbMode, boolean dmgCompatibilityMode) {
         if ((lcdControl & 0x02) == 0) {
             return noSpritePixel;
         }
@@ -419,7 +429,8 @@ public class GBPPU {
         boolean bgMasterPriority = cgbMode && (lcdControl & 0x01) != 0;
 
         for (int spriteIndex = 0; spriteIndex < visibleSpriteCount; spriteIndex++) {
-            int colour = ResolveSpritePixelFromEntry(screenX, spriteIndex, cgbMode, bgMasterPriority);
+            int colour = ResolveSpritePixelFromEntry(
+                    screenX, spriteIndex, cgbMode, dmgCompatibilityMode, bgMasterPriority);
             if (colour != noSpritePixel) {
                 return colour;
             }
@@ -428,7 +439,7 @@ public class GBPPU {
     }
 
     private int ResolveSpritePixelFromEntry(int screenX, int spriteIndex, boolean cgbMode,
-            boolean bgMasterPriority) {
+            boolean dmgCompatibilityMode, boolean bgMasterPriority) {
         int attributes = visibleSpriteAttributes[spriteIndex];
         int spriteStartX = visibleSpriteX[spriteIndex];
         if (screenX < spriteStartX || screenX >= spriteStartX + 8) {
@@ -445,7 +456,11 @@ public class GBPPU {
             return noSpritePixel;
         }
 
-        if (cgbMode) {
+        if (dmgCompatibilityMode) {
+            if ((attributes & 0x80) != 0 && backgroundPriorityBuffer[screenX] != 0) {
+                return noSpritePixel;
+            }
+        } else if (cgbMode) {
             if (bgMasterPriority && backgroundPriorityBuffer[screenX] != 0
                     && (((attributes & 0x80) != 0) || backgroundTilePriorityBuffer[screenX])) {
                 return noSpritePixel;
@@ -454,12 +469,16 @@ public class GBPPU {
             return noSpritePixel;
         }
 
-        return cgbMode
-                ? memory.ReadCgbObjectPaletteColourRgb(attributes & 0x07, colourIndex)
-                : ResolveDmgPaletteColour(
-                        memory.ReadRegisterDirect((attributes & 0x10) != 0 ? regObp1 : regObp0),
-                        (attributes & 0x10) != 0 ? activeSpritePalette1 : activeSpritePalette0,
-                        colourIndex);
+        if (cgbMode) {
+            return memory.ReadCgbObjectPaletteColourRgb(attributes & 0x07, colourIndex);
+        }
+        if (dmgCompatibilityMode) {
+            return ResolveDmgCompatibilitySpriteColour(attributes, colourIndex);
+        }
+        return ResolveDmgPaletteColour(
+                memory.ReadRegisterDirect((attributes & 0x10) != 0 ? regObp1 : regObp0),
+                (attributes & 0x10) != 0 ? activeSpritePalette1 : activeSpritePalette0,
+                colourIndex);
     }
 
     private int LoadSpritesOnScanline(boolean use8x16) {
@@ -487,7 +506,8 @@ public class GBPPU {
             }
         }
 
-        if ((!memory.IsCgbMode() || memory.ReadRegisterDirect(GBMemAddresses.OPRI) != 0) && visibleSpriteCount > 1) {
+        if ((!memory.IsCgbMode() || memory.IsDmgCompatibilityMode()
+                || memory.ReadRegisterDirect(GBMemAddresses.OPRI) != 0) && visibleSpriteCount > 1) {
             SortVisibleSpritesByX(visibleSpriteCount);
         }
         return visibleSpriteCount;
@@ -523,9 +543,13 @@ public class GBPPU {
     }
 
     private int ResolveDmgPaletteColour(int paletteRegister, int[] paletteColours, int colourIndex) {
-        int shift = colourIndex * 2;
-        int colourId = (paletteRegister >> shift) & 0x03;
+        int colourId = ResolveDmgPaletteIndex(paletteRegister, colourIndex);
         return paletteColours[colourId];
+    }
+
+    private int ResolveDmgPaletteIndex(int paletteRegister, int colourIndex) {
+        int shift = colourIndex * 2;
+        return (paletteRegister >> shift) & 0x03;
     }
 
     private void LoadPalette(GBColor[] palette, int[] target) {
@@ -542,7 +566,7 @@ public class GBPPU {
     }
 
     private boolean ShouldUseGbcColourisation() {
-        return Settings.gbcPaletteModeEnabled && !memory.IsLoadedRomCgbCompatible();
+        return Settings.nonGbcColourMode == NonGbcColourMode.GBC_COLOURISATION && !memory.IsLoadedRomCgbCompatible();
     }
 
     private void LoadBackgroundTileRow(boolean windowLayer, int tileAddress, int tileLine, boolean unsignedTileData,
@@ -604,12 +628,26 @@ public class GBPPU {
 
         int tileAddress = 0x8000 + (tileIndex * 16) + (line * 2);
         int vramBank = (attributes & 0x08) != 0 ? 1 : 0;
-        visibleSpriteRowLow[spriteIndex] = memory.IsCgbMode()
+        boolean useCgbSpriteTileAttributes = memory.IsCgbMode() && !memory.IsDmgCompatibilityMode();
+        visibleSpriteRowLow[spriteIndex] = useCgbSpriteTileAttributes
                 ? memory.ReadVideoRam(vramBank, tileAddress)
                 : memory.Read(tileAddress);
-        visibleSpriteRowHigh[spriteIndex] = memory.IsCgbMode()
+        visibleSpriteRowHigh[spriteIndex] = useCgbSpriteTileAttributes
                 ? memory.ReadVideoRam(vramBank, tileAddress + 1)
                 : memory.Read(tileAddress + 1);
+    }
+
+    private int ResolveDmgCompatibilityBackgroundColour(int colourIndex) {
+        int mappedColourIndex = ResolveDmgPaletteIndex(memory.ReadRegisterDirect(regBgp), colourIndex);
+        return memory.ReadCgbBackgroundPaletteColourRgb(0, mappedColourIndex);
+    }
+
+    private int ResolveDmgCompatibilitySpriteColour(int attributes, int colourIndex) {
+        boolean usesPalette1 = (attributes & 0x10) != 0;
+        int mappedColourIndex = ResolveDmgPaletteIndex(
+                memory.ReadRegisterDirect(usesPalette1 ? regObp1 : regObp0),
+                colourIndex);
+        return memory.ReadCgbObjectPaletteColourRgb(usesPalette1 ? 1 : 0, mappedColourIndex);
     }
 
     private void InvalidatePixelTransferCaches() {

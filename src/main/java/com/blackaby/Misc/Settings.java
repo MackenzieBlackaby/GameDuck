@@ -67,8 +67,8 @@ public final class Settings {
      */
     public static boolean preferDmgModeForGbcCompatibleGames = false;
 
-    /** Whether alternate GBC-style palettes should be used for non-CGB games. */
-    public static boolean gbcPaletteModeEnabled = false;
+    /** Active colour mode for monochrome non-CGB cartridges. */
+    public static NonGbcColourMode nonGbcColourMode = NonGbcColourMode.GB_ORIGINAL;
 
     /** Active GBC-style background palette for monochrome games. */
     public static GBColor[] gbcBackgroundPaletteObjects = CreatePalette(gbcBackgroundPaletteDefaults);
@@ -217,7 +217,7 @@ public final class Settings {
      */
     public static void ResetGbcPaletteMode() {
         preferDmgModeForGbcCompatibleGames = false;
-        gbcPaletteModeEnabled = false;
+        nonGbcColourMode = NonGbcColourMode.GB_ORIGINAL;
         gbcBackgroundPaletteObjects = CreatePalette(gbcBackgroundPaletteDefaults);
         gbcSpritePalette0Objects = CreatePalette(gbcSpritePalette0Defaults);
         gbcSpritePalette1Objects = CreatePalette(gbcSpritePalette1Defaults);

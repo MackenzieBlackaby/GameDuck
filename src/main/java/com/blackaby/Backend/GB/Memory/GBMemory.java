@@ -1,6 +1,7 @@
 package com.blackaby.Backend.GB.Memory;
 
 import com.blackaby.Backend.GB.CPU.GBProcessor;
+import com.blackaby.Backend.GB.Graphics.GBColor;
 import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.GB.Peripherals.GBAudioProcessingUnit;
 import com.blackaby.Backend.GB.Peripherals.GBGamepad;
@@ -161,7 +162,7 @@ public class GBMemory {
     public void LoadRom(GBRom rom, boolean useCgbMode) {
         cartridge = GBCartController.Create(rom);
         currentRom = rom;
-        cgbMode = rom != null && (rom.IsCgbOnly() || (rom.IsCgbCompatible() && useCgbMode));
+        cgbMode = rom != null && (rom.IsCgbOnly() || useCgbMode);
 
         ram = new int[GBMemAddresses.MEMORY_SIZE];
         bootRom = null;
@@ -832,6 +833,40 @@ public class GBMemory {
     }
 
     /**
+     * Returns whether the active hardware is a CGB running a monochrome cartridge
+     * in DMG compatibility mode.
+     *
+     * @return {@code true} when CGB hardware is active for a non-CGB cartridge
+     */
+    public boolean IsDmgCompatibilityMode() {
+        return cgbMode
+                && currentRom != null
+                && !currentRom.IsCgbCompatible()
+                && !cgbBootRomMapped;
+    }
+
+    /**
+     * Seeds the first compatibility palettes used by DMG software running on CGB
+     * hardware when the real CGB boot ROM is skipped.
+     *
+     * @param backgroundPalette background palette colours
+     * @param spritePalette0    sprite palette 0 colours
+     * @param spritePalette1    sprite palette 1 colours
+     */
+    public void SeedDmgCompatibilityPalettes(GBColor[] backgroundPalette, GBColor[] spritePalette0,
+            GBColor[] spritePalette1) {
+        if (!IsDmgCompatibilityMode()) {
+            return;
+        }
+
+        WriteCgbPalette(0, backgroundPalette, bgPaletteRam);
+        WriteCgbPalette(0, spritePalette0, objPaletteRam);
+        WriteCgbPalette(1, spritePalette1, objPaletteRam);
+        RebuildCgbPaletteCache(bgPaletteRam, bgPaletteRgbCache);
+        RebuildCgbPaletteCache(objPaletteRam, objPaletteRgbCache);
+    }
+
+    /**
      * Returns whether the CPU is currently running in CGB double-speed mode.
      *
      * @return {@code true} when double-speed mode is active
@@ -1238,6 +1273,29 @@ public class GBMemory {
             }
         }
         RebuildCgbPaletteCache(paletteRam, rgbCache);
+    }
+
+    private void WriteCgbPalette(int paletteIndex, GBColor[] sourcePalette, int[] targetPaletteRam) {
+        int safePaletteIndex = Math.max(0, Math.min(7, paletteIndex));
+        for (int colourIndex = 0; colourIndex < 4; colourIndex++) {
+            GBColor colour = sourcePalette[Math.max(0, Math.min(sourcePalette.length - 1, colourIndex))];
+            int colour555 = PackCgbRgb555(colour);
+            int base = (safePaletteIndex * 8) + (colourIndex * 2);
+            targetPaletteRam[base] = colour555 & 0xFF;
+            targetPaletteRam[base + 1] = (colour555 >> 8) & 0x7F;
+        }
+    }
+
+    private int PackCgbRgb555(GBColor colour) {
+        int red = QuantiseToCgbChannel(colour.red);
+        int green = QuantiseToCgbChannel(colour.green);
+        int blue = QuantiseToCgbChannel(colour.blue);
+        return red | (green << 5) | (blue << 10);
+    }
+
+    private int QuantiseToCgbChannel(int channel) {
+        int clamped = Math.max(0, Math.min(255, channel));
+        return (clamped * 31 + 127) / 255;
     }
 
     private void RebuildCgbPaletteCache(int[] paletteRam, int[] rgbCache) {

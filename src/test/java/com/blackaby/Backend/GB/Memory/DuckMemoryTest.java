@@ -1,10 +1,14 @@
 package com.blackaby.Backend.GB.Memory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import org.junit.jupiter.api.Test;
 
 import com.blackaby.Backend.GB.Misc.GBRom;
+import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;
+import com.blackaby.Backend.GB.Graphics.GBColor;
 
 class DuckMemoryTest {
 
@@ -89,6 +93,69 @@ class DuckMemoryTest {
         memory.LoadRom(GBRom.FromBytes("rtc.gb", romBytes, "rtc"), false);
 
         assertEquals(true, memory.HasSaveData());
+    }
+
+    @Test
+    void dmgRomCanRunInCgbCompatibilityModeWhenRequested() {
+        GBMemory memory = new GBMemory();
+        memory.LoadRom(EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "compat.gb", "compat"), true);
+
+        assertTrue(memory.IsCgbMode());
+        assertTrue(memory.IsDmgCompatibilityMode());
+        assertFalse(memory.IsLoadedRomCgbCompatible());
+    }
+
+    @Test
+    void seedsDmgCompatibilityPalettesIntoCgbPaletteRam() {
+        GBMemory memory = new GBMemory();
+        memory.LoadRom(EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "compat.gb", "compat"), true);
+        memory.InitialiseCgbBootState();
+
+        memory.SeedDmgCompatibilityPalettes(
+                new GBColor[] {
+                        new GBColor(0, 0, 0),
+                        new GBColor(255, 0, 0),
+                        new GBColor(0, 255, 0),
+                        new GBColor(0, 0, 255)
+                },
+                new GBColor[] {
+                        new GBColor(0, 0, 0),
+                        new GBColor(255, 255, 255),
+                        new GBColor(0, 0, 0),
+                        new GBColor(0, 0, 0)
+                },
+                new GBColor[] {
+                        new GBColor(0, 0, 0),
+                        new GBColor(0, 0, 255),
+                        new GBColor(0, 0, 0),
+                        new GBColor(0, 0, 0)
+                });
+
+        memory.Write(GBMemAddresses.BCPS, 0x80);
+        assertEquals(0x00, memory.Read(GBMemAddresses.BCPD));
+        memory.Write(GBMemAddresses.BCPS, 0x82);
+        assertEquals(0x1F, memory.Read(GBMemAddresses.BCPD));
+
+        memory.Write(GBMemAddresses.OCPS, 0x88);
+        assertEquals(0x00, memory.Read(GBMemAddresses.OCPD));
+        memory.Write(GBMemAddresses.OCPS, 0x8A);
+        assertEquals(0x00, memory.Read(GBMemAddresses.OCPD));
+        memory.Write(GBMemAddresses.OCPS, 0x8B);
+        assertEquals(0x7C, memory.Read(GBMemAddresses.OCPD));
+    }
+
+    @Test
+    void dmgCompatibilityModeWaitsUntilCgbBootRomUnmaps() {
+        GBMemory memory = new GBMemory();
+        memory.LoadRom(EmulatorTestUtils.CreateBlankRom(0x00, 2, 0x00, 0x00, "compat.gb", "compat"), true);
+        memory.LoadBootRom(new byte[0x800], true);
+
+        assertTrue(memory.IsCgbMode());
+        assertFalse(memory.IsDmgCompatibilityMode());
+
+        memory.Write(GBMemAddresses.BOOT_ROM_DISABLE, 0x01);
+
+        assertTrue(memory.IsDmgCompatibilityMode());
     }
 
     private static GBMemory CreateCgbMemory() {

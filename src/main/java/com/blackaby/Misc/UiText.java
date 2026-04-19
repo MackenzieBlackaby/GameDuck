@@ -828,14 +828,18 @@ public final class UiText {
         // -----------------------------------------------------------------
         // Palette tab: GBC colourisation controls.
         // -----------------------------------------------------------------
-        public static final String GBC_COMPATIBLE_MODE_TITLE = "GBC Colourisation mode";
+        public static final String GBC_COMPATIBLE_MODE_TITLE = "GBC Colour mode";
         public static final String GBC_COMPATIBLE_MODE_HELPER = "Switch between GBC and GB emulation for games compatible with both (Game restart required)";
-        public static final String GBC_NON_CGB_MODE_TITLE = "Non-GBC Colour Mode";
-        public static final String GBC_NON_CGB_MODE_HELPER = "Choose between using the GB or GBC colourisation of GB roms";
-        public static final String DMG_PALETTE_MODE_GB = "GB Original";
-        public static final String DMG_PALETTE_MODE_GBC = "GBC Colourisation";
+        public static final String GBC_NON_CGB_MODE_TITLE = "GB Colour Mode";
+        public static final String GBC_NON_CGB_MODE_HELPER = "Choose between original GB, a custom GB palette, or full GBC colourisation for GB roms";
+        public static final String GB_SETTINGS_SECTION_TITLE = "GB Settings";
+        public static final String GBC_SETTINGS_SECTION_TITLE = "GBC Settings";
+        public static final String PALETTE_TOOLS_SECTION_TITLE = "Palette Tools";
+        public static final String DMG_PALETTE_MODE_GB = "GBC Original";
+        public static final String DMG_PALETTE_MODE_CUSTOM = "GB 4-Colour";
+        public static final String DMG_PALETTE_MODE_GBC = "GBC 12-Colour";
         public static final String GBC_COMPATIBLE_MODE_FULL_COLOUR = "GBC Full colour";
-        public static final String GBC_COMPATIBLE_MODE_GB_PALETTE = "GB Colourisation";
+        public static final String GBC_COMPATIBLE_MODE_GB_PALETTE = "GB Decolourisation";
         public static final String GBC_BACKGROUND_PALETTE_TITLE = "Background Palette";
         public static final String GBC_BACKGROUND_PALETTE_HELPER = "Used for tiles and window pixels";
         public static final String GBC_SPRITE0_PALETTE_TITLE = "Sprite Palette 0";
@@ -844,6 +848,9 @@ public final class UiText {
         public static final String GBC_SPRITE1_PALETTE_HELPER = "Used by sprites selecting OBP1";
         public static final String SAVE_CURRENT_GBC_PALETTE = "Save Current GBC Palette";
         public static final String SAVE_CURRENT_GBC_PALETTE_HELPER = "";
+        public static final String IMPORT_GB_PALETTES_BUTTON = "Import GB Palettes";
+        public static final String IMPORT_GBC_PALETTES_BUTTON = "Import GBC Palettes";
+        public static final String RESET_GB_SETTINGS_BUTTON = "Reset GB Settings";
         public static final String RESET_GBC_SETTINGS_BUTTON = "Reset GBC Settings";
 
         // -----------------------------------------------------------------
@@ -1112,6 +1119,10 @@ public final class UiText {
         // -----------------------------------------------------------------
         public static String PaletteNameRequiredMessage() {
             return "Enter a palette name first";
+        }
+
+        public static String PaletteNamePrompt() {
+            return "Palette name";
         }
 
         public static String PaletteSavedMessage(String name) {

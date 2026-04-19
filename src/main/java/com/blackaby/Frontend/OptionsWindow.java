@@ -23,6 +23,7 @@ import com.blackaby.Misc.ControllerBinding;
 import com.blackaby.Misc.ControllerPollingMode;
 import com.blackaby.Misc.GameArtDisplayMode;
 import com.blackaby.Misc.GameNameBracketDisplayMode;
+import com.blackaby.Misc.NonGbcColourMode;
 import com.blackaby.Misc.Settings;
 import com.blackaby.Misc.UiText;
 
@@ -40,8 +41,11 @@ import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
+import javax.swing.JMenu;
+import javax.swing.JMenuItem;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
 import javax.swing.JSlider;
 import javax.swing.JSpinner;
@@ -115,19 +119,24 @@ import java.util.function.UnaryOperator;
 public class OptionsWindow extends DuckWindow {
 
     private enum DmgPaletteModeOption {
-        GB_PALETTE(UiText.OptionsWindow.DMG_PALETTE_MODE_GB, false),
-        GBC_COLOURISATION(UiText.OptionsWindow.DMG_PALETTE_MODE_GBC, true);
+        CUSTOM_PALETTE(UiText.OptionsWindow.DMG_PALETTE_MODE_CUSTOM, NonGbcColourMode.CUSTOM_PALETTE),
+        GBC_COLOURISATION(UiText.OptionsWindow.DMG_PALETTE_MODE_GBC, NonGbcColourMode.GBC_COLOURISATION),
+        GBC_ORIGINAL(UiText.OptionsWindow.DMG_PALETTE_MODE_GB, NonGbcColourMode.GB_ORIGINAL);
 
         private final String label;
-        private final boolean gbcPaletteModeEnabled;
+        private final NonGbcColourMode mode;
 
-        DmgPaletteModeOption(String label, boolean gbcPaletteModeEnabled) {
+        DmgPaletteModeOption(String label, NonGbcColourMode mode) {
             this.label = label;
-            this.gbcPaletteModeEnabled = gbcPaletteModeEnabled;
+            this.mode = mode;
         }
 
-        private static DmgPaletteModeOption fromSetting(boolean gbcPaletteModeEnabled) {
-            return gbcPaletteModeEnabled ? GBC_COLOURISATION : GB_PALETTE;
+        private static DmgPaletteModeOption fromSetting(NonGbcColourMode mode) {
+            return switch (mode == null ? NonGbcColourMode.GB_ORIGINAL : mode) {
+                case CUSTOM_PALETTE -> CUSTOM_PALETTE;
+                case GBC_COLOURISATION -> GBC_COLOURISATION;
+                default -> GBC_ORIGINAL;
+            };
         }
 
         @Override
@@ -170,6 +179,8 @@ public class OptionsWindow extends DuckWindow {
     private final JLabel[] colorHexLabels = new JLabel[4];
     private final JPanel[] gbcColorPreviews = new JPanel[12];
     private final JLabel[] gbcColorHexLabels = new JLabel[12];
+    private final JPanel[] gbPaletteEditorSwatches = new JPanel[4];
+    private final JPanel[] gbcCompatibilityPaletteSwatches = new JPanel[4];
     private final JPanel[] themeStripPreviews = new JPanel[AppThemeColorRole.values().length];
     private final Map<EmulatorButton, JButton> keyboardBindingButtons = new HashMap<>();
     private final Map<EmulatorButton, JButton> controllerBindingButtons = new HashMap<>();
@@ -457,75 +468,154 @@ public class OptionsWindow extends DuckWindow {
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setOpaque(false);
-
+        JPanel gbSectionBody = createPaletteSectionBodyPanel();
         dmgPaletteModeSelector = new JComboBox<>(DmgPaletteModeOption.values());
         configureCompactPaletteSelector(dmgPaletteModeSelector);
         dmgPaletteModeSelector.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        dmgPaletteModeSelector.setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.gbcPaletteModeEnabled));
+        dmgPaletteModeSelector.setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.nonGbcColourMode));
+
+        Runnable syncGbSection = () -> {
+            clearSwatchReferences(gbPaletteEditorSwatches);
+            gbSectionBody.removeAll();
+            gbSectionBody.add(createFieldCard(UiText.OptionsWindow.GBC_NON_CGB_MODE_TITLE, dmgPaletteModeSelector));
+
+            DmgPaletteModeOption selectedMode = dmgPaletteModeSelector.getSelectedItem() instanceof DmgPaletteModeOption option
+                    ? option
+                    : DmgPaletteModeOption.GBC_ORIGINAL;
+            if (selectedMode == DmgPaletteModeOption.CUSTOM_PALETTE) {
+                gbSectionBody.add(Box.createVerticalStrut(8));
+                gbSectionBody.add(createCompactWindowOptionCard(
+                        createPaletteEditorWorkflow(
+                                createDmgPaletteEditor(gbPaletteEditorSwatches),
+                                createSavedPaletteMenuButton(UiText.OptionsWindow.SAVED_PALETTE_LABEL, false))));
+            } else if (selectedMode == DmgPaletteModeOption.GBC_COLOURISATION) {
+                gbSectionBody.add(Box.createVerticalStrut(8));
+                gbSectionBody.add(createCompactWindowOptionCard(
+                        createPaletteEditorWorkflow(
+                                createGbcPaletteMatrix(),
+                                createSavedPaletteMenuButton(UiText.OptionsWindow.SAVED_GBC_PALETTE_LABEL, true))));
+            }
+
+            gbSectionBody.revalidate();
+            gbSectionBody.repaint();
+        };
+
         dmgPaletteModeSelector.addActionListener(event -> {
             Object selectedItem = dmgPaletteModeSelector.getSelectedItem();
             if (selectedItem instanceof DmgPaletteModeOption selectedMode) {
-                Settings.gbcPaletteModeEnabled = selectedMode.gbcPaletteModeEnabled;
+                Settings.nonGbcColourMode = selectedMode.mode;
             }
+            syncGbSection.run();
             Config.Save();
         });
+        syncGbSection.run();
 
+        JPanel gbcSectionBody = createPaletteSectionBodyPanel();
         gbcCompatiblePaletteModeSelector = new JComboBox<>(GbcCompatiblePaletteModeOption.values());
         configureCompactPaletteSelector(gbcCompatiblePaletteModeSelector);
         gbcCompatiblePaletteModeSelector.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
         gbcCompatiblePaletteModeSelector.setSelectedItem(
                 GbcCompatiblePaletteModeOption.fromSetting(Settings.preferDmgModeForGbcCompatibleGames));
+
+        Runnable syncGbcSection = () -> {
+            clearSwatchReferences(gbcCompatibilityPaletteSwatches);
+            gbcSectionBody.removeAll();
+            gbcSectionBody
+                    .add(createFieldCard(UiText.OptionsWindow.GBC_COMPATIBLE_MODE_TITLE, gbcCompatiblePaletteModeSelector));
+
+            GbcCompatiblePaletteModeOption selectedMode = gbcCompatiblePaletteModeSelector
+                    .getSelectedItem() instanceof GbcCompatiblePaletteModeOption option
+                            ? option
+                            : GbcCompatiblePaletteModeOption.FULL_COLOUR;
+            if (selectedMode == GbcCompatiblePaletteModeOption.GB_PALETTE_ON_COMPATIBLE_GAMES) {
+                gbcSectionBody.add(Box.createVerticalStrut(8));
+                gbcSectionBody.add(createCompactWindowOptionCard(
+                        createPaletteEditorWorkflow(
+                                createDmgPaletteEditor(gbcCompatibilityPaletteSwatches),
+                                createSavedPaletteMenuButton(UiText.OptionsWindow.SAVED_PALETTE_LABEL, false))));
+            }
+
+            gbcSectionBody.revalidate();
+            gbcSectionBody.repaint();
+        };
+
         gbcCompatiblePaletteModeSelector.addActionListener(event -> {
             Object selectedItem = gbcCompatiblePaletteModeSelector.getSelectedItem();
             if (selectedItem instanceof GbcCompatiblePaletteModeOption selectedMode) {
                 Settings.preferDmgModeForGbcCompatibleGames = selectedMode.preferDmgModeForCompatibleGames;
             }
+            syncGbcSection.run();
             Config.Save();
         });
+        syncGbcSection.run();
 
-        content.add(createResponsiveGroup(
-                280,
-                2,
-                createCompactSelectorWindowOptionCard(
-                        UiText.OptionsWindow.GBC_NON_CGB_MODE_TITLE,
-                        dmgPaletteModeSelector),
-                createCompactSelectorWindowOptionCard(
-                        UiText.OptionsWindow.GBC_COMPATIBLE_MODE_TITLE,
-                        gbcCompatiblePaletteModeSelector)));
-        content.add(Box.createVerticalStrut(10));
-        content.add(createResponsiveGroup(
-                320,
-                2,
-                createDmgPaletteWorkspaceCard(),
-                createGbcPaletteWorkspaceCard()));
-        content.add(Box.createVerticalStrut(8));
+        JPanel toolsSectionBody = createPaletteSectionBodyPanel();
+        JButton importGbPalettesButton = createSecondaryButton(UiText.OptionsWindow.IMPORT_GB_PALETTES_BUTTON);
+        configureCompactPaletteButton(importGbPalettesButton, 154);
+        importGbPalettesButton.addActionListener(event -> importSavedPalettes(false));
 
-        JButton resetPaletteButton = createSecondaryButton(UiText.OptionsWindow.RESET_PALETTE_BUTTON);
-        configureCompactPaletteButton(resetPaletteButton, 120);
-        resetPaletteButton.addActionListener(event -> {
+        JButton importGbcPalettesButton = createSecondaryButton(UiText.OptionsWindow.IMPORT_GBC_PALETTES_BUTTON);
+        configureCompactPaletteButton(importGbcPalettesButton, 160);
+        importGbcPalettesButton.addActionListener(event -> importSavedPalettes(true));
+
+        JButton resetGbSettingsButton = createSecondaryButton(UiText.OptionsWindow.RESET_GB_SETTINGS_BUTTON);
+        configureCompactPaletteButton(resetGbSettingsButton, 148);
+        resetGbSettingsButton.addActionListener(event -> {
+            boolean preserveGbcCompatibleMode = Settings.preferDmgModeForGbcCompatibleGames;
             Settings.ResetPalette();
+            Settings.ResetGbcPaletteMode();
+            Settings.preferDmgModeForGbcCompatibleGames = preserveGbcCompatibleMode;
+            if (dmgPaletteModeSelector != null) {
+                dmgPaletteModeSelector.setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.nonGbcColourMode));
+            }
             refreshPaletteDetails();
+            syncGbSection.run();
             Config.Save();
         });
 
-        JButton resetGbcPaletteButton = createSecondaryButton(UiText.OptionsWindow.RESET_GBC_SETTINGS_BUTTON);
-        configureCompactPaletteButton(resetGbcPaletteButton, 132);
-        resetGbcPaletteButton.addActionListener(event -> {
-            Settings.ResetGbcPaletteMode();
+        JButton resetGbcSettingsButton = createSecondaryButton(UiText.OptionsWindow.RESET_GBC_SETTINGS_BUTTON);
+        configureCompactPaletteButton(resetGbcSettingsButton, 154);
+        resetGbcSettingsButton.addActionListener(event -> {
+            Settings.preferDmgModeForGbcCompatibleGames = false;
             if (gbcCompatiblePaletteModeSelector != null) {
                 gbcCompatiblePaletteModeSelector.setSelectedItem(
                         GbcCompatiblePaletteModeOption.fromSetting(Settings.preferDmgModeForGbcCompatibleGames));
             }
-            if (dmgPaletteModeSelector != null) {
-                dmgPaletteModeSelector.setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.gbcPaletteModeEnabled));
-            }
             refreshPaletteDetails();
+            syncGbcSection.run();
             Config.Save();
         });
 
-        JPanel actionRow = createResponsiveGroup(150, 2, resetPaletteButton, resetGbcPaletteButton);
-        actionRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-        content.add(actionRow);
+        toolsSectionBody.add(importGbPalettesButton);
+        toolsSectionBody.add(Box.createVerticalStrut(6));
+        toolsSectionBody.add(importGbcPalettesButton);
+        toolsSectionBody.add(Box.createVerticalStrut(10));
+        toolsSectionBody.add(resetGbSettingsButton);
+        toolsSectionBody.add(Box.createVerticalStrut(6));
+        toolsSectionBody.add(resetGbcSettingsButton);
+
+        JComponent gbSection = createCompactDisclosurePanel(
+                UiText.OptionsWindow.GB_SETTINGS_SECTION_TITLE,
+                createCompactWindowOptionCard(gbSectionBody),
+                true);
+        gbSection.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(gbSection);
+        content.add(Box.createVerticalStrut(8));
+
+        JComponent gbcSection = createCompactDisclosurePanel(
+                UiText.OptionsWindow.GBC_SETTINGS_SECTION_TITLE,
+                createCompactWindowOptionCard(gbcSectionBody),
+                false);
+        gbcSection.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(gbcSection);
+        content.add(Box.createVerticalStrut(8));
+
+        JComponent toolsSection = createCompactDisclosurePanel(
+                UiText.OptionsWindow.PALETTE_TOOLS_SECTION_TITLE,
+                createCompactWindowOptionCard(toolsSectionBody),
+                false);
+        toolsSection.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(toolsSection);
         return content;
     }
 
@@ -617,6 +707,149 @@ public class OptionsWindow extends DuckWindow {
         content.add(createResponsiveGroup(96, 2, loadPaletteButton, deletePaletteButton));
         refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
         return createCompactWindowOptionCard(content);
+    }
+
+    private JPanel createPaletteSectionBodyPanel() {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+        return panel;
+    }
+
+    private JComponent createPaletteEditorWorkflow(JComponent editor, JButton savedPaletteButton) {
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
+        content.add(editor);
+        content.add(Box.createVerticalStrut(8));
+        savedPaletteButton.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(savedPaletteButton);
+        return content;
+    }
+
+    private JComponent createDmgPaletteEditor(JPanel[] targetSwatches) {
+        JPanel content = new JPanel();
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.setOpaque(false);
+
+        JPanel swatchStrip = new JPanel(new GridLayout(1, 4, 6, 0));
+        swatchStrip.setOpaque(false);
+
+        GBColor[] palette = Settings.CurrentPalette();
+        String[] toneNames = UiText.OptionsWindow.DMG_TONE_NAMES;
+        for (int index = 0; index < palette.length; index++) {
+            JPanel swatch = new JPanel();
+            swatch.setPreferredSize(new Dimension(40, 36));
+            swatch.setBackground(palette[index].ToColour());
+            swatch.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(58, 92, 132, 60), 1, true),
+                    BorderFactory.createEmptyBorder(1, 1, 1, 1)));
+            swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            swatch.setToolTipText(UiText.OptionsWindow.EditPaletteToneTooltip(toneNames[index]));
+            final int paletteIndex = index;
+            swatch.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent event) {
+                    chooseColor(paletteIndex, UiText.OptionsWindow.PaletteToneColorLabel(toneNames[paletteIndex]));
+                }
+            });
+            targetSwatches[index] = swatch;
+            swatchStrip.add(swatch);
+        }
+
+        content.add(swatchStrip);
+        return content;
+    }
+
+    private JButton createSavedPaletteMenuButton(String label, boolean gbcPalette) {
+        JButton button = createSecondaryButton(label);
+        configureCompactPaletteButton(button, gbcPalette ? 148 : 120);
+        button.addActionListener(event -> showSavedPaletteMenu(button, gbcPalette));
+        return button;
+    }
+
+    private void showSavedPaletteMenu(JButton anchor, boolean gbcPalette) {
+        JPopupMenu menu = new JPopupMenu();
+        List<String> paletteNames = gbcPalette ? Config.GetSavedGbcPaletteNames() : Config.GetSavedPaletteNames();
+
+        JMenu loadMenu = new JMenu(UiText.PaletteManager.LOAD_BUTTON);
+        loadMenu.setEnabled(!paletteNames.isEmpty());
+        for (String paletteName : paletteNames) {
+            JMenuItem loadItem = new JMenuItem(paletteName);
+            loadItem.addActionListener(event -> {
+                boolean loaded = gbcPalette ? Config.LoadGbcPalette(paletteName) : Config.LoadPalette(paletteName);
+                if (loaded) {
+                    refreshPaletteDetails();
+                }
+            });
+            loadMenu.add(loadItem);
+        }
+
+        JMenuItem saveItem = new JMenuItem(
+                gbcPalette ? UiText.OptionsWindow.SAVE_CURRENT_GBC_PALETTE : UiText.OptionsWindow.SAVE_CURRENT_PALETTE);
+        saveItem.addActionListener(event -> savePaletteWithPrompt(gbcPalette));
+
+        JMenu deleteMenu = new JMenu(UiText.PaletteManager.DELETE_BUTTON);
+        deleteMenu.setEnabled(!paletteNames.isEmpty());
+        for (String paletteName : paletteNames) {
+            JMenuItem deleteItem = new JMenuItem(paletteName);
+            deleteItem.addActionListener(event -> deleteSavedPalette(gbcPalette, paletteName));
+            deleteMenu.add(deleteItem);
+        }
+
+        menu.add(loadMenu);
+        menu.add(saveItem);
+        menu.add(deleteMenu);
+        menu.show(anchor, 0, anchor.getHeight());
+    }
+
+    private void savePaletteWithPrompt(boolean gbcPalette) {
+        String title = gbcPalette
+                ? UiText.OptionsWindow.SAVE_CURRENT_GBC_PALETTE
+                : UiText.OptionsWindow.SAVE_CURRENT_PALETTE;
+        String name = JOptionPane.showInputDialog(this, UiText.OptionsWindow.PaletteNamePrompt(), title,
+                JOptionPane.PLAIN_MESSAGE);
+        if (name == null) {
+            return;
+        }
+
+        String trimmedName = name.trim();
+        if (trimmedName.isEmpty()) {
+            JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteNameRequiredMessage(),
+                    UiText.Common.WARNING_TITLE,
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (gbcPalette) {
+            Config.SaveGbcPalette(trimmedName);
+        } else {
+            Config.SavePalette(trimmedName);
+        }
+        JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteSavedMessage(trimmedName));
+    }
+
+    private void deleteSavedPalette(boolean gbcPalette, String paletteName) {
+        int result = JOptionPane.showConfirmDialog(this,
+                UiText.PaletteManager.DeleteConfirmMessage(gbcPalette, paletteName),
+                UiText.PaletteManager.DeleteConfirmTitle(gbcPalette),
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        if (result != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        if (gbcPalette) {
+            Config.DeleteGbcPalette(paletteName);
+        } else {
+            Config.DeletePalette(paletteName);
+        }
+    }
+
+    private void clearSwatchReferences(JPanel[] swatches) {
+        for (int index = 0; index < swatches.length; index++) {
+            swatches[index] = null;
+        }
     }
 
     private JComponent createGbcPaletteWorkspaceCard() {
@@ -780,11 +1013,11 @@ public class OptionsWindow extends DuckWindow {
         dmgPaletteModeSelector = new JComboBox<>(DmgPaletteModeOption.values());
         configureCompactPaletteSelector(dmgPaletteModeSelector);
         dmgPaletteModeSelector.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        dmgPaletteModeSelector.setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.gbcPaletteModeEnabled));
+        dmgPaletteModeSelector.setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.nonGbcColourMode));
         dmgPaletteModeSelector.addActionListener(event -> {
             Object selectedItem = dmgPaletteModeSelector.getSelectedItem();
             if (selectedItem instanceof DmgPaletteModeOption selectedMode) {
-                Settings.gbcPaletteModeEnabled = selectedMode.gbcPaletteModeEnabled;
+                Settings.nonGbcColourMode = selectedMode.mode;
             }
             Config.Save();
         });
@@ -1014,7 +1247,7 @@ public class OptionsWindow extends DuckWindow {
             }
             if (dmgPaletteModeSelector != null) {
                 dmgPaletteModeSelector
-                        .setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.gbcPaletteModeEnabled));
+                        .setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.nonGbcColourMode));
             }
             refreshPaletteDetails();
             Config.Save();
@@ -4011,6 +4244,12 @@ public class OptionsWindow extends DuckWindow {
             }
             if (colorHexLabels[i] != null) {
                 colorHexLabels[i].setText(palette[i].ToHex().toUpperCase());
+            }
+            if (gbPaletteEditorSwatches[i] != null) {
+                gbPaletteEditorSwatches[i].setBackground(palette[i].ToColour());
+            }
+            if (gbcCompatibilityPaletteSwatches[i] != null) {
+                gbcCompatibilityPaletteSwatches[i].setBackground(palette[i].ToColour());
             }
         }
 

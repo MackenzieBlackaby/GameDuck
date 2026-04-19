@@ -436,7 +436,7 @@ public final class Config {
         ApplyPaletteToSettings(paletteStore.CurrentDmgPalette());
         Settings.ResetGbcPaletteMode();
         Settings.preferDmgModeForGbcCompatibleGames = paletteStore.PreferDmgModeForGbcCompatibleGames();
-        Settings.gbcPaletteModeEnabled = paletteStore.GbcPaletteModeEnabled();
+        Settings.nonGbcColourMode = paletteStore.NonGbcColourMode();
         ApplyGbcPaletteToSettings(0, paletteStore.CurrentGbcBackgroundPalette());
         ApplyGbcPaletteToSettings(1, paletteStore.CurrentGbcSpritePalette0());
         ApplyGbcPaletteToSettings(2, paletteStore.CurrentGbcSpritePalette1());
@@ -602,7 +602,7 @@ public final class Config {
     private static void SyncCurrentPalette() {
         paletteStore.SetCurrentDmgPalette(ToHexPalette(Settings.CurrentPalette()));
         paletteStore.SetPreferDmgModeForGbcCompatibleGames(Settings.preferDmgModeForGbcCompatibleGames);
-        paletteStore.SetGbcPaletteModeEnabled(Settings.gbcPaletteModeEnabled);
+        paletteStore.SetNonGbcColourMode(Settings.nonGbcColourMode);
         paletteStore.SetCurrentGbcBackgroundPalette(ToHexPalette(Settings.CurrentGbcBackgroundPalette()));
         paletteStore.SetCurrentGbcSpritePalette0(ToHexPalette(Settings.CurrentGbcSpritePalette0()));
         paletteStore.SetCurrentGbcSpritePalette1(ToHexPalette(Settings.CurrentGbcSpritePalette1()));

@@ -15,6 +15,7 @@ scripts
 cache
 target
 saves/*.sav
+saves/*.rtc
 quickstates/*.gqs
 library/roms/*.gb
 library/roms/*.gbc

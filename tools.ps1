@@ -15,7 +15,7 @@ function clean {
 function release{
     [CmdletBinding()]
     param(
-        [string]$Version = "0.3.2",
+        [string]$Version = "0.4.0",
         [string]$MainClass = "com.blackaby.Main",
         [string]$AppName = "GameDuck",
         [string]$IconPath,

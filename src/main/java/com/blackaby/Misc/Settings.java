@@ -153,6 +153,9 @@ public final class Settings {
     /** Whether the serial output panel should be shown in the main window. */
     public static boolean showSerialOutput = true;
 
+    /** Whether the per-game notes editor should be shown in the main window. */
+    public static boolean showGameNotes = true;
+
     /** Which libretro artwork type should be shown in the main window. */
     public static GameArtDisplayMode gameArtDisplayMode = GameArtDisplayMode.BOX_ART;
 
@@ -182,6 +185,9 @@ public final class Settings {
 
     /** How many games should appear in the Game -> Load Recent menu. */
     public static int loadRecentMenuLimit = 10;
+
+    /** How many recent game artwork shortcuts should appear on the ready page. */
+    public static int readyPageRecentGameLimit = 3;
 
     private Settings() {
     }
@@ -416,9 +422,11 @@ public final class Settings {
         displayShaderId = "none";
         displayBorderId = "none";
         showSerialOutput = true;
+        showGameNotes = true;
         enableFrameBlending = true;
         showDisplayFps = true;
         gameArtDisplayMode = GameArtDisplayMode.BOX_ART;
+        readyPageRecentGameLimit = 3;
 
     }
 

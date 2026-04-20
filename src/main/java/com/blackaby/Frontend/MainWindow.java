@@ -9,6 +9,7 @@ import com.blackaby.Backend.Helpers.GameArtProvider;
 import com.blackaby.Backend.Helpers.GameArtProvider.GameArtResult;
 import com.blackaby.Backend.Helpers.GameLibraryStore;
 import com.blackaby.Backend.Helpers.QuickStateManager;
+import com.blackaby.Backend.Helpers.GameNotesStore;
 import com.blackaby.Backend.Platform.EmulatorBackend;
 import com.blackaby.Backend.Platform.EmulatorGame;
 import com.blackaby.Backend.Platform.EmulatorHost;
@@ -42,8 +43,10 @@ import javax.swing.JTextArea;
 import javax.swing.event.MenuEvent;
 import javax.swing.event.MenuListener;
 import javax.swing.border.Border;
+import java.awt.BasicStroke;
 import java.awt.CardLayout;
 import java.awt.BorderLayout;
+import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.Font;
@@ -52,6 +55,11 @@ import java.awt.Graphics2D;
 import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.awt.Cursor;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.IOException;
@@ -62,6 +70,7 @@ import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -80,6 +89,8 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private static final String DISPLAY_STAGE_ACTIVE = "active";
     private static final int gameArtPreviewWidth = 280;
     private static final int gameArtPreviewHeight = 220;
+    private static final int recentGameTileMinSize = 150;
+    private static final int recentGameTileMaxSize = 230;
     private static final int displayStatsRefreshMillis = 500;
     private static final DateTimeFormatter saveStateTimestampFormatter = DateTimeFormatter
             .ofPattern("dd MMM yyyy HH:mm");
@@ -121,32 +132,39 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private JMenuBar menuBar;
     private JLabel romLabel;
     private JLabel stateLabel;
-    private JLabel titleLabel;
-    private JLabel subtitleLabel;
     private JLabel displayTitleLabel;
     private JLabel displayHintLabel;
     private JLabel serialTitleLabel;
     private JLabel serialHintLabel;
+    private JLabel gameNotesTitleLabel;
+    private JLabel gameNotesHintLabel;
     private JLabel gameArtTitleLabel;
     private JLabel gameArtHintLabel;
     private JLabel gameArtLabel;
-    private JPanel headerPanel;
     private JPanel embeddedDisplaySurface;
     private JPanel displayWrapper;
     private JPanel displayCard;
     private JPanel displayStagePanel;
+    private JPanel displayEmptyStateContent;
+    private JPanel recentGamesPanel;
     private JPanel serialCard;
     private JPanel serialSectionPanel;
+    private JPanel gameNotesPanel;
     private JPanel gameArtPanel;
     private JPanel gameArtPreviewPanel;
     private JComponent sidePanelSpacer;
+    private JComponent notesArtSpacer;
     private JPanel labelRow;
     private JPanel displayFrame;
     private JPanel statusBar;
     private JTextArea serialOutputArea;
+    private JTextArea gameNotesArea;
     private JScrollPane serialOutputScrollPane;
+    private JScrollPane gameNotesScrollPane;
+    private JButton gameNotesEditButton;
     private EmulatorGame currentLoadedGame;
     private boolean romNameLookupPending;
+    private boolean gameNotesEditing;
 
     private final String[][] menuItems = UiText.MainWindow.MENU_ITEMS;
 
@@ -173,11 +191,9 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         setLayout(new BorderLayout(0, 0));
         getContentPane().setBackground(Styling.appBackgroundColour);
 
-        headerPanel = (JPanel) BuildHeader();
         displayWrapper = (JPanel) BuildDisplaySection();
         statusBar = (JPanel) BuildStatusBar();
 
-        add(headerPanel, BorderLayout.NORTH);
         add(displayWrapper, BorderLayout.CENTER);
         add(statusBar, BorderLayout.SOUTH);
 
@@ -206,6 +222,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent event) {
+                SaveCurrentGameNotes();
                 displayStatsTimer.stop();
                 DebugLogger.RemoveSerialListener(serialOutputListener);
                 inputRouter.Uninstall();
@@ -220,41 +237,10 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         updateDisplayStage();
     }
 
-    private JComponent BuildHeader() {
-        JPanel header = new JPanel(new BorderLayout(16, 0));
-        header.setBackground(Styling.appBackgroundColour);
-        header.setBorder(BorderFactory.createEmptyBorder(24, 26, 18, 26));
-
-        JPanel titleBlock = new JPanel(new BorderLayout(0, 6));
-        titleBlock.setOpaque(false);
-
-        titleLabel = new JLabel(UiText.MainWindow.HEADER_TITLE);
-        titleLabel.setFont(Styling.titleFont);
-        titleLabel.setForeground(Styling.accentColour);
-
-        subtitleLabel = new JLabel(UiText.MainWindow.HEADER_SUBTITLE);
-        subtitleLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 14f));
-        subtitleLabel.setForeground(Styling.mutedTextColour);
-
-        titleBlock.add(titleLabel, BorderLayout.NORTH);
-        titleBlock.add(subtitleLabel, BorderLayout.CENTER);
-
-        JPanel actions = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 10, 0));
-        actions.setOpaque(false);
-        actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_OPEN_ROM, Action.LOADROM, true));
-        actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_LIBRARY, Action.LIBRARY));
-        actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_OPEN_IPS_PATCH, Action.LOADIPS));
-        actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_OPTIONS, Action.OPTIONS));
-
-        header.add(titleBlock, BorderLayout.CENTER);
-        header.add(actions, BorderLayout.EAST);
-        return header;
-    }
-
     private JComponent BuildDisplaySection() {
         JPanel wrapper = new JPanel(new BorderLayout());
         wrapper.setOpaque(false);
-        wrapper.setBorder(BorderFactory.createEmptyBorder(0, 24, 0, 24));
+        wrapper.setBorder(BorderFactory.createEmptyBorder(24, 24, 0, 24));
 
         JPanel content = new JPanel(new BorderLayout(18, 0));
         content.setOpaque(false);
@@ -280,6 +266,12 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         displayFrame = new JPanel(new BorderLayout());
         displayFrame.setBackground(Styling.displayFrameColour);
         displayFrame.setBorder(createDisplayFrameBorder());
+        displayFrame.addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent event) {
+                UpdateRecentGameTileSizes();
+            }
+        });
 
         embeddedDisplaySurface = new JPanel(new BorderLayout());
         embeddedDisplaySurface.setOpaque(false);
@@ -304,12 +296,14 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
     private JComponent BuildDisplayEmptyState() {
         JPanel panel = new JPanel(new java.awt.GridBagLayout());
-        panel.setOpaque(false);
+        panel.setOpaque(true);
+        panel.setBackground(Styling.displayFrameColour);
 
         JPanel content = new JPanel();
         content.setOpaque(false);
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setBorder(BorderFactory.createEmptyBorder(34, 28, 34, 28));
+        displayEmptyStateContent = content;
 
         JLabel logoLabel = new JLabel(AppAssets.HeaderLogoIcon(72));
         logoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -333,6 +327,10 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_OPEN_ROM_HACK, Action.LOADIPS));
         actions.add(CreateHeaderButton(UiText.MainWindow.BUTTON_LIBRARY, Action.LIBRARY));
 
+        recentGamesPanel = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.CENTER, 12, 0));
+        recentGamesPanel.setOpaque(false);
+        recentGamesPanel.setAlignmentX(Component.CENTER_ALIGNMENT);
+
         if (logoLabel.getIcon() != null) {
             content.add(logoLabel);
             content.add(javax.swing.Box.createVerticalStrut(16));
@@ -342,9 +340,81 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         content.add(helper);
         content.add(javax.swing.Box.createVerticalStrut(18));
         content.add(actions);
+        content.add(javax.swing.Box.createVerticalStrut(16));
+        content.add(recentGamesPanel);
 
         panel.add(content);
         return panel;
+    }
+
+    private void RefreshFullViewRecentGames() {
+        if (recentGamesPanel == null) {
+            return;
+        }
+
+        int recentGameLimit = Math.max(1, Math.min(5, Settings.readyPageRecentGameLimit));
+        recentGamesPanel.removeAll();
+        List<GameLibraryStore.LibraryEntry> recentEntries = uniqueRecentEntries(recentGameLimit);
+        recentGamesPanel.setVisible(!recentEntries.isEmpty());
+        int tileSize = CalculateRecentGameTileSize();
+        for (GameLibraryStore.LibraryEntry entry : recentEntries) {
+            recentGamesPanel.add(new RecentGameTile(entry, tileSize));
+        }
+        recentGamesPanel.revalidate();
+        recentGamesPanel.repaint();
+        if (displayFrame != null) {
+            displayFrame.repaint();
+        }
+    }
+
+    private List<GameLibraryStore.LibraryEntry> uniqueRecentEntries(int limit) {
+        if (limit <= 0) {
+            return List.of();
+        }
+
+        List<GameLibraryStore.LibraryEntry> uniqueEntries = new ArrayList<>(limit);
+        for (GameLibraryStore.LibraryEntry entry : GameLibraryStore.GetRecentEntries(limit * 2)) {
+            boolean alreadyAdded = uniqueEntries.stream()
+                    .anyMatch(existingEntry -> Objects.equals(existingEntry.key(), entry.key())
+                            || SameGameIdentity(existingEntry, entry));
+            if (alreadyAdded) {
+                continue;
+            }
+            uniqueEntries.add(entry);
+            if (uniqueEntries.size() >= limit) {
+                break;
+            }
+        }
+        return uniqueEntries;
+    }
+
+    private void UpdateRecentGameTileSizes() {
+        if (recentGamesPanel == null) {
+            return;
+        }
+
+        int tileSize = CalculateRecentGameTileSize();
+        for (Component component : recentGamesPanel.getComponents()) {
+            if (component instanceof RecentGameTile recentGameTile) {
+                recentGameTile.UpdateTileSize(tileSize);
+            }
+        }
+        recentGamesPanel.revalidate();
+        recentGamesPanel.repaint();
+    }
+
+    public void RefreshReadyPageRecentGames() {
+        RefreshFullViewRecentGames();
+    }
+
+    private int CalculateRecentGameTileSize() {
+        int width = displayFrame == null || displayFrame.getWidth() <= 0 ? getWidth() : displayFrame.getWidth();
+        int height = displayFrame == null || displayFrame.getHeight() <= 0 ? getHeight() : displayFrame.getHeight();
+        int recentGameLimit = Math.max(1, Math.min(5, Settings.readyPageRecentGameLimit));
+        int widthDrivenSize = Math.max(recentGameTileMinSize, (width - 160) / recentGameLimit);
+        int heightDrivenSize = Math.max(recentGameTileMinSize, height / 4);
+        return Math.max(recentGameTileMinSize,
+                Math.min(recentGameTileMaxSize, Math.min(widthDrivenSize, heightDrivenSize)));
     }
 
     private JComponent BuildSerialOutputPanel() {
@@ -388,25 +458,95 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         serialSectionPanel.add(titleRow, BorderLayout.NORTH);
         serialSectionPanel.add(serialOutputScrollPane, BorderLayout.CENTER);
 
+        gameNotesPanel = (JPanel) BuildGameNotesPanel();
         gameArtPanel = (JPanel) BuildGameArtPanel();
-        JPanel spacerPanel = new JPanel();
-        spacerPanel.setOpaque(false);
-        spacerPanel.setPreferredSize(new Dimension(0, 14));
-        spacerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 14));
-        spacerPanel.setMinimumSize(new Dimension(0, 14));
-        sidePanelSpacer = spacerPanel;
+        sidePanelSpacer = CreateSidePanelSpacer();
+        notesArtSpacer = CreateSidePanelSpacer();
 
         JPanel body = new JPanel();
         body.setOpaque(false);
         body.setLayout(new BoxLayout(body, BoxLayout.Y_AXIS));
         serialSectionPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         sidePanelSpacer.setAlignmentX(Component.LEFT_ALIGNMENT);
+        gameNotesPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        notesArtSpacer.setAlignmentX(Component.LEFT_ALIGNMENT);
         gameArtPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         body.add(serialSectionPanel);
         body.add(sidePanelSpacer);
+        body.add(gameNotesPanel);
+        body.add(notesArtSpacer);
         body.add(gameArtPanel);
 
         panel.add(body, BorderLayout.CENTER);
+        return panel;
+    }
+
+    private JComponent CreateSidePanelSpacer() {
+        JPanel spacerPanel = new JPanel();
+        spacerPanel.setOpaque(false);
+        spacerPanel.setPreferredSize(new Dimension(0, 14));
+        spacerPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 14));
+        spacerPanel.setMinimumSize(new Dimension(0, 14));
+        return spacerPanel;
+    }
+
+    private JComponent BuildGameNotesPanel() {
+        JPanel panel = new JPanel(new BorderLayout(0, 10));
+        panel.setOpaque(false);
+
+        JPanel titleRow = new JPanel(new BorderLayout(8, 0));
+        titleRow.setOpaque(false);
+
+        JPanel titleBlock = new JPanel(new BorderLayout(0, 4));
+        titleBlock.setOpaque(false);
+
+        gameNotesTitleLabel = new JLabel(UiText.MainWindow.GAME_NOTES_TITLE);
+        gameNotesTitleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 15f));
+        gameNotesTitleLabel.setForeground(Styling.accentColour);
+
+        gameNotesHintLabel = new JLabel(UiText.MainWindow.GAME_NOTES_EMPTY_HINT);
+        gameNotesHintLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 12f));
+        gameNotesHintLabel.setForeground(Styling.mutedTextColour);
+
+        titleBlock.add(gameNotesTitleLabel, BorderLayout.NORTH);
+        titleBlock.add(gameNotesHintLabel, BorderLayout.CENTER);
+
+        gameNotesEditButton = new JButton(UiText.MainWindow.GAME_NOTES_EDIT_BUTTON);
+        WindowUiSupport.styleSecondaryButton(gameNotesEditButton, Styling.accentColour, Styling.surfaceBorderColour);
+        gameNotesEditButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+        gameNotesEditButton.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
+        gameNotesEditButton.setToolTipText(UiText.MainWindow.GAME_NOTES_EDIT_TOOLTIP);
+        gameNotesEditButton.setEnabled(false);
+        gameNotesEditButton.addActionListener(event -> {
+            if (gameNotesEditing) {
+                SetGameNotesEditing(false, true);
+            } else {
+                SetGameNotesEditing(true, false);
+            }
+        });
+
+        titleRow.add(titleBlock, BorderLayout.CENTER);
+        titleRow.add(gameNotesEditButton, BorderLayout.EAST);
+
+        gameNotesArea = new JTextArea();
+        gameNotesArea.setEditable(false);
+        gameNotesArea.setFocusable(false);
+        gameNotesArea.setLineWrap(false);
+        gameNotesArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        gameNotesArea.setBackground(Styling.displayFrameColour);
+        gameNotesArea.setForeground(Styling.fpsForegroundColour);
+        gameNotesArea.setCaretColor(Styling.fpsForegroundColour);
+        gameNotesArea.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+
+        gameNotesScrollPane = new JScrollPane(gameNotesArea);
+        gameNotesScrollPane.setBorder(WindowUiSupport.createLineBorder(Styling.displayFrameBorderColour));
+        gameNotesScrollPane.getViewport().setBackground(Styling.displayFrameColour);
+        gameNotesScrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        gameNotesScrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        gameNotesScrollPane.setPreferredSize(new Dimension(gameArtPreviewWidth, 160));
+
+        panel.add(titleRow, BorderLayout.NORTH);
+        panel.add(gameNotesScrollPane, BorderLayout.CENTER);
         return panel;
     }
 
@@ -727,30 +867,40 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         Runnable apply = () -> {
             boolean fillWindow = Settings.fillWindowOutput;
             boolean showSerial = Settings.showSerialOutput;
+            boolean showGameNotes = Settings.showGameNotes;
             boolean showGameArt = Settings.gameArtDisplayMode != GameArtDisplayMode.NONE;
             SyncFullViewActionState(fillWindow);
+            if ((!showGameNotes || fillWindow) && gameNotesEditing) {
+                SetGameNotesEditing(false, true);
+            }
 
             getContentPane().setBackground(fillWindow ? Styling.displayBackgroundColour : Styling.appBackgroundColour);
-            if (headerPanel != null) {
-                headerPanel.setVisible(!fillWindow);
-            }
             if (statusBar != null) {
                 statusBar.setVisible(!fillWindow);
             }
             if (labelRow != null) {
                 labelRow.setVisible(!fillWindow);
             }
+            if (displayEmptyStateContent != null) {
+                displayEmptyStateContent.setVisible(fillWindow);
+            }
             if (serialCard != null) {
-                serialCard.setVisible(!fillWindow && (showSerial || showGameArt));
+                serialCard.setVisible(!fillWindow && (showSerial || showGameNotes || showGameArt));
             }
             if (serialSectionPanel != null) {
                 serialSectionPanel.setVisible(showSerial);
+            }
+            if (gameNotesPanel != null) {
+                gameNotesPanel.setVisible(showGameNotes);
             }
             if (gameArtPanel != null) {
                 gameArtPanel.setVisible(showGameArt);
             }
             if (sidePanelSpacer != null) {
-                sidePanelSpacer.setVisible(showSerial && showGameArt);
+                sidePanelSpacer.setVisible(showSerial && (showGameNotes || showGameArt));
+            }
+            if (notesArtSpacer != null) {
+                notesArtSpacer.setVisible(showGameNotes && showGameArt);
             }
             if (displayWrapper != null) {
                 displayWrapper.setOpaque(true);
@@ -758,7 +908,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
                         .setBackground(fillWindow ? Styling.displayBackgroundColour : Styling.appBackgroundColour);
                 displayWrapper.setBorder(fillWindow
                         ? BorderFactory.createEmptyBorder()
-                        : BorderFactory.createEmptyBorder(0, 24, 0, 24));
+                        : BorderFactory.createEmptyBorder(24, 24, 0, 24));
             }
             if (displayCard != null) {
                 displayCard.setBackground(fillWindow ? Styling.displayBackgroundColour : Styling.surfaceColour);
@@ -818,13 +968,10 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
                 }
             }
 
-            if (headerPanel != null) {
-                headerPanel.setBackground(Styling.appBackgroundColour);
-            }
-            applyForeground(Styling.accentColour, titleLabel, displayTitleLabel, serialTitleLabel, gameArtTitleLabel,
-                    romLabel);
-            applyForeground(Styling.mutedTextColour, subtitleLabel, displayHintLabel, serialHintLabel, gameArtHintLabel,
-                    stateLabel);
+            applyForeground(Styling.accentColour, displayTitleLabel, serialTitleLabel, gameNotesTitleLabel,
+                    gameArtTitleLabel, romLabel);
+            applyForeground(Styling.mutedTextColour, displayHintLabel, serialHintLabel, gameNotesHintLabel,
+                    gameArtHintLabel, stateLabel);
             if (gameArtLabel != null) {
                 gameArtLabel.setForeground(
                         gameArtLabel.getIcon() == null ? Styling.mutedTextColour : Styling.fpsForegroundColour);
@@ -844,6 +991,20 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             if (serialOutputScrollPane != null) {
                 serialOutputScrollPane.setBorder(WindowUiSupport.createLineBorder(Styling.displayFrameBorderColour));
                 serialOutputScrollPane.getViewport().setBackground(Styling.displayFrameColour);
+            }
+            if (gameNotesArea != null) {
+                gameNotesArea.setBackground(Styling.displayFrameColour);
+                gameNotesArea.setForeground(Styling.fpsForegroundColour);
+                gameNotesArea.setCaretColor(Styling.fpsForegroundColour);
+            }
+            if (gameNotesScrollPane != null) {
+                gameNotesScrollPane.setBorder(WindowUiSupport.createLineBorder(Styling.displayFrameBorderColour));
+                gameNotesScrollPane.getViewport().setBackground(Styling.displayFrameColour);
+            }
+            if (gameNotesEditButton != null) {
+                WindowUiSupport.styleSecondaryButton(gameNotesEditButton, Styling.accentColour,
+                        Styling.surfaceBorderColour);
+                gameNotesEditButton.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
             }
             if (gameArtPreviewPanel != null) {
                 gameArtPreviewPanel.setBackground(Styling.displayFrameColour);
@@ -893,6 +1054,10 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
     @Override
     public void SetLoadedGame(EmulatorGame game, boolean allowFallback) {
+        boolean gameChanged = !SameGameIdentity(currentLoadedGame, game);
+        if (gameChanged && gameNotesEditing) {
+            SetGameNotesEditing(false, true);
+        }
         currentLoadedGame = game;
         recentGamesMenuDirty = true;
         romNameLookupPending = game != null && !allowFallback && GameMetadataStore.GetLibretroTitle(game).isEmpty();
@@ -900,6 +1065,9 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         Runnable update = () -> {
             if (romLabel != null) {
                 romLabel.setText(romText);
+            }
+            if (gameChanged || !gameNotesEditing) {
+                LoadGameNotesForCurrentGame();
             }
             RefreshSaveStateMenus();
             updateDisplayStage();
@@ -1049,6 +1217,100 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         if (shouldUpdateSerialOutputUi()) {
             SetSerialOutput("");
         }
+    }
+
+    private void LoadGameNotesForCurrentGame() {
+        if (gameNotesArea == null) {
+            return;
+        }
+
+        if (gameNotesEditing) {
+            SetGameNotesEditing(false, true);
+        }
+
+        String notes = currentLoadedGame == null ? "" : GameNotesStore.Load(currentLoadedGame);
+        gameNotesArea.setText(notes);
+        gameNotesArea.setCaretPosition(0);
+        if (gameNotesHintLabel != null) {
+            gameNotesHintLabel.setText(currentLoadedGame == null
+                    ? UiText.MainWindow.GAME_NOTES_EMPTY_HINT
+                    : UiText.MainWindow.GAME_NOTES_HINT);
+        }
+        if (gameNotesEditButton != null) {
+            gameNotesEditButton.setEnabled(currentLoadedGame != null);
+            gameNotesEditButton.setText(UiText.MainWindow.GAME_NOTES_EDIT_BUTTON);
+            gameNotesEditButton.setToolTipText(UiText.MainWindow.GAME_NOTES_EDIT_TOOLTIP);
+        }
+        gameNotesArea.setEditable(false);
+        gameNotesArea.setFocusable(false);
+    }
+
+    private void SetGameNotesEditing(boolean editing, boolean save) {
+        if (gameNotesArea == null) {
+            return;
+        }
+        if (editing && currentLoadedGame == null) {
+            return;
+        }
+
+        if (!editing && save) {
+            SaveCurrentGameNotes();
+        }
+
+        gameNotesEditing = editing;
+        gameNotesArea.setEditable(editing);
+        gameNotesArea.setFocusable(editing);
+        if (gameNotesEditButton != null) {
+            gameNotesEditButton.setText(editing
+                    ? UiText.MainWindow.GAME_NOTES_SAVE_BUTTON
+                    : UiText.MainWindow.GAME_NOTES_EDIT_BUTTON);
+            gameNotesEditButton.setToolTipText(editing
+                    ? UiText.MainWindow.GAME_NOTES_SAVE_TOOLTIP
+                    : UiText.MainWindow.GAME_NOTES_EDIT_TOOLTIP);
+        }
+        inputRouter.SetKeyboardInputEnabled(!editing);
+        if (editing) {
+            gameNotesArea.requestFocusInWindow();
+        } else {
+            requestFocusInWindow();
+        }
+    }
+
+    private void SaveCurrentGameNotes() {
+        if (currentLoadedGame == null || gameNotesArea == null) {
+            return;
+        }
+        GameNotesStore.Save(currentLoadedGame, ReadGameNotesText());
+    }
+
+    private String ReadGameNotesText() {
+        if (gameNotesArea == null) {
+            return "";
+        }
+        if (SwingUtilities.isEventDispatchThread()) {
+            return gameNotesArea.getText();
+        }
+
+        String[] text = { "" };
+        try {
+            SwingUtilities.invokeAndWait(() -> text[0] = gameNotesArea.getText());
+        } catch (Exception exception) {
+            exception.printStackTrace();
+        }
+        return text[0];
+    }
+
+    private boolean SameGameIdentity(EmulatorGame left, EmulatorGame right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null) {
+            return false;
+        }
+        return Objects.equals(left.sourcePath(), right.sourcePath())
+                && Objects.equals(left.sourceName(), right.sourceName())
+                && Objects.equals(left.displayName(), right.displayName())
+                && Objects.equals(left.patchNames(), right.patchNames());
     }
 
     private void FlushPendingSerialOutput() {
@@ -1506,6 +1768,175 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         CardLayout layout = (CardLayout) displayStagePanel.getLayout();
         boolean showEmptyState = currentLoadedGame == null;
         layout.show(displayStagePanel, showEmptyState ? DISPLAY_STAGE_EMPTY : DISPLAY_STAGE_ACTIVE);
+        if (showEmptyState) {
+            SwingUtilities.invokeLater(this::RefreshFullViewRecentGames);
+        }
+    }
+
+    private String asCenteredHtml(String value, int width) {
+        return "<html><table width='" + Math.max(60, width) + "'><tr><td align='center'>"
+                + WindowUiSupport.escapeHtml(value == null ? "" : value)
+                + "</td></tr></table></html>";
+    }
+
+    private String truncateToWidth(String value, java.awt.FontMetrics metrics, int maxWidth) {
+        if (value == null || value.isBlank() || metrics == null || maxWidth <= 0) {
+            return value == null ? "" : value;
+        }
+        if (metrics.stringWidth(value) <= maxWidth) {
+            return value;
+        }
+
+        String ellipsis = "...";
+        int ellipsisWidth = metrics.stringWidth(ellipsis);
+        StringBuilder builder = new StringBuilder();
+        for (int index = 0; index < value.length(); index++) {
+            char next = value.charAt(index);
+            if (metrics.stringWidth(builder.toString() + next) + ellipsisWidth > maxWidth) {
+                break;
+            }
+            builder.append(next);
+        }
+        return builder.isEmpty() ? ellipsis : builder + ellipsis;
+    }
+
+    private final class RecentGameTile extends JPanel {
+        private final GameLibraryStore.LibraryEntry entry;
+        private final JLabel displayLabel = new JLabel("", SwingConstants.CENTER);
+        private final JPanel contentPanel = new JPanel(new BorderLayout()) {
+            @Override
+            public void paint(Graphics graphics) {
+                super.paint(graphics);
+                if (!hovered) {
+                    return;
+                }
+
+                Graphics2D graphics2d = (Graphics2D) graphics.create();
+                graphics2d.setColor(new Color(0, 0, 0, 70));
+                graphics2d.fillRect(0, 0, getWidth(), getHeight());
+                graphics2d.setColor(new Color(255, 255, 255, 90));
+                graphics2d.setStroke(new BasicStroke(1.5f));
+                int inset = 1;
+                int width = Math.max(0, getWidth() - (inset * 2) - 1);
+                int height = Math.max(0, getHeight() - (inset * 2) - 1);
+                graphics2d.drawRect(inset, inset, width, height);
+                graphics2d.dispose();
+            }
+        };
+        private final Font placeholderFont = Styling.menuFont.deriveFont(Font.BOLD, 13f);
+        private BufferedImage artImage;
+        private int tileSize;
+        private boolean hovered;
+
+        private RecentGameTile(GameLibraryStore.LibraryEntry entry, int tileSize) {
+            super(new BorderLayout());
+            this.entry = entry;
+            setOpaque(false);
+            setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+            setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            setToolTipText(ResolveDisplayedRomName(entry, true));
+
+            contentPanel.setOpaque(false);
+
+            displayLabel.setOpaque(true);
+            displayLabel.setBackground(Styling.displayFrameColour);
+            displayLabel.setForeground(Styling.mutedTextColour);
+            displayLabel.setFont(placeholderFont);
+            displayLabel.setHorizontalAlignment(SwingConstants.CENTER);
+            displayLabel.setVerticalAlignment(SwingConstants.CENTER);
+            displayLabel.setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(Styling.displayFrameBorderColour, 1),
+                    BorderFactory.createEmptyBorder(10, 10, 10, 10)));
+            contentPanel.add(displayLabel, BorderLayout.CENTER);
+            add(contentPanel, BorderLayout.CENTER);
+
+            MouseAdapter interactionHandler = new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent event) {
+                    LoadLibraryEntry(RecentGameTile.this.entry);
+                }
+
+                @Override
+                public void mouseEntered(MouseEvent event) {
+                    hovered = true;
+                    contentPanel.repaint();
+                }
+
+                @Override
+                public void mouseExited(MouseEvent event) {
+                    hovered = false;
+                    contentPanel.repaint();
+                }
+            };
+            addMouseListener(interactionHandler);
+            contentPanel.addMouseListener(interactionHandler);
+            displayLabel.addMouseListener(interactionHandler);
+
+            UpdateTileSize(tileSize);
+            LoadRecentGameArt();
+        }
+
+        private void UpdateTileSize(int tileSize) {
+            if (this.tileSize == tileSize) {
+                return;
+            }
+
+            this.tileSize = tileSize;
+            int contentSize = Math.max(80, tileSize - 16);
+            Dimension tileDimension = new Dimension(tileSize, tileSize);
+            Dimension contentDimension = new Dimension(contentSize, contentSize);
+            setPreferredSize(tileDimension);
+            setMinimumSize(tileDimension);
+            contentPanel.setPreferredSize(contentDimension);
+            displayLabel.setPreferredSize(contentDimension);
+            revalidate();
+            RefreshVisuals();
+        }
+
+        private void SetFallbackTitle() {
+            String displayName = ResolveDisplayedRomName(entry, true);
+            String truncatedName = truncateToWidth(displayName, displayLabel.getFontMetrics(placeholderFont),
+                    Math.max(60, tileSize - 44));
+            displayLabel.setIcon(null);
+            displayLabel.setText(asCenteredHtml(truncatedName, Math.max(60, tileSize - 44)));
+        }
+
+        private void LoadRecentGameArt() {
+            CompletableFuture
+                    .supplyAsync(() -> GameArtProvider.FindGameArt(entry.ArtDescriptor()))
+                    .thenAccept(result -> SwingUtilities.invokeLater(() -> ApplyRecentGameArt(result)))
+                    .exceptionally(exception -> null);
+        }
+
+        private void ApplyRecentGameArt(Optional<GameArtResult> result) {
+            if (result == null || result.isEmpty()) {
+                SetFallbackTitle();
+                return;
+            }
+
+            artImage = result.get().image();
+            RefreshVisuals();
+        }
+
+        private void RefreshVisuals() {
+            if (artImage == null) {
+                SetFallbackTitle();
+                return;
+            }
+
+            BufferedImage scaledImage = GameArtScaler.ScaleToFit(
+                    artImage,
+                    Math.max(80, tileSize - 28),
+                    Math.max(80, tileSize - 28),
+                    true);
+            if (scaledImage == null) {
+                SetFallbackTitle();
+                return;
+            }
+
+            displayLabel.setIcon(new ImageIcon(scaledImage));
+            displayLabel.setText("");
+        }
     }
 
     private record CachedGameArt(ImageIcon icon, String sourceLabel) {

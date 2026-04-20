@@ -111,6 +111,8 @@ import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Hosts the application options window.
@@ -206,6 +208,8 @@ public class OptionsWindow extends DuckWindow {
     private Timer controllerRefreshTimer;
     private boolean updatingControllerUi;
     private List<String> lastControllerDeviceEntries = List.of();
+    private final AtomicBoolean controllerStatusPollQueued = new AtomicBoolean();
+    private volatile ControllerInputService.ControllerLiveSnapshot latestControllerLiveSnapshot;
 
     public OptionsWindow(MainWindow mainWindow) {
         this(mainWindow, 0);
@@ -1544,8 +1548,13 @@ public class OptionsWindow extends DuckWindow {
         JButton refreshControllerButton = createSecondaryButton(UiText.OptionsWindow.CONTROLLER_REFRESH_BUTTON);
         configureCompactPaletteButton(refreshControllerButton, 132);
         refreshControllerButton.addActionListener(event -> {
-            controllerInputService.RefreshControllers();
-            refreshControllerStatus();
+            refreshControllerButton.setEnabled(false);
+            CompletableFuture.runAsync(controllerInputService::RefreshControllers)
+                    .whenComplete((ignored, exception) -> SwingUtilities.invokeLater(() -> {
+                        refreshControllerButton.setEnabled(true);
+                        refreshKnownControllerDevices();
+                        requestControllerStatusPoll();
+                    }));
         });
 
         controllerSelector = new JComboBox<>();
@@ -1560,7 +1569,11 @@ public class OptionsWindow extends DuckWindow {
             if (!preferredId.equals(Settings.preferredControllerId)) {
                 Settings.preferredControllerId = preferredId;
                 Config.Save();
-                controllerInputService.RefreshControllers();
+                if (mainWindow != null) {
+                    mainWindow.RefreshControllerInputRouting();
+                }
+                latestControllerLiveSnapshot = null;
+                requestControllerStatusPoll();
                 refreshControllerStatus();
             }
         });
@@ -1749,10 +1762,11 @@ public class OptionsWindow extends DuckWindow {
         resetControllerControlsButton.addActionListener(event -> {
             Settings.ResetControllerControls();
             refreshControllerBindingButtons();
-            controllerInputService.RefreshControllers();
             if (mainWindow != null) {
                 mainWindow.RefreshControllerInputRouting();
             }
+            latestControllerLiveSnapshot = null;
+            requestControllerStatusPoll();
             refreshControllerStatus();
             Config.Save();
         });
@@ -3217,6 +3231,19 @@ public class OptionsWindow extends DuckWindow {
             }
         });
 
+        JCheckBox gameNotesCheckBox = new JCheckBox(UiText.OptionsWindow.GAME_NOTES_CHECKBOX,
+                Settings.showGameNotes);
+        gameNotesCheckBox.setOpaque(false);
+        gameNotesCheckBox.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+        gameNotesCheckBox.setForeground(accentColour);
+        gameNotesCheckBox.addActionListener(event -> {
+            Settings.showGameNotes = gameNotesCheckBox.isSelected();
+            Config.Save();
+            if (mainWindow != null) {
+                mainWindow.RefreshWindowPanels();
+            }
+        });
+
         JComboBox<GameArtDisplayMode> gameArtModeSelector = new JComboBox<>(GameArtDisplayMode.values());
         gameArtModeSelector.setSelectedItem(Settings.gameArtDisplayMode);
         gameArtModeSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
@@ -3234,6 +3261,24 @@ public class OptionsWindow extends DuckWindow {
                 mainWindow.RefreshWindowPanels();
             }
         });
+
+        JSpinner readyPageRecentLimitSpinner = new JSpinner(
+                new SpinnerNumberModel(Settings.readyPageRecentGameLimit, 1, 5, 1));
+        readyPageRecentLimitSpinner.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+        readyPageRecentLimitSpinner.addChangeListener(event -> {
+            Object value = readyPageRecentLimitSpinner.getValue();
+            if (!(value instanceof Number numberValue)) {
+                return;
+            }
+
+            Settings.readyPageRecentGameLimit = Math.max(1, Math.min(5, numberValue.intValue()));
+            Config.Save();
+            if (mainWindow != null) {
+                mainWindow.RefreshReadyPageRecentGames();
+            }
+        });
+        JTextArea readyPageRecentHelperLabel = createBodyTextArea(UiText.OptionsWindow.READY_PAGE_RECENT_LIMIT_HELPER,
+                12f);
 
         JComboBox<DisplayBorderChoice> borderSelector = new JComboBox<>();
         borderSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
@@ -3376,26 +3421,37 @@ public class OptionsWindow extends DuckWindow {
             Settings.fillWindowOutput = false;
             Settings.integerScaleWindowOutput = false;
             Settings.showSerialOutput = true;
+            Settings.showGameNotes = true;
             Settings.enableFrameBlending = true;
             Settings.showDisplayFps = true;
             Settings.gameArtDisplayMode = GameArtDisplayMode.BOX_ART;
             Settings.displayBorderId = "none";
+            Settings.readyPageRecentGameLimit = 3;
             fillWindowCheckBox.setSelected(Settings.fillWindowOutput);
             integerScaleCheckBox.setSelected(Settings.integerScaleWindowOutput);
             frameBlendingEnabledCheckBox.setSelected(Settings.enableFrameBlending);
             showDisplayFpsCheckBox.setSelected(Settings.showDisplayFps);
             serialOutputCheckBox.setSelected(Settings.showSerialOutput);
+            gameNotesCheckBox.setSelected(Settings.showGameNotes);
             gameArtModeSelector.setSelectedItem(Settings.gameArtDisplayMode);
+            readyPageRecentLimitSpinner.setValue(Settings.readyPageRecentGameLimit);
             refreshBorderSelector.run();
             refreshShaderSelector.run();
             Config.Save();
             if (mainWindow != null) {
                 mainWindow.RefreshWindowPanels();
+                mainWindow.RefreshReadyPageRecentGames();
                 mainWindow.RefreshDisplayStats();
                 mainWindow.RefreshDisplayBorder();
                 mainWindow.RefreshDisplayShader();
             }
         });
+
+        JPanel readyPageRecentCard = new JPanel(new BorderLayout(0, 10));
+        readyPageRecentCard.setOpaque(false);
+        readyPageRecentCard.add(createFieldCard(UiText.OptionsWindow.READY_PAGE_RECENT_LIMIT_LABEL,
+                readyPageRecentLimitSpinner), BorderLayout.NORTH);
+        readyPageRecentCard.add(readyPageRecentHelperLabel, BorderLayout.CENTER);
 
         JPanel layoutOptionsGrid = createResponsiveGroup(
                 300,
@@ -3405,7 +3461,9 @@ public class OptionsWindow extends DuckWindow {
                 createSimpleWindowOptionCard(frameBlendingEnabledCheckBox),
                 createSimpleWindowOptionCard(showDisplayFpsCheckBox),
                 createSimpleWindowOptionCard(serialOutputCheckBox),
+                createSimpleWindowOptionCard(gameNotesCheckBox),
                 createSelectorWindowOptionCard(UiText.OptionsWindow.GAME_ART_MODE_LABEL, gameArtModeSelector),
+                createSimpleWindowOptionCard(readyPageRecentCard),
                 createSelectorWindowOptionCard(UiText.OptionsWindow.DISPLAY_BORDER_LABEL, borderSelector),
                 createSelectorWindowOptionCard(UiText.OptionsWindow.DISPLAY_SHADER_LABEL, shaderSelector));
         content.add(layoutOptionsGrid);
@@ -4356,9 +4414,6 @@ public class OptionsWindow extends DuckWindow {
             return;
         }
 
-        List<ControllerInputService.ControllerDevice> devices = controllerInputService.GetAvailableControllers();
-        syncControllerSelectorModel(devices);
-
         updatingControllerUi = true;
         try {
             if (controllerEnabledCheckBox.isSelected() != Settings.controllerInputEnabled) {
@@ -4390,7 +4445,19 @@ public class OptionsWindow extends DuckWindow {
             return;
         }
 
-        ControllerInputService.ControllerLiveSnapshot liveSnapshot = controllerInputService.PollLiveSnapshot();
+        ControllerInputService.ControllerLiveSnapshot liveSnapshot = latestControllerLiveSnapshot;
+        if (liveSnapshot == null) {
+            controllerStatusBadgeLabel.setText(UiText.OptionsWindow.CONTROLLER_STATUS_DISCONNECTED);
+            controllerStatusHelperLabel.setText(UiText.OptionsWindow.CONTROLLER_STATUS_HELPER);
+            controllerActiveValueLabel.setText(UiText.OptionsWindow.CONTROLLER_NONE_CONNECTED);
+            setCompactReadout(controllerLiveInputsArea, UiText.OptionsWindow.CONTROLLER_LIVE_NONE);
+            setCompactReadout(controllerMappedButtonsArea, Settings.controllerInputEnabled
+                    ? UiText.OptionsWindow.CONTROLLER_MAPPED_NONE
+                    : UiText.OptionsWindow.CONTROLLER_MAPPED_DISABLED);
+            requestControllerStatusPoll();
+            return;
+        }
+
         Optional<ControllerInputService.ControllerDevice> activeController = liveSnapshot.activeController();
         if (activeController.isPresent()) {
             controllerStatusBadgeLabel.setText(Settings.controllerInputEnabled
@@ -4423,6 +4490,70 @@ public class OptionsWindow extends DuckWindow {
         setCompactReadout(controllerMappedButtonsArea, mappedPressedButtons.isEmpty()
                 ? UiText.OptionsWindow.CONTROLLER_MAPPED_NONE
                 : String.join(", ", mappedPressedButtons.values()));
+        requestControllerStatusPoll();
+    }
+
+    private void requestControllerStatusPoll() {
+        if (!isControlsTabSelected() || !controllerStatusPollQueued.compareAndSet(false, true)) {
+            return;
+        }
+
+        CompletableFuture
+                .supplyAsync(controllerInputService::PollLiveSnapshot)
+                .whenComplete((snapshot, exception) -> SwingUtilities.invokeLater(() -> {
+                    controllerStatusPollQueued.set(false);
+                    if (exception == null && snapshot != null) {
+                        latestControllerLiveSnapshot = snapshot;
+                        refreshKnownControllerDevices();
+                        applyControllerLiveSnapshot(snapshot);
+                    }
+                }));
+    }
+
+    private void applyControllerLiveSnapshot(ControllerInputService.ControllerLiveSnapshot liveSnapshot) {
+        latestControllerLiveSnapshot = liveSnapshot;
+        if (controllerStatusBadgeLabel == null || controllerStatusHelperLabel == null
+                || controllerActiveValueLabel == null || controllerLiveInputsArea == null
+                || controllerMappedButtonsArea == null) {
+            return;
+        }
+
+        Optional<ControllerInputService.ControllerDevice> activeController = liveSnapshot.activeController();
+        if (activeController.isPresent()) {
+            controllerStatusBadgeLabel.setText(Settings.controllerInputEnabled
+                    ? UiText.OptionsWindow.CONTROLLER_STATUS_CONNECTED
+                    : UiText.OptionsWindow.CONTROLLER_STATUS_DISABLED);
+            controllerStatusHelperLabel.setText(UiText.OptionsWindow.CONTROLLER_STATUS_HELPER);
+            controllerActiveValueLabel.setText(activeController.get().displayName());
+        } else {
+            controllerStatusBadgeLabel.setText(UiText.OptionsWindow.CONTROLLER_STATUS_DISCONNECTED);
+            controllerStatusHelperLabel.setText(UiText.OptionsWindow.CONTROLLER_NO_ACTIVE_DEVICE_MESSAGE);
+            controllerActiveValueLabel.setText(UiText.OptionsWindow.CONTROLLER_NONE_CONNECTED);
+        }
+
+        List<ControllerBinding> activeInputs = activeController.isPresent()
+                ? liveSnapshot.activeInputs()
+                : List.of();
+        setCompactReadout(controllerLiveInputsArea, activeInputs.isEmpty()
+                ? UiText.OptionsWindow.CONTROLLER_LIVE_NONE
+                : JoinControllerBindings(activeInputs));
+
+        if (!Settings.controllerInputEnabled) {
+            setCompactReadout(controllerMappedButtonsArea, UiText.OptionsWindow.CONTROLLER_MAPPED_DISABLED);
+            return;
+        }
+
+        Map<String, String> mappedPressedButtons = new java.util.LinkedHashMap<>();
+        for (EmulatorButton button : liveSnapshot.boundButtons()) {
+            mappedPressedButtons.put(button.id(), formatControlButtonName(button));
+        }
+        setCompactReadout(controllerMappedButtonsArea, mappedPressedButtons.isEmpty()
+                ? UiText.OptionsWindow.CONTROLLER_MAPPED_NONE
+                : String.join(", ", mappedPressedButtons.values()));
+    }
+
+    private void refreshKnownControllerDevices() {
+        syncControllerSelectorModel(controllerInputService.GetAvailableControllers());
     }
 
     private void syncControllerSelectorModel(List<ControllerInputService.ControllerDevice> devices) {

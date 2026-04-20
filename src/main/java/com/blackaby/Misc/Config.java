@@ -57,9 +57,11 @@ public final class Config {
     private static final String displayShaderKey = "ui.display_shader";
     private static final String displayBorderKey = "ui.display_border";
     private static final String showSerialOutputKey = "ui.show_serial_output";
+    private static final String showGameNotesKey = "ui.show_game_notes";
     private static final String displayFrameBlendingKey = "ui.display_frame_blending";
     private static final String showDisplayFpsKey = "ui.show_display_fps";
     private static final String gameArtDisplayModeKey = "ui.game_art_display_mode";
+    private static final String readyPageRecentGameLimitKey = "ui.ready_page_recent_game_limit";
     private static final String gameNameBracketDisplayModeKey = "library.game_name_bracket_display_mode";
     private static final String libraryViewModeKey = "library.view_mode";
     private static final String libraryFilterModeKey = "library.filter_mode";
@@ -67,6 +69,7 @@ public final class Config {
     private static final String librarySortModeKey = "library.sort_mode";
     private static final String librarySearchQueryKey = "library.search_query";
     private static final String loadRecentMenuLimitKey = "library.load_recent_menu_limit";
+    private static final String legacyReadyPageRecentGameLimitKey = "library.ready_page_recent_game_limit";
     private static final String preferDmgModeForGbcCompatibleGamesKey = "palette.prefer_dmg_mode_for_gbc_compatible_games";
     private static final String gbcPaletteModeEnabledKey = "palette.gbc_mode_enabled";
     private static final String gbcBackgroundPalettePrefix = "palette.gbc.background.";
@@ -546,6 +549,7 @@ public final class Config {
         Settings.displayShaderId = properties.getProperty(displayShaderKey, "none");
         Settings.displayBorderId = properties.getProperty(displayBorderKey, "none");
         Settings.showSerialOutput = Boolean.parseBoolean(properties.getProperty(showSerialOutputKey, "true"));
+        Settings.showGameNotes = Boolean.parseBoolean(properties.getProperty(showGameNotesKey, "true"));
         Settings.enableFrameBlending = Boolean.parseBoolean(properties.getProperty(displayFrameBlendingKey, "true"));
         Settings.showDisplayFps = Boolean.parseBoolean(properties.getProperty(showDisplayFpsKey, "true"));
         String configuredGameArtMode = properties.getProperty(gameArtDisplayModeKey, GameArtDisplayMode.BOX_ART.name());
@@ -553,6 +557,14 @@ public final class Config {
             Settings.gameArtDisplayMode = GameArtDisplayMode.valueOf(configuredGameArtMode);
         } catch (IllegalArgumentException exception) {
             Settings.gameArtDisplayMode = GameArtDisplayMode.BOX_ART;
+        }
+        try {
+            String configuredReadyPageRecentLimit = properties.getProperty(readyPageRecentGameLimitKey,
+                    properties.getProperty(legacyReadyPageRecentGameLimitKey, "3"));
+            Settings.readyPageRecentGameLimit = Math.max(1, Math.min(5,
+                    Integer.parseInt(configuredReadyPageRecentLimit)));
+        } catch (NumberFormatException exception) {
+            Settings.readyPageRecentGameLimit = 3;
         }
     }
 
@@ -673,9 +685,11 @@ public final class Config {
                 Settings.displayBorderId == null || Settings.displayBorderId.isBlank() ? "none"
                         : Settings.displayBorderId);
         properties.setProperty(showSerialOutputKey, String.valueOf(Settings.showSerialOutput));
+        properties.setProperty(showGameNotesKey, String.valueOf(Settings.showGameNotes));
         properties.setProperty(displayFrameBlendingKey, String.valueOf(Settings.enableFrameBlending));
         properties.setProperty(showDisplayFpsKey, String.valueOf(Settings.showDisplayFps));
         properties.setProperty(gameArtDisplayModeKey, Settings.gameArtDisplayMode.name());
+        properties.setProperty(readyPageRecentGameLimitKey, String.valueOf(Settings.readyPageRecentGameLimit));
     }
 
     private static void SyncLibrarySettings() {

@@ -82,6 +82,15 @@ public final class UiText {
         public static final String SERIAL_TITLE = "Serial Output";
         public static final String SERIAL_HINT = "Live debug text from the emulated serial port";
 
+        // Per-game notes panel text.
+        public static final String GAME_NOTES_TITLE = "Notes";
+        public static final String GAME_NOTES_HINT = "Plain text saved for this game";
+        public static final String GAME_NOTES_EMPTY_HINT = "Load a ROM to write notes";
+        public static final String GAME_NOTES_EDIT_BUTTON = "Edit";
+        public static final String GAME_NOTES_SAVE_BUTTON = "Save";
+        public static final String GAME_NOTES_EDIT_TOOLTIP = "Edit notes";
+        public static final String GAME_NOTES_SAVE_TOOLTIP = "Save notes";
+
         // Artwork panel titles and helper text.
         public static final String GAME_ART_TITLE = "Game Art";
         public static final String GAME_ART_HINT_DEFAULT = "Libretro box art";
@@ -128,11 +137,11 @@ public final class UiText {
         }
 
         public static String FullViewButtonLabel(boolean fillWindow) {
-            return fillWindow ? "Exit Full View" : "Full View";
+            return fillWindow ? "Detailed View" : "Full View";
         }
 
         public static String FullViewMenuLabel(boolean fillWindow) {
-            return fillWindow ? "Exit Full View" : "Enter Full View";
+            return fillWindow ? "Detailed View" : "Full View";
         }
 
         public static String LookingUpArtwork(String artworkLabel, String gameName) {
@@ -803,7 +812,7 @@ public final class UiText {
         public static final String SECTION_EMULATION_TITLE = "Data";
         public static final String SECTION_EMULATION_DESCRIPTION = "Save files and startup ROMs.";
         public static final String SECTION_WINDOW_TITLE = "Main Window Layout";
-        public static final String SECTION_WINDOW_DESCRIPTION = "Core window, border, and shader controls.";
+        public static final String SECTION_WINDOW_DESCRIPTION = "Core window, border, shader, and ready-page controls.";
         public static final String SECTION_DISPLAY_SHADER_TITLE = "Display Shaders";
         public static final String SECTION_DISPLAY_SHADER_DESCRIPTION = "Apply built-in looks or load your own JSON presets and plugin shaders";
         public static final String SECTION_LIBRARY_TITLE = "Library Preferences";
@@ -965,14 +974,15 @@ public final class UiText {
         public static final String AUDIO_ENHANCEMENTS_EMPTY_STATE = "Add an effect to start building a chain";
 
         // -----------------------------------------------------------------
-        // Window tab: main window layout and library naming controls.
+        // Window tab: main window layout controls.
         // -----------------------------------------------------------------
-        public static final String WINDOW_FILL_CHECKBOX = "Fill window with output";
-        public static final String WINDOW_INTEGER_SCALE_CHECKBOX = "Use integer scaling";
-        public static final String DISPLAY_FRAME_BLENDING_CHECKBOX = "Enable frame blending";
-        public static final String SHOW_DISPLAY_FPS_CHECKBOX = "Show FPS counter";
+        public static final String WINDOW_FILL_CHECKBOX = "Enable full View";
+        public static final String WINDOW_INTEGER_SCALE_CHECKBOX = "Integer scaling";
+        public static final String DISPLAY_FRAME_BLENDING_CHECKBOX = "Frame blending";
+        public static final String SHOW_DISPLAY_FPS_CHECKBOX = "FPS counter";
         public static final String SERIAL_OUTPUT_CHECKBOX = "Show serial output";
-        public static final String GAME_ART_MODE_LABEL = "Game Art";
+        public static final String GAME_NOTES_CHECKBOX = "Show game notes";
+        public static final String GAME_ART_MODE_LABEL = "Show Game Art";
         public static final String RESET_WINDOW_BUTTON = "Reset Window Layout";
         public static final String DISPLAY_BORDER_LABEL = "Display Border";
         public static final String BORDER_PREVIEW_LABEL = "Preview";
@@ -998,6 +1008,8 @@ public final class UiText {
         public static final String LIBRARY_MODE_LABEL = "Bracketed Content";
         public static final String RECENT_MENU_LIMIT_LABEL = "Load Recent Size";
         public static final String RECENT_MENU_LIMIT_HELPER = "How many games appear in Game > Load Recent";
+        public static final String READY_PAGE_RECENT_LIMIT_LABEL = "Ready Page Art Buttons";
+        public static final String READY_PAGE_RECENT_LIMIT_HELPER = "How many recent game artwork shortcuts appear on Ready to Play";
         public static final String RESET_LIBRARY_BUTTON = "Reset Library Settings";
 
         // -----------------------------------------------------------------

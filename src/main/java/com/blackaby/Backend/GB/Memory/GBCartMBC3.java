@@ -7,6 +7,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.function.LongSupplier;
 
 /**
@@ -27,6 +30,8 @@ final class GBCartMBC3 extends GBCartController {
     private static final long secondsPerDay = 24L * secondsPerHour;
     private static final long maxRtcDays = 512L;
     private static final long maxRtcSeconds = maxRtcDays * secondsPerDay;
+    private static final int pokemonCrystalBaseHourOffset = 0x2045;
+    private static final int pokemonCrystalBaseMinuteOffset = 0x2046;
 
     private static final int rtcPersistenceMagic = 0x47525443;
     private static final int rtcPersistenceVersion = 2;
@@ -36,6 +41,7 @@ final class GBCartMBC3 extends GBCartController {
     private int ramBankOrRtcRegister;
     private final boolean hasRtc;
     private final LongSupplier epochSecondSupplier;
+    private final ZoneId zoneId;
 
     private long rtcSeconds;
     private long lastRtcUpdateEpochSeconds;
@@ -46,13 +52,18 @@ final class GBCartMBC3 extends GBCartController {
     private final int[] latchedRtcRegisters = new int[5];
 
     GBCartMBC3(GBRom rom) {
-        this(rom, () -> System.currentTimeMillis() / 1000L);
+        this(rom, () -> System.currentTimeMillis() / 1000L, ZoneId.systemDefault());
     }
 
     GBCartMBC3(GBRom rom, LongSupplier epochSecondSupplier) {
+        this(rom, epochSecondSupplier, ZoneId.systemDefault());
+    }
+
+    GBCartMBC3(GBRom rom, LongSupplier epochSecondSupplier, ZoneId zoneId) {
         super(rom, rom.GetExternalRamSizeBytes());
         this.epochSecondSupplier = epochSecondSupplier == null ? () -> System.currentTimeMillis() / 1000L
                 : epochSecondSupplier;
+        this.zoneId = zoneId == null ? ZoneId.systemDefault() : zoneId;
         hasRtc = rom != null && rom.HasRtc();
         lastRtcUpdateEpochSeconds = CurrentEpochSeconds();
     }
@@ -174,11 +185,6 @@ final class GBCartMBC3 extends GBCartController {
 
     @Override
     public void LoadSupplementalSaveData(byte[] saveData) {
-        LoadSupplementalSaveData(saveData, 0L);
-    }
-
-    @Override
-    public void LoadSupplementalSaveData(byte[] saveData, long persistedEpochSeconds) {
         rtcSeconds = 0L;
         rtcHalted = false;
         rtcCarry = false;
@@ -193,6 +199,31 @@ final class GBCartMBC3 extends GBCartController {
             return;
         }
 
+        ApplyPersistedRtcState(saveData, 0L);
+    }
+
+    @Override
+    public void LoadSupplementalSaveData(byte[] saveData, long persistedEpochSeconds) {
+        if (!hasRtc) {
+            LoadSupplementalSaveData(saveData);
+            return;
+        }
+
+        if (saveData == null || saveData.length == 0) {
+            LoadSupplementalSaveData(saveData);
+            RebaseRtcAgainstKnownSaveClock();
+            return;
+        }
+
+        LoadSupplementalSaveData(saveData);
+        if (rtcHalted) {
+            return;
+        }
+
+        RebaseRtcAgainstKnownSaveClock();
+    }
+
+    private void ApplyPersistedRtcState(byte[] saveData, long persistedEpochSeconds) {
         try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(saveData))) {
             int magic = input.readInt();
             int version = input.readInt();
@@ -213,6 +244,58 @@ final class GBCartMBC3 extends GBCartController {
         } catch (IOException exception) {
             throw new IllegalArgumentException("The MBC3 RTC save data could not be read.", exception);
         }
+    }
+
+    private void RebaseRtcAgainstKnownSaveClock() {
+        if (TryRebaseRtcForPokemonCrystal()) {
+            return;
+        }
+
+        rtcSeconds = CurrentLocalRtcSeconds();
+        lastRtcUpdateEpochSeconds = CurrentEpochSeconds();
+        if (latchedRtcValid) {
+            LatchCurrentRtc();
+        }
+    }
+
+    private boolean TryRebaseRtcForPokemonCrystal() {
+        if (!IsPokemonCrystal() || ramData.length <= pokemonCrystalBaseMinuteOffset) {
+            return false;
+        }
+
+        int baseHour = ramData[pokemonCrystalBaseHourOffset] & 0xFF;
+        int baseMinute = ramData[pokemonCrystalBaseMinuteOffset] & 0xFF;
+        if (baseHour > 23 || baseMinute > 59) {
+            return false;
+        }
+
+        long currentDayCounter = rtcSeconds / secondsPerDay;
+        long baseSeconds = (((long) baseHour) * secondsPerHour) + (((long) baseMinute) * secondsPerMinute);
+        long hostTimeOfDaySeconds = CurrentLocalRtcSeconds() % secondsPerDay;
+        long adjustedTimeOfDaySeconds = Math.floorMod(hostTimeOfDaySeconds - baseSeconds, secondsPerDay);
+        rtcSeconds = NormaliseRtcSeconds((currentDayCounter * secondsPerDay) + adjustedTimeOfDaySeconds);
+        lastRtcUpdateEpochSeconds = CurrentEpochSeconds();
+        if (latchedRtcValid) {
+            LatchCurrentRtc();
+        }
+        return true;
+    }
+
+    private boolean IsPokemonCrystal() {
+        String displayName = rom == null ? "" : rom.GetName();
+        String sourceName = rom == null ? "" : rom.GetSourceName();
+        String headerTitle = rom == null ? "" : rom.GetHeaderTitle();
+        return ContainsIgnoreCase(displayName, "pokemon crystal")
+                || ContainsIgnoreCase(displayName, "crystal version")
+                || ContainsIgnoreCase(sourceName, "pokemon crystal")
+                || ContainsIgnoreCase(sourceName, "crystal version")
+                || ContainsIgnoreCase(headerTitle, "POKEMON CRYSTAL")
+                || ContainsIgnoreCase(headerTitle, "CRYSTAL");
+    }
+
+    private boolean ContainsIgnoreCase(String value, String needle) {
+        return value != null && needle != null && value.toLowerCase(java.util.Locale.ROOT)
+                .contains(needle.toLowerCase(java.util.Locale.ROOT));
     }
 
     @Override
@@ -357,6 +440,15 @@ final class GBCartMBC3 extends GBCartController {
 
     private long CurrentEpochSeconds() {
         return Math.max(0L, epochSecondSupplier.getAsLong());
+    }
+
+    private long CurrentLocalRtcSeconds() {
+        ZonedDateTime now = Instant.ofEpochSecond(CurrentEpochSeconds()).atZone(zoneId);
+        long dayCounter = Math.floorMod(now.toLocalDate().toEpochDay(), maxRtcDays);
+        return (dayCounter * secondsPerDay)
+                + (((long) now.getHour()) * secondsPerHour)
+                + (((long) now.getMinute()) * secondsPerMinute)
+                + now.getSecond();
     }
 
     private long NormaliseRtcSeconds(long value) {

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.Test;
 
@@ -177,7 +178,7 @@ class CartridgeControllerTest {
     void mbc3RtcLegacySupplementalSaveUsesRtcFileTimestampFallback() throws IOException {
         GBRom rom = EmulatorTestUtils.CreatePatternedRom(0x10, 8, 0x03, 0x00, "mbc3_legacy.gb", "mbc3-legacy");
         long[] epochSeconds = { 135L };
-        GBCartMBC3 restored = new GBCartMBC3(rom, () -> epochSeconds[0]);
+        GBCartMBC3 restored = new GBCartMBC3(rom, () -> epochSeconds[0], ZoneOffset.UTC);
 
         restored.LoadSupplementalSaveData(CreateLegacyRtcSave(75L, false, false, false, false, new int[5]), 75L);
         restored.Write(0x0000, 0x0A);
@@ -185,6 +186,59 @@ class CartridgeControllerTest {
         assertEquals(0x0F, restored.ReadRam(0));
         restored.Write(0x4000, 0x09);
         assertEquals(0x02, restored.ReadRam(0));
+    }
+
+    @Test
+    void mbc3BatterySaveLoadSnapsToLocalWallClockTime() throws IOException {
+        GBRom rom = EmulatorTestUtils.CreatePatternedRom(0x10, 8, 0x03, 0x00, "mbc3_wall.gb", "mbc3-wall");
+        long[] epochSeconds = { 4L * 3600L + 20L * 60L + 5L };
+        GBCartMBC3 restored = new GBCartMBC3(rom, () -> epochSeconds[0], ZoneOffset.UTC);
+
+        restored.LoadSupplementalSaveData(CreateLegacyRtcSave(75L, false, false, false, false, new int[5]), 75L);
+        restored.Write(0x0000, 0x0A);
+        restored.Write(0x4000, 0x08);
+        assertEquals(0x05, restored.ReadRam(0));
+        restored.Write(0x4000, 0x09);
+        assertEquals(0x14, restored.ReadRam(0));
+        restored.Write(0x4000, 0x0A);
+        assertEquals(0x04, restored.ReadRam(0));
+    }
+
+    @Test
+    void mbc3BatterySaveLoadWithoutRtcSidecarBootstrapsFromHostClock() {
+        GBRom rom = EmulatorTestUtils.CreatePatternedRom(0x10, 8, 0x03, 0x00, "mbc3_missing_sidecar.gb", "mbc3-missing-sidecar");
+        long[] epochSeconds = { 9L * 3600L + 48L * 60L + 12L };
+        GBCartMBC3 restored = new GBCartMBC3(rom, () -> epochSeconds[0], ZoneOffset.UTC);
+
+        restored.LoadSupplementalSaveData(new byte[0], 0L);
+        restored.Write(0x0000, 0x0A);
+        restored.Write(0x4000, 0x08);
+        assertEquals(0x0C, restored.ReadRam(0));
+        restored.Write(0x4000, 0x09);
+        assertEquals(0x30, restored.ReadRam(0));
+        restored.Write(0x4000, 0x0A);
+        assertEquals(0x09, restored.ReadRam(0));
+    }
+
+    @Test
+    void pokemonCrystalSaveClockRebasesRtcAsElapsedTimeInsteadOfAbsoluteClock() throws IOException {
+        GBRom rom = EmulatorTestUtils.CreatePatternedRom(0x10, 8, 0x03, 0xC0, "pokemon_crystal.gbc", "Pokemon Crystal");
+        long[] epochSeconds = { 9L * 3600L + 48L * 60L + 12L };
+        GBCartMBC3 restored = new GBCartMBC3(rom, () -> epochSeconds[0], ZoneOffset.UTC);
+        byte[] crystalSave = new byte[0x8000];
+        crystalSave[0x2045] = 0x13;
+        crystalSave[0x2046] = 0x06;
+
+        restored.LoadSaveData(crystalSave);
+        restored.LoadSupplementalSaveData(CreateRtcSave(83L * 24L * 3600L + 9L * 3600L + 47L * 60L + 43L, 0L,
+                false, false, true, true, new int[] { 0x2B, 0x2F, 0x09, 0x53, 0x00 }), 0L);
+        restored.Write(0x0000, 0x0A);
+        restored.Write(0x4000, 0x08);
+        assertEquals(0x0C, restored.ReadRam(0));
+        restored.Write(0x4000, 0x09);
+        assertEquals(0x2A, restored.ReadRam(0));
+        restored.Write(0x4000, 0x0A);
+        assertEquals(0x0E, restored.ReadRam(0));
     }
 
     @Test
@@ -242,6 +296,25 @@ class CartridgeControllerTest {
             output.writeInt(0x47525443);
             output.writeInt(1);
             output.writeLong(rtcSeconds);
+            output.writeBoolean(rtcHalted);
+            output.writeBoolean(rtcCarry);
+            output.writeBoolean(latchArmed);
+            output.writeBoolean(latchedRtcValid);
+            for (int index = 0; index < 5; index++) {
+                output.writeByte(index < latchedRegisters.length ? latchedRegisters[index] & 0xFF : 0);
+            }
+        }
+        return outputBytes.toByteArray();
+    }
+
+    private static byte[] CreateRtcSave(long rtcSeconds, long persistedEpochSeconds, boolean rtcHalted, boolean rtcCarry,
+            boolean latchArmed, boolean latchedRtcValid, int[] latchedRegisters) throws IOException {
+        ByteArrayOutputStream outputBytes = new ByteArrayOutputStream();
+        try (DataOutputStream output = new DataOutputStream(outputBytes)) {
+            output.writeInt(0x47525443);
+            output.writeInt(2);
+            output.writeLong(rtcSeconds);
+            output.writeLong(persistedEpochSeconds);
             output.writeBoolean(rtcHalted);
             output.writeBoolean(rtcCarry);
             output.writeBoolean(latchArmed);

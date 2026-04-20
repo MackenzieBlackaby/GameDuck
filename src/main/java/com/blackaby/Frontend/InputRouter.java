@@ -86,6 +86,7 @@ public final class InputRouter implements KeyEventDispatcher {
     private volatile boolean installed;
     private volatile boolean uninstalled;
     private volatile boolean windowFocused;
+    private volatile boolean keyboardInputEnabled = true;
 
     /**
      * Creates an input router bound to the main window and emulator instance.
@@ -180,10 +181,23 @@ public final class InputRouter implements KeyEventDispatcher {
         }
     }
 
+    /**
+     * Enables or disables keyboard routing to the emulator and application
+     * shortcuts. Controller routing is unaffected.
+     *
+     * @param enabled whether keyboard input should be routed
+     */
+    public void SetKeyboardInputEnabled(boolean enabled) {
+        keyboardInputEnabled = enabled;
+        if (!enabled) {
+            ClearKeyboardInputStates();
+        }
+    }
+
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (!ShouldRouteInput()) {
-            ClearAllInputStates();
+        if (!ShouldRouteKeyboardInput()) {
+            ClearKeyboardInputStates();
             return false;
         }
 
@@ -278,9 +292,9 @@ public final class InputRouter implements KeyEventDispatcher {
     }
 
     private void PollControllerInput() {
-        if (!ShouldRouteInput()) {
+        if (!ShouldRouteControllerInput()) {
             if (routedInputActive) {
-                ClearAllInputStates();
+                ClearControllerInputStates();
                 routedInputActive = false;
             }
             return;
@@ -330,15 +344,43 @@ public final class InputRouter implements KeyEventDispatcher {
 
     private void ClearAllInputStates() {
         synchronized (inputStateLock) {
-            pressedKeyCodes.clear();
-            consumedShortcutKeyCodes.clear();
-            keyboardPressedButtons.clear();
-            controllerPressedButtons.clear();
-            controllerPressedShortcuts.clear();
+            ClearKeyboardInputStateCollections();
+            ClearControllerInputStateCollections();
             for (ControlButtonState button : controlButtons) {
                 emulation.SetButtonPressed(button.buttonId(), false);
             }
         }
+    }
+
+    private void ClearKeyboardInputStates() {
+        synchronized (inputStateLock) {
+            Set<String> releasedButtons = new HashSet<>(keyboardPressedButtons);
+            ClearKeyboardInputStateCollections();
+            for (String buttonId : releasedButtons) {
+                ApplyCombinedState(buttonId);
+            }
+        }
+    }
+
+    private void ClearControllerInputStates() {
+        synchronized (inputStateLock) {
+            Set<String> releasedButtons = new HashSet<>(controllerPressedButtons);
+            ClearControllerInputStateCollections();
+            for (String buttonId : releasedButtons) {
+                ApplyCombinedState(buttonId);
+            }
+        }
+    }
+
+    private void ClearKeyboardInputStateCollections() {
+        pressedKeyCodes.clear();
+        consumedShortcutKeyCodes.clear();
+        keyboardPressedButtons.clear();
+    }
+
+    private void ClearControllerInputStateCollections() {
+        controllerPressedButtons.clear();
+        controllerPressedShortcuts.clear();
     }
 
     private void ApplyControllerShortcutState(EnumSet<AppShortcut> pressedShortcuts) {
@@ -370,7 +412,11 @@ public final class InputRouter implements KeyEventDispatcher {
      *
      * @return {@code true} when the main window is the active window
      */
-    private boolean ShouldRouteInput() {
+    private boolean ShouldRouteKeyboardInput() {
+        return keyboardInputEnabled && ShouldRouteControllerInput();
+    }
+
+    private boolean ShouldRouteControllerInput() {
         Window activeWindow = KeyboardFocusManager.getCurrentKeyboardFocusManager().getActiveWindow();
         return installed
                 && !uninstalled

@@ -105,7 +105,7 @@ class ControllerInputServiceTest {
     }
 
     @Test
-    void gameplayPollingDoesNotTriggerSlowRescanButDeviceQueriesDo() {
+    void controllerQueriesDoNotTriggerAutomaticRescan() {
         Settings.Reset();
         long[] now = { 0L };
         AtomicInteger scanCount = new AtomicInteger();
@@ -132,6 +132,9 @@ class ControllerInputServiceTest {
         assertEquals(1, scanCount.get());
 
         service.GetAvailableControllers();
+        assertEquals(1, scanCount.get());
+
+        service.RefreshControllers();
         assertEquals(2, scanCount.get());
         assertTrue(pollCount.get() >= 2);
     }

@@ -238,7 +238,7 @@ public final class ControllerInputService {
      */
     public List<ControllerDevice> GetAvailableControllers() {
         synchronized (pollLock) {
-            EnsureRecentScanLocked();
+            EnsureInitialScanLocked();
             return SnapshotDevicesLocked();
         }
     }
@@ -250,7 +250,7 @@ public final class ControllerInputService {
      */
     public Optional<ControllerDevice> GetActiveController() {
         synchronized (pollLock) {
-            EnsureRecentScanLocked();
+            EnsureInitialScanLocked();
             ControllerHandle handle = SelectActiveControllerLocked();
             return handle == null ? Optional.empty() : Optional.of(handle.device());
         }
@@ -394,18 +394,6 @@ public final class ControllerInputService {
 
         if (shouldDeferUiRescan(SwingUtilities.isEventDispatchThread(), testScanner != null)) {
             ScheduleUiRescanLocked(true);
-        } else {
-            ScanControllersLocked();
-        }
-    }
-
-    private void EnsureRecentScanLocked() {
-        if ((currentTimeMillis.getAsLong() - lastScanTimestamp) < rescanIntervalMillis) {
-            return;
-        }
-
-        if (shouldDeferUiRescan(SwingUtilities.isEventDispatchThread(), testScanner != null)) {
-            ScheduleUiRescanLocked(false);
         } else {
             ScanControllersLocked();
         }

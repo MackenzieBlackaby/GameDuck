@@ -4,6 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+
 import org.junit.jupiter.api.Test;
 
 import com.blackaby.Backend.GB.Misc.GBRom;
@@ -149,6 +153,41 @@ class CartridgeControllerTest {
     }
 
     @Test
+    void mbc3RtcSupplementalSaveAdvancesFromPersistedWallClockTime() {
+        GBRom rom = EmulatorTestUtils.CreatePatternedRom(0x10, 8, 0x03, 0x00, "mbc3_save.gb", "mbc3-save");
+        long[] epochSeconds = { 0L };
+        GBCartMBC3 controller = new GBCartMBC3(rom, () -> epochSeconds[0]);
+        controller.Write(0x0000, 0x0A);
+        controller.Write(0x4000, 0x08);
+
+        epochSeconds[0] = 75L;
+        byte[] saveData = controller.ExportSupplementalSaveData();
+
+        epochSeconds[0] = 135L;
+        GBCartMBC3 restored = new GBCartMBC3(rom, () -> epochSeconds[0]);
+        restored.LoadSupplementalSaveData(saveData);
+        restored.Write(0x0000, 0x0A);
+        restored.Write(0x4000, 0x08);
+        assertEquals(0x0F, restored.ReadRam(0));
+        restored.Write(0x4000, 0x09);
+        assertEquals(0x02, restored.ReadRam(0));
+    }
+
+    @Test
+    void mbc3RtcLegacySupplementalSaveUsesRtcFileTimestampFallback() throws IOException {
+        GBRom rom = EmulatorTestUtils.CreatePatternedRom(0x10, 8, 0x03, 0x00, "mbc3_legacy.gb", "mbc3-legacy");
+        long[] epochSeconds = { 135L };
+        GBCartMBC3 restored = new GBCartMBC3(rom, () -> epochSeconds[0]);
+
+        restored.LoadSupplementalSaveData(CreateLegacyRtcSave(75L, false, false, false, false, new int[5]), 75L);
+        restored.Write(0x0000, 0x0A);
+        restored.Write(0x4000, 0x08);
+        assertEquals(0x0F, restored.ReadRam(0));
+        restored.Write(0x4000, 0x09);
+        assertEquals(0x02, restored.ReadRam(0));
+    }
+
+    @Test
     void mbc3RtcOnlyCartridgeStillReportsSaveSupport() {
         GBRom rom = EmulatorTestUtils.CreatePatternedRom(0x0F, 4, 0x00, 0x00, "mbc3_timer.gb", "mbc3-timer");
         GBCartMBC3 controller = new GBCartMBC3(rom, () -> 0L);
@@ -194,5 +233,23 @@ class CartridgeControllerTest {
 
         assertEquals(0x03, restored.ReadRom(0x4000));
         assertEquals(0x7C, restored.ReadRam(0));
+    }
+
+    private static byte[] CreateLegacyRtcSave(long rtcSeconds, boolean rtcHalted, boolean rtcCarry,
+            boolean latchArmed, boolean latchedRtcValid, int[] latchedRegisters) throws IOException {
+        ByteArrayOutputStream outputBytes = new ByteArrayOutputStream();
+        try (DataOutputStream output = new DataOutputStream(outputBytes)) {
+            output.writeInt(0x47525443);
+            output.writeInt(1);
+            output.writeLong(rtcSeconds);
+            output.writeBoolean(rtcHalted);
+            output.writeBoolean(rtcCarry);
+            output.writeBoolean(latchArmed);
+            output.writeBoolean(latchedRtcValid);
+            for (int index = 0; index < 5; index++) {
+                output.writeByte(index < latchedRegisters.length ? latchedRegisters[index] & 0xFF : 0);
+            }
+        }
+        return outputBytes.toByteArray();
     }
 }

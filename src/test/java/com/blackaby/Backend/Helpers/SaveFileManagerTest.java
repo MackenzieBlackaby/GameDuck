@@ -31,6 +31,7 @@ class SaveFileManagerTest {
             SaveFileManager.SaveDataBundle loaded = SaveFileManager.LoadSaveBundle(rom).orElseThrow();
             assertArrayEquals(saveData, loaded.primaryData());
             assertArrayEquals(rtcData, loaded.supplementalData());
+            assertTrue(loaded.supplementalLastModifiedEpochSeconds() > 0L);
 
             Path exportPath = tempDir.resolve("exported.sav");
             SaveFileManager.ExportSave(rom, exportPath);
@@ -67,6 +68,7 @@ class SaveFileManagerTest {
             SaveFileManager.SaveDataBundle loaded = SaveFileManager.LoadSaveBundle(rom).orElseThrow();
             assertEquals(0, loaded.primaryData().length);
             assertArrayEquals(rtcData, loaded.supplementalData());
+            assertTrue(loaded.supplementalLastModifiedEpochSeconds() > 0L);
             assertTrue(Files.exists(SaveFileManager.PreferredSavePath(rom)));
         } finally {
             RestoreSaveProperty(previous);

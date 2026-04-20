@@ -53,9 +53,7 @@ public final class SaveDataManagerWindow extends AbstractSaveManagerWindow<Store
 
     @Override
     protected List<JComponent> createHeaderActions() {
-        JButton saveStateManagerButton = createSecondaryButton(UiText.OptionsWindow.SAVE_STATE_MANAGER_OPEN_BUTTON);
-        saveStateManagerButton.addActionListener(event -> new SaveStateManagerWindow(mainWindow));
-        return List.of(saveStateManagerButton);
+        return List.of();
     }
 
     @Override

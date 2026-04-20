@@ -53,12 +53,14 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
 import javax.swing.KeyStroke;
+import javax.swing.LookAndFeel;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.Scrollable;
 import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
+import javax.swing.UIManager;
 import javax.swing.border.Border;
 import javax.swing.event.ListDataEvent;
 import javax.swing.event.ListDataListener;
@@ -379,7 +381,7 @@ public class OptionsWindow extends DuckWindow {
         content.add(createSectionCard(
                 UiText.OptionsWindow.SECTION_THEME_LIBRARY_TITLE,
                 UiText.OptionsWindow.SECTION_THEME_LIBRARY_DESCRIPTION,
-                createThemeLibraryPanel()));
+                createUnifiedThemePanel()));
         return content;
     }
 
@@ -1371,40 +1373,85 @@ public class OptionsWindow extends DuckWindow {
         return swatch;
     }
 
-    private JComponent createThemeLibraryPanel() {
+    private JComponent createUnifiedThemePanel() {
         JPanel content = new JPanel();
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
         content.setOpaque(false);
 
-        JComponent previewBanner = createThemePreviewBanner();
-        previewBanner.setAlignmentX(Component.LEFT_ALIGNMENT);
-        content.add(previewBanner);
-        content.add(Box.createVerticalStrut(12));
+        JComponent coloursSection = createCompactDisclosurePanel(
+                UiText.OptionsWindow.THEME_COLOURS_SECTION_TITLE,
+                createCompactWindowOptionCard(createThemeColourSectionBody()),
+                true);
+        coloursSection.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(coloursSection);
+        content.add(Box.createVerticalStrut(8));
 
-        JPanel actionCard = new JPanel(new BorderLayout());
-        actionCard.setBackground(Styling.cardTintColour);
-        actionCard.setBorder(BorderFactory.createCompoundBorder(
+        JComponent toolsSection = createCompactDisclosurePanel(
+                UiText.OptionsWindow.THEME_TOOLS_SECTION_TITLE,
+                createCompactWindowOptionCard(createThemeToolsSectionBody()),
+                false);
+        toolsSection.setAlignmentX(Component.LEFT_ALIGNMENT);
+        content.add(toolsSection);
+        return content;
+    }
+
+    private JPanel createThemeColourSectionBody() {
+        JPanel body = createPaletteSectionBodyPanel();
+        body.add(createThemeColourStrip());
+        return body;
+    }
+
+    private JComponent createThemeColourStrip() {
+        JPanel content = new JPanel(new GridLayout(1, AppThemeColorRole.values().length, 6, 0));
+        content.setOpaque(false);
+        for (AppThemeColorRole role : AppThemeColorRole.values()) {
+            content.add(createThemeColourTile(role));
+        }
+        return content;
+    }
+
+    private JComponent createThemeColourTile(AppThemeColorRole role) {
+        JPanel tile = new JPanel(new BorderLayout(0, 6));
+        tile.setOpaque(true);
+        tile.setBackground(Styling.cardTintColour);
+        tile.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
-        actionCard.setAlignmentX(Component.LEFT_ALIGNMENT);
+                BorderFactory.createEmptyBorder(8, 8, 8, 8)));
 
-        JPanel textColumn = createInfoTextBlock(
-                UiText.OptionsWindow.SAVE_CURRENT_THEME,
-                UiText.OptionsWindow.SAVE_CURRENT_THEME_HELPER,
-                13f);
+        JLabel label = new JLabel(role.Label(), SwingConstants.CENTER);
+        label.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
+        label.setForeground(accentColour);
+
+        JPanel swatch = new JPanel();
+        swatch.setPreferredSize(new Dimension(44, 40));
+        swatch.setBackground(Settings.CurrentAppTheme().CoreColour(role));
+        swatch.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(58, 92, 132, 60), 1, true),
+                BorderFactory.createEmptyBorder(3, 3, 3, 3)));
+        swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        swatch.setToolTipText(role.Description());
+        swatch.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent event) {
+                chooseThemeColor(role);
+            }
+        });
+
+        tile.add(label, BorderLayout.NORTH);
+        tile.add(swatch, BorderLayout.CENTER);
+        return tile;
+    }
+
+    private JPanel createThemeToolsSectionBody() {
+        JPanel body = createPaletteSectionBodyPanel();
 
         JTextField themeNameField = new JTextField();
-        themeNameField.setMaximumSize(new Dimension(Integer.MAX_VALUE, 38));
-        themeNameField.setPreferredSize(new Dimension(240, 38));
-        themeNameField.setFont(Styling.menuFont.deriveFont(13f));
-        themeNameField.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(cardBorder, 1, true),
-                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
-
-        textColumn.add(Box.createVerticalStrut(4));
-        textColumn.add(themeNameField);
+        configureCompactPaletteField(themeNameField);
+        body.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_THEME, themeNameField));
+        body.add(Box.createVerticalStrut(8));
 
         JButton saveThemeButton = createPrimaryButton(UiText.OptionsWindow.SAVE_THEME_BUTTON);
+        configureCompactPaletteButton(saveThemeButton, 100);
         saveThemeButton.addActionListener(event -> {
             String name = themeNameField.getText().trim();
             if (name.isEmpty()) {
@@ -1425,6 +1472,7 @@ public class OptionsWindow extends DuckWindow {
         });
 
         JButton browseThemesButton = createSecondaryButton(UiText.OptionsWindow.BROWSE_BUTTON);
+        configureCompactPaletteButton(browseThemesButton, 100);
         browseThemesButton.addActionListener(event -> new ThemeManager(() -> {
             if (mainWindow != null) {
                 mainWindow.RefreshTheme();
@@ -1432,13 +1480,8 @@ public class OptionsWindow extends DuckWindow {
             reopenWithCurrentTab();
         }));
 
-        JPanel buttonColumn = createResponsiveGroup(120, 2, saveThemeButton, browseThemesButton);
-        actionCard.add(createResponsiveGroup(280, 2, textColumn, buttonColumn), BorderLayout.CENTER);
-
-        content.add(actionCard);
-        content.add(Box.createVerticalStrut(12));
-
         JButton resetThemeButton = createSecondaryButton(UiText.OptionsWindow.RESET_THEME_BUTTON);
+        configureCompactPaletteButton(resetThemeButton, 100);
         resetThemeButton.addActionListener(event -> {
             Settings.ResetAppTheme();
             Config.Save();
@@ -1448,12 +1491,8 @@ public class OptionsWindow extends DuckWindow {
             reopenWithCurrentTab();
         });
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
-        actions.setOpaque(false);
-        actions.setAlignmentX(Component.LEFT_ALIGNMENT);
-        actions.add(resetThemeButton);
-        content.add(actions);
-        return content;
+        body.add(createResponsiveGroup(104, 3, saveThemeButton, browseThemesButton, resetThemeButton));
+        return body;
     }
 
     private JComponent createControlsPanel() {
@@ -3534,20 +3573,144 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createEmulationPanel() {
-        JPanel container = new JPanel(new BorderLayout(0, 18));
-        container.setOpaque(false);
-
         JPanel stack = new JPanel();
         stack.setLayout(new BoxLayout(stack, BoxLayout.Y_AXIS));
         stack.setOpaque(false);
-        stack.add(createSaveDataSection());
+        stack.add(createCompactDataSection());
         stack.add(Box.createVerticalStrut(12));
-        stack.add(createDmgBootRomSection());
-        stack.add(Box.createVerticalStrut(12));
-        stack.add(createCgbBootRomSection());
+        stack.add(createCompactBootRomSection());
+        return stack;
+    }
 
-        container.add(stack, BorderLayout.CENTER);
-        return container;
+    private JComponent createCompactDataSection() {
+        JPanel card = createInsetSurfaceCard(12);
+        JPanel header = createInfoTextBlock(
+                "Managers",
+                "Open save data or save state tools.",
+                15f);
+
+        JButton openManagerButton = createPrimaryButton(UiText.OptionsWindow.SAVE_MANAGER_OPEN_BUTTON);
+        configureCompactPaletteButton(openManagerButton, 154);
+        openManagerButton.addActionListener(event -> new SaveDataManagerWindow(mainWindow));
+
+        JButton openStateManagerButton = createSecondaryButton(UiText.OptionsWindow.SAVE_STATE_MANAGER_OPEN_BUTTON);
+        configureCompactPaletteButton(openStateManagerButton, 154);
+        openStateManagerButton.addActionListener(event -> new SaveStateManagerWindow(mainWindow));
+
+        JTextArea pathLabel = createBodyTextArea(SaveFileManager.SaveDirectoryPath().toString(), 11f);
+        pathLabel.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
+        pathLabel.setForeground(mutedText);
+
+        JPanel footerCard = createInsetSurfaceCard(4);
+        JLabel title = new JLabel(UiText.OptionsWindow.SAVE_DATA_MANAGED_PATH_TITLE);
+        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
+        title.setForeground(accentColour);
+        footerCard.add(title, BorderLayout.NORTH);
+        footerCard.add(pathLabel, BorderLayout.CENTER);
+
+        card.add(header, BorderLayout.NORTH);
+        card.add(createResponsiveGroup(160, 2, openManagerButton, openStateManagerButton), BorderLayout.CENTER);
+        card.add(footerCard, BorderLayout.SOUTH);
+        return card;
+    }
+
+    private JComponent createCompactBootRomSection() {
+        JPanel card = createInsetSurfaceCard(12);
+        card.add(createInfoTextBlock("Boot ROMs", "Optional startup ROMs for DMG and CGB.", 15f), BorderLayout.NORTH);
+
+        JPanel rows = new JPanel();
+        rows.setLayout(new BoxLayout(rows, BoxLayout.Y_AXIS));
+        rows.setOpaque(false);
+        rows.add(createCompactBootRomRow(new BootRomSectionSpec(
+                UiText.OptionsWindow.USE_DMG_BOOT_ROM_CHECKBOX,
+                Settings.useBootRom,
+                BootRomManager::HasDmgBootRom,
+                selected -> Settings.useBootRom = selected,
+                UiText.OptionsWindow::DmgBootRomRequiredMessage,
+                UiText.OptionsWindow.DMG_BOOT_SEQUENCE_TITLE,
+                UiText.OptionsWindow.DMG_BOOT_SEQUENCE_HELPER,
+                UiText.OptionsWindow.INSTALLED_BOOT_ROM_TITLE,
+                UiText.OptionsWindow.INSTALLED_BOOT_ROM_HELPER,
+                UiText.OptionsWindow.MANAGED_PATH_TITLE,
+                BootRomManager::DmgBootRomPath,
+                UiText.OptionsWindow.INSERT_BOOT_ROM_BUTTON,
+                UiText.OptionsWindow.REMOVE_BOOT_ROM_BUTTON,
+                BootRomManager::InstallDmgBootRom,
+                BootRomManager::RemoveDmgBootRom,
+                true)));
+        rows.add(Box.createVerticalStrut(10));
+        rows.add(createCompactBootRomRow(new BootRomSectionSpec(
+                UiText.OptionsWindow.USE_CGB_BOOT_ROM_CHECKBOX,
+                Settings.useCgbBootRom,
+                BootRomManager::HasCgbBootRom,
+                selected -> Settings.useCgbBootRom = selected,
+                UiText.OptionsWindow::CgbBootRomRequiredMessage,
+                UiText.OptionsWindow.CGB_BOOT_SEQUENCE_TITLE,
+                UiText.OptionsWindow.CGB_BOOT_SEQUENCE_HELPER,
+                UiText.OptionsWindow.INSTALLED_CGB_BOOT_ROM_TITLE,
+                UiText.OptionsWindow.INSTALLED_CGB_BOOT_ROM_HELPER,
+                UiText.OptionsWindow.MANAGED_CGB_PATH_TITLE,
+                BootRomManager::CgbBootRomPath,
+                UiText.OptionsWindow.INSERT_CGB_BOOT_ROM_BUTTON,
+                UiText.OptionsWindow.REMOVE_CGB_BOOT_ROM_BUTTON,
+                BootRomManager::InstallCgbBootRom,
+                BootRomManager::RemoveCgbBootRom,
+                false)));
+        card.add(rows, BorderLayout.CENTER);
+        return card;
+    }
+
+    private JComponent createCompactBootRomRow(BootRomSectionSpec spec) {
+        boolean installed = spec.installedSupplier().getAsBoolean();
+        JCheckBox toggle = createBootRomCheckBox(spec, installed);
+
+        JPanel row = new JPanel(new BorderLayout(0, 10));
+        row.setOpaque(true);
+        row.setBackground(Styling.cardTintColour);
+        row.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
+                BorderFactory.createEmptyBorder(12, 12, 12, 12)));
+
+        JPanel header = createResponsiveGroup(
+                260,
+                2,
+                createInfoTextBlock(spec.bootTitle(), spec.bootHelper(), 14f),
+                wrapTrailingComponent(createResponsiveGroup(
+                        120,
+                        1,
+                        createInstallStatusBadge(installed),
+                        toggle)));
+
+        JTextArea pathLabel = createBodyTextArea(spec.pathSupplier().get().toString(), 11f);
+        pathLabel.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 11));
+        pathLabel.setForeground(mutedText);
+
+        JButton insertButton = createPrimaryButton(spec.insertButtonText());
+        configureCompactPaletteButton(insertButton, 148);
+        insertButton.addActionListener(event -> installBootRom(spec));
+
+        JButton removeButton = createSecondaryButton(spec.removeButtonText());
+        configureCompactPaletteButton(removeButton, 148);
+        removeButton.addActionListener(event -> removeBootRom(spec));
+
+        row.add(header, BorderLayout.NORTH);
+        row.add(pathLabel, BorderLayout.CENTER);
+        row.add(createResponsiveGroup(160, 2, insertButton, removeButton), BorderLayout.SOUTH);
+        return row;
+    }
+
+    private JPanel wrapLeadingComponent(JComponent component) {
+        JPanel wrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        wrap.setOpaque(false);
+        wrap.add(component);
+        return wrap;
+    }
+
+    private JPanel wrapTrailingComponent(JComponent component) {
+        JPanel wrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        wrap.setOpaque(false);
+        wrap.add(component);
+        return wrap;
     }
 
     private JComponent createDmgBootRomSection() {
@@ -3801,8 +3964,7 @@ public class OptionsWindow extends DuckWindow {
                 ? colorPreviews[index].getBackground()
                 : (paletteStripPreviews[index] != null ? paletteStripPreviews[index].getBackground()
                         : Settings.CurrentPalette()[index].ToColour());
-        Color selectedColor = JColorChooser.showDialog(this, UiText.OptionsWindow.ChooseColorTitle(label),
-                initialColour);
+        Color selectedColor = showDefaultColorChooser(UiText.OptionsWindow.ChooseColorTitle(label), initialColour);
         if (selectedColor == null) {
             return;
         }
@@ -3817,8 +3979,7 @@ public class OptionsWindow extends DuckWindow {
         Color initialColour = gbcColorPreviews[flatIndex] == null
                 ? Color.WHITE
                 : gbcColorPreviews[flatIndex].getBackground();
-        Color selectedColor = JColorChooser.showDialog(this, UiText.OptionsWindow.GbcColorChooserTitle(),
-                initialColour);
+        Color selectedColor = showDefaultColorChooser(UiText.OptionsWindow.GbcColorChooserTitle(), initialColour);
         if (selectedColor == null) {
             return;
         }
@@ -3831,7 +3992,8 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private void chooseThemeColor(AppThemeColorRole role) {
-        Color selectedColor = JColorChooser.showDialog(this, UiText.OptionsWindow.ChooseColorTitle(role.Label()),
+        Color selectedColor = showDefaultColorChooser(
+                UiText.OptionsWindow.ChooseColorTitle(role.Label()),
                 Settings.CurrentAppTheme().CoreColour(role));
         if (selectedColor == null) {
             return;
@@ -3845,6 +4007,97 @@ public class OptionsWindow extends DuckWindow {
             mainWindow.RefreshTheme();
         }
         reopenWithCurrentTab();
+    }
+
+    private Color showDefaultColorChooser(String title, Color initialColour) {
+        LookAndFeel previousLookAndFeel = UIManager.getLookAndFeel();
+        boolean switchedLookAndFeel = false;
+        String[] colourKeys = {
+                "ColorChooser.background",
+                "ColorChooser.foreground",
+                "Panel.background",
+                "Panel.foreground",
+                "TabbedPane.background",
+                "TabbedPane.foreground",
+                "Label.background",
+                "Label.foreground",
+                "TextField.background",
+                "TextField.foreground",
+                "TextField.caretForeground",
+                "TextArea.background",
+                "TextArea.foreground",
+                "ComboBox.background",
+                "ComboBox.foreground",
+                "List.background",
+                "List.foreground",
+                "List.selectionBackground",
+                "List.selectionForeground",
+                "Button.background",
+                "Button.foreground",
+                "Slider.background",
+                "Slider.foreground"
+        };
+        Map<String, Object> previousColours = new HashMap<>();
+        try {
+            String crossPlatformLookAndFeel = UIManager.getCrossPlatformLookAndFeelClassName();
+            if (previousLookAndFeel == null
+                    || !previousLookAndFeel.getClass().getName().equals(crossPlatformLookAndFeel)) {
+                UIManager.setLookAndFeel(crossPlatformLookAndFeel);
+                switchedLookAndFeel = true;
+            }
+
+            for (String key : colourKeys) {
+                previousColours.put(key, UIManager.get(key));
+            }
+            UIManager.put("ColorChooser.background", Color.WHITE);
+            UIManager.put("ColorChooser.foreground", Color.BLACK);
+            UIManager.put("Panel.background", Color.WHITE);
+            UIManager.put("Panel.foreground", Color.BLACK);
+            UIManager.put("TabbedPane.background", Color.WHITE);
+            UIManager.put("TabbedPane.foreground", Color.BLACK);
+            UIManager.put("Label.background", Color.WHITE);
+            UIManager.put("Label.foreground", Color.BLACK);
+            UIManager.put("TextField.background", Color.WHITE);
+            UIManager.put("TextField.foreground", Color.BLACK);
+            UIManager.put("TextField.caretForeground", Color.BLACK);
+            UIManager.put("TextArea.background", Color.WHITE);
+            UIManager.put("TextArea.foreground", Color.BLACK);
+            UIManager.put("ComboBox.background", Color.WHITE);
+            UIManager.put("ComboBox.foreground", Color.BLACK);
+            UIManager.put("List.background", Color.WHITE);
+            UIManager.put("List.foreground", Color.BLACK);
+            UIManager.put("List.selectionBackground", new Color(214, 228, 255));
+            UIManager.put("List.selectionForeground", Color.BLACK);
+            UIManager.put("Button.background", new Color(240, 240, 240));
+            UIManager.put("Button.foreground", Color.BLACK);
+            UIManager.put("Slider.background", Color.WHITE);
+            UIManager.put("Slider.foreground", Color.BLACK);
+
+            JColorChooser chooser = new JColorChooser(initialColour);
+            final Color[] selectedColour = { null };
+            JDialog dialog = JColorChooser.createDialog(
+                    this,
+                    title,
+                    true,
+                    chooser,
+                    event -> selectedColour[0] = chooser.getColor(),
+                    null);
+            dialog.setLocationRelativeTo(this);
+            dialog.setVisible(true);
+            return selectedColour[0];
+        } catch (Exception exception) {
+            return JColorChooser.showDialog(this, title, initialColour);
+        } finally {
+            for (Map.Entry<String, Object> entry : previousColours.entrySet()) {
+                UIManager.put(entry.getKey(), entry.getValue());
+            }
+            if (switchedLookAndFeel && previousLookAndFeel != null) {
+                try {
+                    UIManager.setLookAndFeel(previousLookAndFeel);
+                } catch (Exception ignored) {
+                }
+            }
+        }
     }
 
     private boolean captureKeyboardBinding(EmulatorButton button) {

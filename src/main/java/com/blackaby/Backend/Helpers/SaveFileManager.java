@@ -49,10 +49,11 @@ public final class SaveFileManager {
         }
     }
 
-    public record SaveDataBundle(byte[] primaryData, byte[] supplementalData) {
+    public record SaveDataBundle(byte[] primaryData, byte[] supplementalData, long supplementalLastModifiedEpochSeconds) {
         public SaveDataBundle {
             primaryData = primaryData == null ? new byte[0] : primaryData.clone();
             supplementalData = supplementalData == null ? new byte[0] : supplementalData.clone();
+            supplementalLastModifiedEpochSeconds = Math.max(0L, supplementalLastModifiedEpochSeconds);
         }
 
         public boolean HasAnyData() {
@@ -122,7 +123,10 @@ public final class SaveFileManager {
         try {
             byte[] primaryData = selectedPrimaryPath == null ? new byte[0] : Files.readAllBytes(selectedPrimaryPath);
             byte[] supplementalData = selectedRtcPath == null ? new byte[0] : Files.readAllBytes(selectedRtcPath);
-            return Optional.of(new SaveDataBundle(primaryData, supplementalData));
+            long supplementalLastModifiedEpochSeconds = selectedRtcPath == null
+                    ? 0L
+                    : Files.getLastModifiedTime(selectedRtcPath).toMillis() / 1000L;
+            return Optional.of(new SaveDataBundle(primaryData, supplementalData, supplementalLastModifiedEpochSeconds));
         } catch (IOException exception) {
             return Optional.empty();
         }
@@ -397,7 +401,11 @@ public final class SaveFileManager {
             Files.deleteIfExists(fallbackPath);
             Files.deleteIfExists(BuildRtcPath(fallbackPath));
         }
-        return new SaveDataBundle(saveData, rtcData);
+        long supplementalLastModifiedEpochSeconds = 0L;
+        if (Files.exists(preferredRtcPath)) {
+            supplementalLastModifiedEpochSeconds = Files.getLastModifiedTime(preferredRtcPath).toMillis() / 1000L;
+        }
+        return new SaveDataBundle(saveData, rtcData, supplementalLastModifiedEpochSeconds);
     }
 
     /**

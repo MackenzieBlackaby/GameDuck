@@ -781,7 +781,7 @@ public final class UiText {
         public static final String TAB_PALETTE = "Palette";
         public static final String TAB_CONTROLS = "Controls";
         public static final String TAB_SOUND = "Sound";
-        public static final String TAB_EMULATION = "Emulation";
+        public static final String TAB_EMULATION = "Data";
         public static final String TAB_WINDOW = "Window";
         public static final String TAB_LIBRARY = "Library";
         public static final String TAB_THEME = "Theme";
@@ -800,16 +800,16 @@ public final class UiText {
         public static final String SECTION_SHORTCUTS_DESCRIPTION = "Customise the keyboard shortcuts";
         public static final String SECTION_SOUND_TITLE = "Audio Output";
         public static final String SECTION_SOUND_DESCRIPTION = "Adjust various audio settings and effects";
-        public static final String SECTION_EMULATION_TITLE = "Save Data and Boot ROM";
-        public static final String SECTION_EMULATION_DESCRIPTION = "";
+        public static final String SECTION_EMULATION_TITLE = "Data";
+        public static final String SECTION_EMULATION_DESCRIPTION = "Save files and startup ROMs.";
         public static final String SECTION_WINDOW_TITLE = "Main Window Layout";
         public static final String SECTION_WINDOW_DESCRIPTION = "Core window, border, and shader controls.";
         public static final String SECTION_DISPLAY_SHADER_TITLE = "Display Shaders";
         public static final String SECTION_DISPLAY_SHADER_DESCRIPTION = "Apply built-in looks or load your own JSON presets and plugin shaders";
         public static final String SECTION_LIBRARY_TITLE = "Library Preferences";
         public static final String SECTION_LIBRARY_DESCRIPTION = "Control displayed game names and how much recent-play history appears in the Game menu";
-        public static final String SECTION_THEME_LIBRARY_TITLE = "Theme Library";
-        public static final String SECTION_THEME_LIBRARY_DESCRIPTION = "Save the active theme, browse saved JSON themes, or restore the bundled defaults";
+        public static final String SECTION_THEME_LIBRARY_TITLE = "Theme";
+        public static final String SECTION_THEME_LIBRARY_DESCRIPTION = "Window colours and saved themes in one place.";
 
         // -----------------------------------------------------------------
         // Palette tab: DMG palette editor.
@@ -858,6 +858,8 @@ public final class UiText {
         // -----------------------------------------------------------------
         public static final String ACTIVE_APP_THEME_TITLE = "Active App Theme";
         public static final String ACTIVE_APP_THEME_HELPER = "Click any swatch to customise the current window chrome and control colours";
+        public static final String THEME_COLOURS_SECTION_TITLE = "Theme Colours";
+        public static final String THEME_TOOLS_SECTION_TITLE = "Theme Tools";
         public static final String SAVE_CURRENT_THEME = "Save Current Theme";
         public static final String SAVE_CURRENT_THEME_HELPER = "Save the active window theme or reopen a saved JSON theme";
         public static final String SAVE_THEME_BUTTON = "Save Theme";

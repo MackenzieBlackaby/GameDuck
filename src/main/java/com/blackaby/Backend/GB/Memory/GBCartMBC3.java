@@ -29,7 +29,7 @@ final class GBCartMBC3 extends GBCartController {
     private static final long maxRtcSeconds = maxRtcDays * secondsPerDay;
 
     private static final int rtcPersistenceMagic = 0x47525443;
-    private static final int rtcPersistenceVersion = 1;
+    private static final int rtcPersistenceVersion = 2;
 
     private boolean ramEnabled;
     private int romBank = 1;
@@ -150,12 +150,14 @@ final class GBCartMBC3 extends GBCartController {
         }
 
         SyncRtc();
+        long persistedEpochSeconds = lastRtcUpdateEpochSeconds;
         try {
             ByteArrayOutputStream outputBytes = new ByteArrayOutputStream();
             try (DataOutputStream output = new DataOutputStream(outputBytes)) {
                 output.writeInt(rtcPersistenceMagic);
                 output.writeInt(rtcPersistenceVersion);
                 output.writeLong(rtcSeconds);
+                output.writeLong(persistedEpochSeconds);
                 output.writeBoolean(rtcHalted);
                 output.writeBoolean(rtcCarry);
                 output.writeBoolean(latchArmed);
@@ -172,6 +174,11 @@ final class GBCartMBC3 extends GBCartController {
 
     @Override
     public void LoadSupplementalSaveData(byte[] saveData) {
+        LoadSupplementalSaveData(saveData, 0L);
+    }
+
+    @Override
+    public void LoadSupplementalSaveData(byte[] saveData, long persistedEpochSeconds) {
         rtcSeconds = 0L;
         rtcHalted = false;
         rtcCarry = false;
@@ -189,11 +196,12 @@ final class GBCartMBC3 extends GBCartController {
         try (DataInputStream input = new DataInputStream(new ByteArrayInputStream(saveData))) {
             int magic = input.readInt();
             int version = input.readInt();
-            if (magic != rtcPersistenceMagic || version != rtcPersistenceVersion) {
+            if (magic != rtcPersistenceMagic || (version != 1 && version != rtcPersistenceVersion)) {
                 throw new IllegalArgumentException("The MBC3 RTC save data is invalid.");
             }
 
             rtcSeconds = NormaliseRtcSeconds(input.readLong());
+            long savedEpochSeconds = version >= 2 ? input.readLong() : Math.max(0L, persistedEpochSeconds);
             rtcHalted = input.readBoolean();
             rtcCarry = input.readBoolean();
             latchArmed = input.readBoolean();
@@ -201,7 +209,7 @@ final class GBCartMBC3 extends GBCartController {
             for (int index = 0; index < latchedRtcRegisters.length; index++) {
                 latchedRtcRegisters[index] = input.readUnsignedByte();
             }
-            lastRtcUpdateEpochSeconds = CurrentEpochSeconds();
+            lastRtcUpdateEpochSeconds = Math.max(0L, savedEpochSeconds);
         } catch (IOException exception) {
             throw new IllegalArgumentException("The MBC3 RTC save data could not be read.", exception);
         }

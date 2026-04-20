@@ -144,7 +144,7 @@ public class GBRuntime implements Runnable, EmulatorRuntime {
         cheatEngine.SetCheats(CheatStore.GetCheats(this.rom));
         SaveFileManager.LoadSaveBundle(this.rom).ifPresent(saveData -> {
             memory.LoadSaveData(saveData.primaryData());
-            memory.LoadSupplementalSaveData(saveData.supplementalData());
+            memory.LoadSupplementalSaveData(saveData.supplementalData(), saveData.supplementalLastModifiedEpochSeconds());
         });
         ManagedGameRegistry.RememberGame(this.rom);
         try {
@@ -407,7 +407,7 @@ public class GBRuntime implements Runnable, EmulatorRuntime {
         synchronized (stateLock) {
             SaveFileManager.SaveDataBundle saveData = SaveFileManager.ImportSaveBundle(rom, sourcePath);
             memory.LoadSaveData(saveData.primaryData());
-            memory.LoadSupplementalSaveData(saveData.supplementalData());
+            memory.LoadSupplementalSaveData(saveData.supplementalData(), saveData.supplementalLastModifiedEpochSeconds());
             SaveFileManager.Save(rom, memory.ExportSaveData(), memory.ExportSupplementalSaveData());
             return saveData.primaryData().length;
         }

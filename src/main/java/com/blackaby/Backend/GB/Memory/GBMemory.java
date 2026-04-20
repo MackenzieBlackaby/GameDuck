@@ -898,6 +898,19 @@ public class GBMemory {
     }
 
     /**
+     * Loads supplementary cartridge persistence data such as RTC state using the
+     * host timestamp associated with the saved bytes when one is known.
+     *
+     * @param saveData supplementary save bytes
+     * @param persistedEpochSeconds host epoch seconds associated with the saved data
+     */
+    public void LoadSupplementalSaveData(byte[] saveData, long persistedEpochSeconds) {
+        if (cartridge != null) {
+            cartridge.LoadSupplementalSaveData(saveData, persistedEpochSeconds);
+        }
+    }
+
+    /**
      * Reads a continuous block of bytes.
      *
      * @param start first address to read

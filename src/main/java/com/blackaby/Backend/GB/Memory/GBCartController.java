@@ -204,6 +204,17 @@ public abstract class GBCartController {
     }
 
     /**
+     * Replaces supplementary cartridge persistence data from raw bytes and an
+     * optional persisted host timestamp.
+     *
+     * @param saveData supplementary save bytes
+     * @param persistedEpochSeconds host epoch seconds associated with the saved data
+     */
+    public void LoadSupplementalSaveData(byte[] saveData, long persistedEpochSeconds) {
+        LoadSupplementalSaveData(saveData);
+    }
+
+    /**
      * Captures mapper registers and external RAM for quick-state persistence.
      *
      * @return mapper snapshot

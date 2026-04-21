@@ -103,16 +103,6 @@ public final class ManagedGameRegistry {
     }
 
     /**
-     * Removes tracked-game duplicates that resolve to identical ROM bytes.
-     *
-     * @return number of duplicate entries removed
-     */
-    public static synchronized int CleanupDuplicateGames() {
-        store.EnsureLoaded();
-        return CleanupDuplicateGamesInternal();
-    }
-
-    /**
      * Returns the known save-capable games sorted by most recent activity.
      *
      * @return tracked games

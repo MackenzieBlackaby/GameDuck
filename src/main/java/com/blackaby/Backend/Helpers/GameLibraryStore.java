@@ -127,16 +127,6 @@ public final class GameLibraryStore {
     }
 
     /**
-     * Removes duplicate library entries that resolve to identical ROM bytes.
-     *
-     * @return number of duplicate entries removed
-     */
-    public static synchronized int CleanupDuplicateEntries() {
-        store.EnsureLoaded();
-        return CleanupDuplicateEntriesInternal();
-    }
-
-    /**
      * Returns all managed library entries.
      *
      * @return library entries

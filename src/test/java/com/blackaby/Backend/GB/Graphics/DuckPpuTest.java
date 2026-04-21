@@ -6,7 +6,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import com.blackaby.Backend.GB.CPU.GBProcessor;
-import com.blackaby.Backend.GB.Graphics.GBColor;
 import com.blackaby.Backend.GB.Memory.GBMemAddresses;
 import com.blackaby.Backend.GB.Memory.GBMemory;
 import com.blackaby.Backend.GB.TestSupport.EmulatorTestUtils;

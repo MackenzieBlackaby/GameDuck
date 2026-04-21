@@ -221,10 +221,6 @@ public final class ShaderPresetDocument {
         return value.trim();
     }
 
-    private static int clampRenderScale(int renderScale) {
-        return Math.max(1, Math.min(6, renderScale));
-    }
-
     private static String requiredString(JsonObject object, String key) {
         if (!object.has(key) || object.get(key).isJsonNull()) {
             throw new IllegalArgumentException("Missing required \"" + key + "\" field.");

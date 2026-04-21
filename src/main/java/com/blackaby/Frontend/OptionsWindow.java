@@ -4,10 +4,8 @@ import com.blackaby.Backend.GB.GBBackendManager;
 import com.blackaby.Backend.GB.Graphics.GBColor;
 import com.blackaby.Backend.Platform.EmulatorButton;
 import com.blackaby.Backend.Platform.EmulatorProfile;
-import com.blackaby.Backend.Helpers.ManagedGameRegistry;
 import com.blackaby.Backend.Helpers.SaveFileManager;
 import com.blackaby.Frontend.Borders.DisplayBorderManager;
-import com.blackaby.Frontend.Borders.DisplayBorderPreviewRenderer;
 import com.blackaby.Frontend.Borders.LoadedDisplayBorder;
 import com.blackaby.Frontend.Shaders.DisplayShaderManager;
 import com.blackaby.Frontend.Shaders.LoadedDisplayShader;
@@ -69,7 +67,6 @@ import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
-import java.awt.Desktop;
 import java.awt.Dimension;
 import java.awt.FileDialog;
 import java.awt.FlowLayout;
@@ -77,10 +74,7 @@ import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.GridBagConstraints;
-import java.awt.GridBagLayout;
 import java.awt.GridLayout;
-import java.awt.Insets;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.Point;
@@ -97,7 +91,6 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.Line2D;
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -453,22 +446,23 @@ public class OptionsWindow extends DuckWindow {
         return panel;
     }
 
-    private JPanel createFillStackPanel() {
-        JPanel panel = new JPanel(new GridBagLayout());
-        panel.setOpaque(false);
-        return panel;
-    }
+    // private JPanel createFillStackPanel() {
+    // JPanel panel = new JPanel(new GridBagLayout());
+    // panel.setOpaque(false);
+    // return panel;
+    // }
 
-    private void addFillStackRow(JPanel panel, JComponent component, int row, int topInset) {
-        GridBagConstraints constraints = new GridBagConstraints();
-        constraints.gridx = 0;
-        constraints.gridy = row;
-        constraints.weightx = 1.0;
-        constraints.fill = GridBagConstraints.HORIZONTAL;
-        constraints.anchor = GridBagConstraints.NORTHWEST;
-        constraints.insets = new Insets(topInset, 0, 0, 0);
-        panel.add(component, constraints);
-    }
+    // private void addFillStackRow(JPanel panel, JComponent component, int row, int
+    // topInset) {
+    // GridBagConstraints constraints = new GridBagConstraints();
+    // constraints.gridx = 0;
+    // constraints.gridy = row;
+    // constraints.weightx = 1.0;
+    // constraints.fill = GridBagConstraints.HORIZONTAL;
+    // constraints.anchor = GridBagConstraints.NORTHWEST;
+    // constraints.insets = new Insets(topInset, 0, 0, 0);
+    // panel.add(component, constraints);
+    // }
 
     private JComponent createUnifiedPalettePanel() {
         JPanel content = new JPanel();
@@ -485,9 +479,10 @@ public class OptionsWindow extends DuckWindow {
             gbSectionBody.removeAll();
             gbSectionBody.add(createFieldCard(UiText.OptionsWindow.GBC_NON_CGB_MODE_TITLE, dmgPaletteModeSelector));
 
-            DmgPaletteModeOption selectedMode = dmgPaletteModeSelector.getSelectedItem() instanceof DmgPaletteModeOption option
-                    ? option
-                    : DmgPaletteModeOption.GBC_ORIGINAL;
+            DmgPaletteModeOption selectedMode = dmgPaletteModeSelector
+                    .getSelectedItem() instanceof DmgPaletteModeOption option
+                            ? option
+                            : DmgPaletteModeOption.GBC_ORIGINAL;
             if (selectedMode == DmgPaletteModeOption.CUSTOM_PALETTE) {
                 gbSectionBody.add(Box.createVerticalStrut(8));
                 gbSectionBody.add(createCompactWindowOptionCard(
@@ -527,7 +522,8 @@ public class OptionsWindow extends DuckWindow {
             clearSwatchReferences(gbcCompatibilityPaletteSwatches);
             gbcSectionBody.removeAll();
             gbcSectionBody
-                    .add(createFieldCard(UiText.OptionsWindow.GBC_COMPATIBLE_MODE_TITLE, gbcCompatiblePaletteModeSelector));
+                    .add(createFieldCard(UiText.OptionsWindow.GBC_COMPATIBLE_MODE_TITLE,
+                            gbcCompatiblePaletteModeSelector));
 
             GbcCompatiblePaletteModeOption selectedMode = gbcCompatiblePaletteModeSelector
                     .getSelectedItem() instanceof GbcCompatiblePaletteModeOption option
@@ -625,95 +621,110 @@ public class OptionsWindow extends DuckWindow {
         return content;
     }
 
-    private JComponent createDmgPaletteWorkspaceCard() {
-        JPanel content = new JPanel();
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setOpaque(false);
+    // private JComponent createDmgPaletteWorkspaceCard() {
+    // JPanel content = new JPanel();
+    // content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+    // content.setOpaque(false);
 
-        JLabel title = createFieldLabel(UiText.OptionsWindow.ACTIVE_DMG_PALETTE_TITLE);
-        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
-        content.add(title);
-        content.add(Box.createVerticalStrut(8));
-        content.add(createPalettePreviewStrip());
-        content.add(Box.createVerticalStrut(10));
+    // JLabel title =
+    // createFieldLabel(UiText.OptionsWindow.ACTIVE_DMG_PALETTE_TITLE);
+    // title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+    // content.add(title);
+    // content.add(Box.createVerticalStrut(8));
+    // content.add(createPalettePreviewStrip());
+    // content.add(Box.createVerticalStrut(10));
 
-        JTextField paletteNameField = new JTextField();
-        configureCompactPaletteField(paletteNameField);
-        content.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_PALETTE, paletteNameField));
-        content.add(Box.createVerticalStrut(6));
+    // JTextField paletteNameField = new JTextField();
+    // configureCompactPaletteField(paletteNameField);
+    // content.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_PALETTE,
+    // paletteNameField));
+    // content.add(Box.createVerticalStrut(6));
 
-        JButton importPaletteButton = createSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
-        configureCompactPaletteButton(importPaletteButton);
-        JButton savePaletteButton = createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
-        configureCompactPaletteButton(savePaletteButton);
-        content.add(createResponsiveGroup(96, 2, savePaletteButton, importPaletteButton));
-        content.add(Box.createVerticalStrut(10));
+    // JButton importPaletteButton =
+    // createSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
+    // configureCompactPaletteButton(importPaletteButton);
+    // JButton savePaletteButton =
+    // createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
+    // configureCompactPaletteButton(savePaletteButton);
+    // content.add(createResponsiveGroup(96, 2, savePaletteButton,
+    // importPaletteButton));
+    // content.add(Box.createVerticalStrut(10));
 
-        JComboBox<String> savedPaletteSelector = new JComboBox<>();
-        configureCompactPaletteSelector(savedPaletteSelector);
-        savedPaletteSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-        savedPaletteSelector.setBackground(Styling.surfaceColour);
-        savedPaletteSelector.setForeground(accentColour);
-        content.add(createFieldCard(UiText.OptionsWindow.SAVED_PALETTE_LABEL, savedPaletteSelector));
-        content.add(Box.createVerticalStrut(6));
+    // JComboBox<String> savedPaletteSelector = new JComboBox<>();
+    // configureCompactPaletteSelector(savedPaletteSelector);
+    // savedPaletteSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+    // savedPaletteSelector.setBackground(Styling.surfaceColour);
+    // savedPaletteSelector.setForeground(accentColour);
+    // content.add(createFieldCard(UiText.OptionsWindow.SAVED_PALETTE_LABEL,
+    // savedPaletteSelector));
+    // content.add(Box.createVerticalStrut(6));
 
-        JButton loadPaletteButton = createSecondaryButton(UiText.PaletteManager.LOAD_BUTTON);
-        configureCompactPaletteButton(loadPaletteButton);
-        loadPaletteButton.addActionListener(event -> {
-            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
-            if (selectedPalette == null || selectedPalette.isBlank()) {
-                return;
-            }
-            if (Config.LoadPalette(selectedPalette)) {
-                refreshPaletteDetails();
-            }
-        });
+    // JButton loadPaletteButton =
+    // createSecondaryButton(UiText.PaletteManager.LOAD_BUTTON);
+    // configureCompactPaletteButton(loadPaletteButton);
+    // loadPaletteButton.addActionListener(event -> {
+    // String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+    // if (selectedPalette == null || selectedPalette.isBlank()) {
+    // return;
+    // }
+    // if (Config.LoadPalette(selectedPalette)) {
+    // refreshPaletteDetails();
+    // }
+    // });
 
-        JButton deletePaletteButton = createSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
-        configureCompactPaletteButton(deletePaletteButton);
-        deletePaletteButton.addActionListener(event -> {
-            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
-            if (selectedPalette == null || selectedPalette.isBlank()) {
-                return;
-            }
+    // JButton deletePaletteButton =
+    // createSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
+    // configureCompactPaletteButton(deletePaletteButton);
+    // deletePaletteButton.addActionListener(event -> {
+    // String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+    // if (selectedPalette == null || selectedPalette.isBlank()) {
+    // return;
+    // }
 
-            int result = JOptionPane.showConfirmDialog(this,
-                    UiText.PaletteManager.DeleteConfirmMessage(false, selectedPalette),
-                    UiText.PaletteManager.DeleteConfirmTitle(false),
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE);
-            if (result != JOptionPane.YES_OPTION) {
-                return;
-            }
+    // int result = JOptionPane.showConfirmDialog(this,
+    // UiText.PaletteManager.DeleteConfirmMessage(false, selectedPalette),
+    // UiText.PaletteManager.DeleteConfirmTitle(false),
+    // JOptionPane.YES_NO_OPTION,
+    // JOptionPane.WARNING_MESSAGE);
+    // if (result != JOptionPane.YES_OPTION) {
+    // return;
+    // }
 
-            Config.DeletePalette(selectedPalette);
-            refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
-        });
+    // Config.DeletePalette(selectedPalette);
+    // refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton,
+    // deletePaletteButton);
+    // });
 
-        importPaletteButton.addActionListener(event -> {
-            importSavedPalettes(false);
-            refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
-        });
+    // importPaletteButton.addActionListener(event -> {
+    // importSavedPalettes(false);
+    // refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton,
+    // deletePaletteButton);
+    // });
 
-        savePaletteButton.addActionListener(event -> {
-            String name = paletteNameField.getText().trim();
-            if (name.isEmpty()) {
-                JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteNameRequiredMessage(),
-                        UiText.Common.WARNING_TITLE,
-                        JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+    // savePaletteButton.addActionListener(event -> {
+    // String name = paletteNameField.getText().trim();
+    // if (name.isEmpty()) {
+    // JOptionPane.showMessageDialog(this,
+    // UiText.OptionsWindow.PaletteNameRequiredMessage(),
+    // UiText.Common.WARNING_TITLE,
+    // JOptionPane.WARNING_MESSAGE);
+    // return;
+    // }
 
-            Config.SavePalette(name);
-            JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteSavedMessage(name));
-            refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
-            savedPaletteSelector.setSelectedItem(name);
-        });
+    // Config.SavePalette(name);
+    // JOptionPane.showMessageDialog(this,
+    // UiText.OptionsWindow.PaletteSavedMessage(name));
+    // refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton,
+    // deletePaletteButton);
+    // savedPaletteSelector.setSelectedItem(name);
+    // });
 
-        content.add(createResponsiveGroup(96, 2, loadPaletteButton, deletePaletteButton));
-        refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
-        return createCompactWindowOptionCard(content);
-    }
+    // content.add(createResponsiveGroup(96, 2, loadPaletteButton,
+    // deletePaletteButton));
+    // refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton,
+    // deletePaletteButton);
+    // return createCompactWindowOptionCard(content);
+    // }
 
     private JPanel createPaletteSectionBodyPanel() {
         JPanel panel = new JPanel();
@@ -858,124 +869,138 @@ public class OptionsWindow extends DuckWindow {
         }
     }
 
-    private JComponent createGbcPaletteWorkspaceCard() {
-        JPanel content = new JPanel();
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setOpaque(false);
+    // private JComponent createGbcPaletteWorkspaceCard() {
+    // JPanel content = new JPanel();
+    // content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+    // content.setOpaque(false);
 
-        JLabel title = createFieldLabel(UiText.OptionsWindow.SECTION_GBC_TITLE);
-        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
-        content.add(title);
-        content.add(Box.createVerticalStrut(8));
-        content.add(createGbcPaletteMatrix());
-        content.add(Box.createVerticalStrut(10));
+    // JLabel title = createFieldLabel(UiText.OptionsWindow.SECTION_GBC_TITLE);
+    // title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 14f));
+    // content.add(title);
+    // content.add(Box.createVerticalStrut(8));
+    // content.add(createGbcPaletteMatrix());
+    // content.add(Box.createVerticalStrut(10));
 
-        JTextField paletteNameField = new JTextField();
-        configureCompactPaletteField(paletteNameField);
-        content.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_GBC_PALETTE, paletteNameField));
-        content.add(Box.createVerticalStrut(6));
+    // JTextField paletteNameField = new JTextField();
+    // configureCompactPaletteField(paletteNameField);
+    // content.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_GBC_PALETTE,
+    // paletteNameField));
+    // content.add(Box.createVerticalStrut(6));
 
-        JButton importPaletteButton = createSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
-        configureCompactPaletteButton(importPaletteButton);
-        JButton savePaletteButton = createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
-        configureCompactPaletteButton(savePaletteButton);
-        content.add(createResponsiveGroup(96, 2, savePaletteButton, importPaletteButton));
-        content.add(Box.createVerticalStrut(10));
+    // JButton importPaletteButton =
+    // createSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
+    // configureCompactPaletteButton(importPaletteButton);
+    // JButton savePaletteButton =
+    // createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
+    // configureCompactPaletteButton(savePaletteButton);
+    // content.add(createResponsiveGroup(96, 2, savePaletteButton,
+    // importPaletteButton));
+    // content.add(Box.createVerticalStrut(10));
 
-        JComboBox<String> savedPaletteSelector = new JComboBox<>();
-        configureCompactPaletteSelector(savedPaletteSelector);
-        savedPaletteSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-        savedPaletteSelector.setBackground(Styling.surfaceColour);
-        savedPaletteSelector.setForeground(accentColour);
-        content.add(createFieldCard(UiText.OptionsWindow.SAVED_GBC_PALETTE_LABEL, savedPaletteSelector));
-        content.add(Box.createVerticalStrut(6));
+    // JComboBox<String> savedPaletteSelector = new JComboBox<>();
+    // configureCompactPaletteSelector(savedPaletteSelector);
+    // savedPaletteSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+    // savedPaletteSelector.setBackground(Styling.surfaceColour);
+    // savedPaletteSelector.setForeground(accentColour);
+    // content.add(createFieldCard(UiText.OptionsWindow.SAVED_GBC_PALETTE_LABEL,
+    // savedPaletteSelector));
+    // content.add(Box.createVerticalStrut(6));
 
-        JButton loadPaletteButton = createSecondaryButton(UiText.PaletteManager.LOAD_BUTTON);
-        configureCompactPaletteButton(loadPaletteButton);
-        loadPaletteButton.addActionListener(event -> {
-            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
-            if (selectedPalette == null || selectedPalette.isBlank()) {
-                return;
-            }
-            if (Config.LoadGbcPalette(selectedPalette)) {
-                refreshPaletteDetails();
-            }
-        });
+    // JButton loadPaletteButton =
+    // createSecondaryButton(UiText.PaletteManager.LOAD_BUTTON);
+    // configureCompactPaletteButton(loadPaletteButton);
+    // loadPaletteButton.addActionListener(event -> {
+    // String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+    // if (selectedPalette == null || selectedPalette.isBlank()) {
+    // return;
+    // }
+    // if (Config.LoadGbcPalette(selectedPalette)) {
+    // refreshPaletteDetails();
+    // }
+    // });
 
-        JButton deletePaletteButton = createSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
-        configureCompactPaletteButton(deletePaletteButton);
-        deletePaletteButton.addActionListener(event -> {
-            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
-            if (selectedPalette == null || selectedPalette.isBlank()) {
-                return;
-            }
+    // JButton deletePaletteButton =
+    // createSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
+    // configureCompactPaletteButton(deletePaletteButton);
+    // deletePaletteButton.addActionListener(event -> {
+    // String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+    // if (selectedPalette == null || selectedPalette.isBlank()) {
+    // return;
+    // }
 
-            int result = JOptionPane.showConfirmDialog(this,
-                    UiText.PaletteManager.DeleteConfirmMessage(true, selectedPalette),
-                    UiText.PaletteManager.DeleteConfirmTitle(true),
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE);
-            if (result != JOptionPane.YES_OPTION) {
-                return;
-            }
+    // int result = JOptionPane.showConfirmDialog(this,
+    // UiText.PaletteManager.DeleteConfirmMessage(true, selectedPalette),
+    // UiText.PaletteManager.DeleteConfirmTitle(true),
+    // JOptionPane.YES_NO_OPTION,
+    // JOptionPane.WARNING_MESSAGE);
+    // if (result != JOptionPane.YES_OPTION) {
+    // return;
+    // }
 
-            Config.DeleteGbcPalette(selectedPalette);
-            refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
-        });
+    // Config.DeleteGbcPalette(selectedPalette);
+    // refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton,
+    // deletePaletteButton);
+    // });
 
-        importPaletteButton.addActionListener(event -> {
-            importSavedPalettes(true);
-            refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
-        });
+    // importPaletteButton.addActionListener(event -> {
+    // importSavedPalettes(true);
+    // refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton,
+    // deletePaletteButton);
+    // });
 
-        savePaletteButton.addActionListener(event -> {
-            String name = paletteNameField.getText().trim();
-            if (name.isEmpty()) {
-                JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteNameRequiredMessage(),
-                        UiText.Common.WARNING_TITLE,
-                        JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+    // savePaletteButton.addActionListener(event -> {
+    // String name = paletteNameField.getText().trim();
+    // if (name.isEmpty()) {
+    // JOptionPane.showMessageDialog(this,
+    // UiText.OptionsWindow.PaletteNameRequiredMessage(),
+    // UiText.Common.WARNING_TITLE,
+    // JOptionPane.WARNING_MESSAGE);
+    // return;
+    // }
 
-            Config.SaveGbcPalette(name);
-            JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteSavedMessage(name));
-            refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
-            savedPaletteSelector.setSelectedItem(name);
-        });
+    // Config.SaveGbcPalette(name);
+    // JOptionPane.showMessageDialog(this,
+    // UiText.OptionsWindow.PaletteSavedMessage(name));
+    // refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton,
+    // deletePaletteButton);
+    // savedPaletteSelector.setSelectedItem(name);
+    // });
 
-        content.add(createResponsiveGroup(96, 2, loadPaletteButton, deletePaletteButton));
-        refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
-        return createCompactWindowOptionCard(content);
-    }
+    // content.add(createResponsiveGroup(96, 2, loadPaletteButton,
+    // deletePaletteButton));
+    // refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton,
+    // deletePaletteButton);
+    // return createCompactWindowOptionCard(content);
+    // }
 
-    private JComponent createPalettePreviewStrip() {
-        JPanel swatchStrip = new JPanel(new GridLayout(1, 4, 6, 0));
-        swatchStrip.setOpaque(false);
+    // private JComponent createPalettePreviewStrip() {
+    //     JPanel swatchStrip = new JPanel(new GridLayout(1, 4, 6, 0));
+    //     swatchStrip.setOpaque(false);
 
-        GBColor[] palette = Settings.CurrentPalette();
-        String[] toneNames = UiText.OptionsWindow.DMG_TONE_NAMES;
-        for (int i = 0; i < palette.length; i++) {
-            JPanel swatch = new JPanel();
-            swatch.setPreferredSize(new Dimension(34, 34));
-            swatch.setBackground(palette[i].ToColour());
-            swatch.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(58, 92, 132, 60), 1, true),
-                    BorderFactory.createEmptyBorder(1, 1, 1, 1)));
-            swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            swatch.setToolTipText(UiText.OptionsWindow.EditPaletteToneTooltip(toneNames[i]));
-            final int paletteIndex = i;
-            swatch.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent event) {
-                    chooseColor(paletteIndex, UiText.OptionsWindow.PaletteToneColorLabel(toneNames[paletteIndex]));
-                }
-            });
-            paletteStripPreviews[i] = swatch;
-            swatchStrip.add(swatch);
-        }
+    //     GBColor[] palette = Settings.CurrentPalette();
+    //     String[] toneNames = UiText.OptionsWindow.DMG_TONE_NAMES;
+    //     for (int i = 0; i < palette.length; i++) {
+    //         JPanel swatch = new JPanel();
+    //         swatch.setPreferredSize(new Dimension(34, 34));
+    //         swatch.setBackground(palette[i].ToColour());
+    //         swatch.setBorder(BorderFactory.createCompoundBorder(
+    //                 BorderFactory.createLineBorder(new Color(58, 92, 132, 60), 1, true),
+    //                 BorderFactory.createEmptyBorder(1, 1, 1, 1)));
+    //         swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    //         swatch.setToolTipText(UiText.OptionsWindow.EditPaletteToneTooltip(toneNames[i]));
+    //         final int paletteIndex = i;
+    //         swatch.addMouseListener(new MouseAdapter() {
+    //             @Override
+    //             public void mouseClicked(MouseEvent event) {
+    //                 chooseColor(paletteIndex, UiText.OptionsWindow.PaletteToneColorLabel(toneNames[paletteIndex]));
+    //             }
+    //         });
+    //         paletteStripPreviews[i] = swatch;
+    //         swatchStrip.add(swatch);
+    //     }
 
-        return swatchStrip;
-    }
+    //     return swatchStrip;
+    // }
 
     private JComponent createGbcPaletteMatrix() {
         JPanel content = new JPanel();
@@ -1011,302 +1036,303 @@ public class OptionsWindow extends DuckWindow {
         return row;
     }
 
-    private JComponent createPaletteLibraryPanel() {
-        JPanel content = new JPanel();
-        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
-        content.setOpaque(false);
+    // private JComponent createPaletteLibraryPanel() {
+    //     JPanel content = new JPanel();
+    //     content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+    //     content.setOpaque(false);
 
-        dmgPaletteModeSelector = new JComboBox<>(DmgPaletteModeOption.values());
-        configureCompactPaletteSelector(dmgPaletteModeSelector);
-        dmgPaletteModeSelector.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        dmgPaletteModeSelector.setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.nonGbcColourMode));
-        dmgPaletteModeSelector.addActionListener(event -> {
-            Object selectedItem = dmgPaletteModeSelector.getSelectedItem();
-            if (selectedItem instanceof DmgPaletteModeOption selectedMode) {
-                Settings.nonGbcColourMode = selectedMode.mode;
-            }
-            Config.Save();
-        });
+    //     dmgPaletteModeSelector = new JComboBox<>(DmgPaletteModeOption.values());
+    //     configureCompactPaletteSelector(dmgPaletteModeSelector);
+    //     dmgPaletteModeSelector.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+    //     dmgPaletteModeSelector.setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.nonGbcColourMode));
+    //     dmgPaletteModeSelector.addActionListener(event -> {
+    //         Object selectedItem = dmgPaletteModeSelector.getSelectedItem();
+    //         if (selectedItem instanceof DmgPaletteModeOption selectedMode) {
+    //             Settings.nonGbcColourMode = selectedMode.mode;
+    //         }
+    //         Config.Save();
+    //     });
 
-        content.add(createResponsiveGroup(
-                240,
-                2,
-                createCompactSelectorWindowOptionCard(
-                        UiText.OptionsWindow.GBC_NON_CGB_MODE_TITLE,
-                        dmgPaletteModeSelector),
-                createPalettePreviewBanner()));
-        content.add(Box.createVerticalStrut(6));
+    //     content.add(createResponsiveGroup(
+    //             240,
+    //             2,
+    //             createCompactSelectorWindowOptionCard(
+    //                     UiText.OptionsWindow.GBC_NON_CGB_MODE_TITLE,
+    //                     dmgPaletteModeSelector),
+    //             createPalettePreviewBanner()));
+    //     content.add(Box.createVerticalStrut(6));
 
-        JPanel actionCardContent = new JPanel();
-        actionCardContent.setLayout(new BoxLayout(actionCardContent, BoxLayout.Y_AXIS));
-        actionCardContent.setOpaque(false);
+    //     JPanel actionCardContent = new JPanel();
+    //     actionCardContent.setLayout(new BoxLayout(actionCardContent, BoxLayout.Y_AXIS));
+    //     actionCardContent.setOpaque(false);
 
-        JTextField paletteNameField = new JTextField();
-        configureCompactPaletteField(paletteNameField);
-        actionCardContent.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_PALETTE, paletteNameField));
+    //     JTextField paletteNameField = new JTextField();
+    //     configureCompactPaletteField(paletteNameField);
+    //     actionCardContent.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_PALETTE, paletteNameField));
 
-        JComboBox<String> savedPaletteSelector = new JComboBox<>();
-        configureCompactPaletteSelector(savedPaletteSelector);
-        savedPaletteSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-        savedPaletteSelector.setBackground(Styling.surfaceColour);
-        savedPaletteSelector.setForeground(accentColour);
+    //     JComboBox<String> savedPaletteSelector = new JComboBox<>();
+    //     configureCompactPaletteSelector(savedPaletteSelector);
+    //     savedPaletteSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+    //     savedPaletteSelector.setBackground(Styling.surfaceColour);
+    //     savedPaletteSelector.setForeground(accentColour);
 
-        JButton loadPaletteButton = createSecondaryButton(UiText.PaletteManager.LOAD_BUTTON);
-        configureCompactPaletteButton(loadPaletteButton);
-        loadPaletteButton.addActionListener(event -> {
-            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
-            if (selectedPalette == null || selectedPalette.isBlank()) {
-                return;
-            }
-            if (Config.LoadPalette(selectedPalette)) {
-                refreshPaletteDetails();
-            }
-        });
+    //     JButton loadPaletteButton = createSecondaryButton(UiText.PaletteManager.LOAD_BUTTON);
+    //     configureCompactPaletteButton(loadPaletteButton);
+    //     loadPaletteButton.addActionListener(event -> {
+    //         String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+    //         if (selectedPalette == null || selectedPalette.isBlank()) {
+    //             return;
+    //         }
+    //         if (Config.LoadPalette(selectedPalette)) {
+    //             refreshPaletteDetails();
+    //         }
+    //     });
 
-        JButton deletePaletteButton = createSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
-        configureCompactPaletteButton(deletePaletteButton);
-        deletePaletteButton.addActionListener(event -> {
-            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
-            if (selectedPalette == null || selectedPalette.isBlank()) {
-                return;
-            }
+    //     JButton deletePaletteButton = createSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
+    //     configureCompactPaletteButton(deletePaletteButton);
+    //     deletePaletteButton.addActionListener(event -> {
+    //         String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+    //         if (selectedPalette == null || selectedPalette.isBlank()) {
+    //             return;
+    //         }
 
-            int result = JOptionPane.showConfirmDialog(this,
-                    UiText.PaletteManager.DeleteConfirmMessage(false, selectedPalette),
-                    UiText.PaletteManager.DeleteConfirmTitle(false),
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE);
-            if (result != JOptionPane.YES_OPTION) {
-                return;
-            }
+    //         int result = JOptionPane.showConfirmDialog(this,
+    //                 UiText.PaletteManager.DeleteConfirmMessage(false, selectedPalette),
+    //                 UiText.PaletteManager.DeleteConfirmTitle(false),
+    //                 JOptionPane.YES_NO_OPTION,
+    //                 JOptionPane.WARNING_MESSAGE);
+    //         if (result != JOptionPane.YES_OPTION) {
+    //             return;
+    //         }
 
-            Config.DeletePalette(selectedPalette);
-            refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
-        });
+    //         Config.DeletePalette(selectedPalette);
+    //         refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
+    //     });
 
-        JButton importPaletteButton = createSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
-        configureCompactPaletteButton(importPaletteButton);
-        importPaletteButton.addActionListener(event -> {
-            importSavedPalettes(false);
-            refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
-        });
+    //     JButton importPaletteButton = createSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
+    //     configureCompactPaletteButton(importPaletteButton);
+    //     importPaletteButton.addActionListener(event -> {
+    //         importSavedPalettes(false);
+    //         refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
+    //     });
 
-        JButton savePaletteButton = createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
-        configureCompactPaletteButton(savePaletteButton);
-        savePaletteButton.addActionListener(event -> {
-            String name = paletteNameField.getText().trim();
-            if (name.isEmpty()) {
-                JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteNameRequiredMessage(),
-                        UiText.Common.WARNING_TITLE,
-                        JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+    //     JButton savePaletteButton = createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
+    //     configureCompactPaletteButton(savePaletteButton);
+    //     savePaletteButton.addActionListener(event -> {
+    //         String name = paletteNameField.getText().trim();
+    //         if (name.isEmpty()) {
+    //             JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteNameRequiredMessage(),
+    //                     UiText.Common.WARNING_TITLE,
+    //                     JOptionPane.WARNING_MESSAGE);
+    //             return;
+    //         }
 
-            Config.SavePalette(name);
-            JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteSavedMessage(name));
-            refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
-            savedPaletteSelector.setSelectedItem(name);
-        });
+    //         Config.SavePalette(name);
+    //         JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteSavedMessage(name));
+    //         refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
+    //         savedPaletteSelector.setSelectedItem(name);
+    //     });
 
-        actionCardContent.add(Box.createVerticalStrut(6));
-        actionCardContent.add(createResponsiveGroup(96, 2, savePaletteButton, importPaletteButton));
+    //     actionCardContent.add(Box.createVerticalStrut(6));
+    //     actionCardContent.add(createResponsiveGroup(96, 2, savePaletteButton, importPaletteButton));
 
-        JPanel savedPaletteCardContent = new JPanel();
-        savedPaletteCardContent.setLayout(new BoxLayout(savedPaletteCardContent, BoxLayout.Y_AXIS));
-        savedPaletteCardContent.setOpaque(false);
-        savedPaletteCardContent.add(createFieldCard(UiText.OptionsWindow.SAVED_PALETTE_LABEL, savedPaletteSelector));
-        savedPaletteCardContent.add(Box.createVerticalStrut(6));
-        savedPaletteCardContent.add(createResponsiveGroup(96, 2, loadPaletteButton, deletePaletteButton));
-        content.add(createResponsiveGroup(
-                240,
-                2,
-                createCompactWindowOptionCard(actionCardContent),
-                createCompactWindowOptionCard(savedPaletteCardContent)));
-        content.add(Box.createVerticalStrut(6));
+    //     JPanel savedPaletteCardContent = new JPanel();
+    //     savedPaletteCardContent.setLayout(new BoxLayout(savedPaletteCardContent, BoxLayout.Y_AXIS));
+    //     savedPaletteCardContent.setOpaque(false);
+    //     savedPaletteCardContent.add(createFieldCard(UiText.OptionsWindow.SAVED_PALETTE_LABEL, savedPaletteSelector));
+    //     savedPaletteCardContent.add(Box.createVerticalStrut(6));
+    //     savedPaletteCardContent.add(createResponsiveGroup(96, 2, loadPaletteButton, deletePaletteButton));
+    //     content.add(createResponsiveGroup(
+    //             240,
+    //             2,
+    //             createCompactWindowOptionCard(actionCardContent),
+    //             createCompactWindowOptionCard(savedPaletteCardContent)));
+    //     content.add(Box.createVerticalStrut(6));
 
-        JButton resetPaletteButton = createSecondaryButton(UiText.OptionsWindow.RESET_PALETTE_BUTTON);
-        configureCompactPaletteButton(resetPaletteButton, 120);
-        resetPaletteButton.addActionListener(event -> {
-            Settings.ResetPalette();
-            refreshPaletteDetails();
-            Config.Save();
-        });
+    //     JButton resetPaletteButton = createSecondaryButton(UiText.OptionsWindow.RESET_PALETTE_BUTTON);
+    //     configureCompactPaletteButton(resetPaletteButton, 120);
+    //     resetPaletteButton.addActionListener(event -> {
+    //         Settings.ResetPalette();
+    //         refreshPaletteDetails();
+    //         Config.Save();
+    //     });
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        actions.setOpaque(false);
-        actions.add(resetPaletteButton);
-        content.add(actions);
-        refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
-        return content;
-    }
+    //     JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    //     actions.setOpaque(false);
+    //     actions.add(resetPaletteButton);
+    //     content.add(actions);
+    //     refreshSavedPaletteSelector(savedPaletteSelector, false, loadPaletteButton, deletePaletteButton);
+    //     return content;
+    // }
 
-    private JComponent createGbcPalettePanel() {
-        JPanel container = new JPanel();
-        container.setLayout(new BoxLayout(container, BoxLayout.Y_AXIS));
-        container.setOpaque(false);
+    // private JComponent createGbcPalettePanel() {
+    //     JPanel container = new JPanel();
+    //     container.setLayout(new BoxLayout(container, BoxLayout.Y_AXIS));
+    //     container.setOpaque(false);
 
-        gbcCompatiblePaletteModeSelector = new JComboBox<>(GbcCompatiblePaletteModeOption.values());
-        configureCompactPaletteSelector(gbcCompatiblePaletteModeSelector);
-        gbcCompatiblePaletteModeSelector.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        gbcCompatiblePaletteModeSelector.setSelectedItem(
-                GbcCompatiblePaletteModeOption.fromSetting(Settings.preferDmgModeForGbcCompatibleGames));
-        gbcCompatiblePaletteModeSelector.addActionListener(event -> {
-            Object selectedItem = gbcCompatiblePaletteModeSelector.getSelectedItem();
-            if (selectedItem instanceof GbcCompatiblePaletteModeOption selectedMode) {
-                Settings.preferDmgModeForGbcCompatibleGames = selectedMode.preferDmgModeForCompatibleGames;
-            }
-            Config.Save();
-        });
+    //     gbcCompatiblePaletteModeSelector = new JComboBox<>(GbcCompatiblePaletteModeOption.values());
+    //     configureCompactPaletteSelector(gbcCompatiblePaletteModeSelector);
+    //     gbcCompatiblePaletteModeSelector.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+    //     gbcCompatiblePaletteModeSelector.setSelectedItem(
+    //             GbcCompatiblePaletteModeOption.fromSetting(Settings.preferDmgModeForGbcCompatibleGames));
+    //     gbcCompatiblePaletteModeSelector.addActionListener(event -> {
+    //         Object selectedItem = gbcCompatiblePaletteModeSelector.getSelectedItem();
+    //         if (selectedItem instanceof GbcCompatiblePaletteModeOption selectedMode) {
+    //             Settings.preferDmgModeForGbcCompatibleGames = selectedMode.preferDmgModeForCompatibleGames;
+    //         }
+    //         Config.Save();
+    //     });
 
-        JPanel paletteGrid = createResponsiveGroup(132, 3);
-        paletteGrid.add(createGbcPaletteRow(0, UiText.OptionsWindow.GBC_BACKGROUND_PALETTE_TITLE,
-                UiText.OptionsWindow.GBC_BACKGROUND_PALETTE_HELPER,
-                Settings.CurrentGbcBackgroundPalette()));
-        paletteGrid.add(createGbcPaletteRow(1, UiText.OptionsWindow.GBC_SPRITE0_PALETTE_TITLE,
-                UiText.OptionsWindow.GBC_SPRITE0_PALETTE_HELPER,
-                Settings.CurrentGbcSpritePalette0()));
-        paletteGrid.add(createGbcPaletteRow(2, UiText.OptionsWindow.GBC_SPRITE1_PALETTE_TITLE,
-                UiText.OptionsWindow.GBC_SPRITE1_PALETTE_HELPER,
-                Settings.CurrentGbcSpritePalette1()));
+    //     JPanel paletteGrid = createResponsiveGroup(132, 3);
+    //     paletteGrid.add(createGbcPaletteRow(0, UiText.OptionsWindow.GBC_BACKGROUND_PALETTE_TITLE,
+    //             UiText.OptionsWindow.GBC_BACKGROUND_PALETTE_HELPER,
+    //             Settings.CurrentGbcBackgroundPalette()));
+    //     paletteGrid.add(createGbcPaletteRow(1, UiText.OptionsWindow.GBC_SPRITE0_PALETTE_TITLE,
+    //             UiText.OptionsWindow.GBC_SPRITE0_PALETTE_HELPER,
+    //             Settings.CurrentGbcSpritePalette0()));
+    //     paletteGrid.add(createGbcPaletteRow(2, UiText.OptionsWindow.GBC_SPRITE1_PALETTE_TITLE,
+    //             UiText.OptionsWindow.GBC_SPRITE1_PALETTE_HELPER,
+    //             Settings.CurrentGbcSpritePalette1()));
 
-        JPanel actionCardContent = new JPanel();
-        actionCardContent.setLayout(new BoxLayout(actionCardContent, BoxLayout.Y_AXIS));
-        actionCardContent.setOpaque(false);
+    //     JPanel actionCardContent = new JPanel();
+    //     actionCardContent.setLayout(new BoxLayout(actionCardContent, BoxLayout.Y_AXIS));
+    //     actionCardContent.setOpaque(false);
 
-        JTextField paletteNameField = new JTextField();
-        configureCompactPaletteField(paletteNameField);
-        actionCardContent.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_GBC_PALETTE, paletteNameField));
+    //     JTextField paletteNameField = new JTextField();
+    //     configureCompactPaletteField(paletteNameField);
+    //     actionCardContent.add(createFieldCard(UiText.OptionsWindow.SAVE_CURRENT_GBC_PALETTE, paletteNameField));
 
-        JComboBox<String> savedPaletteSelector = new JComboBox<>();
-        configureCompactPaletteSelector(savedPaletteSelector);
-        savedPaletteSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-        savedPaletteSelector.setBackground(Styling.surfaceColour);
-        savedPaletteSelector.setForeground(accentColour);
+    //     JComboBox<String> savedPaletteSelector = new JComboBox<>();
+    //     configureCompactPaletteSelector(savedPaletteSelector);
+    //     savedPaletteSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
+    //     savedPaletteSelector.setBackground(Styling.surfaceColour);
+    //     savedPaletteSelector.setForeground(accentColour);
 
-        JButton loadPaletteButton = createSecondaryButton(UiText.PaletteManager.LOAD_BUTTON);
-        configureCompactPaletteButton(loadPaletteButton);
-        loadPaletteButton.addActionListener(event -> {
-            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
-            if (selectedPalette == null || selectedPalette.isBlank()) {
-                return;
-            }
-            if (Config.LoadGbcPalette(selectedPalette)) {
-                refreshPaletteDetails();
-            }
-        });
+    //     JButton loadPaletteButton = createSecondaryButton(UiText.PaletteManager.LOAD_BUTTON);
+    //     configureCompactPaletteButton(loadPaletteButton);
+    //     loadPaletteButton.addActionListener(event -> {
+    //         String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+    //         if (selectedPalette == null || selectedPalette.isBlank()) {
+    //             return;
+    //         }
+    //         if (Config.LoadGbcPalette(selectedPalette)) {
+    //             refreshPaletteDetails();
+    //         }
+    //     });
 
-        JButton deletePaletteButton = createSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
-        configureCompactPaletteButton(deletePaletteButton);
-        deletePaletteButton.addActionListener(event -> {
-            String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
-            if (selectedPalette == null || selectedPalette.isBlank()) {
-                return;
-            }
+    //     JButton deletePaletteButton = createSecondaryButton(UiText.PaletteManager.DELETE_BUTTON);
+    //     configureCompactPaletteButton(deletePaletteButton);
+    //     deletePaletteButton.addActionListener(event -> {
+    //         String selectedPalette = (String) savedPaletteSelector.getSelectedItem();
+    //         if (selectedPalette == null || selectedPalette.isBlank()) {
+    //             return;
+    //         }
 
-            int result = JOptionPane.showConfirmDialog(this,
-                    UiText.PaletteManager.DeleteConfirmMessage(true, selectedPalette),
-                    UiText.PaletteManager.DeleteConfirmTitle(true),
-                    JOptionPane.YES_NO_OPTION,
-                    JOptionPane.WARNING_MESSAGE);
-            if (result != JOptionPane.YES_OPTION) {
-                return;
-            }
+    //         int result = JOptionPane.showConfirmDialog(this,
+    //                 UiText.PaletteManager.DeleteConfirmMessage(true, selectedPalette),
+    //                 UiText.PaletteManager.DeleteConfirmTitle(true),
+    //                 JOptionPane.YES_NO_OPTION,
+    //                 JOptionPane.WARNING_MESSAGE);
+    //         if (result != JOptionPane.YES_OPTION) {
+    //             return;
+    //         }
 
-            Config.DeleteGbcPalette(selectedPalette);
-            refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
-        });
+    //         Config.DeleteGbcPalette(selectedPalette);
+    //         refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
+    //     });
 
-        JButton importPaletteButton = createSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
-        configureCompactPaletteButton(importPaletteButton);
-        importPaletteButton.addActionListener(event -> {
-            importSavedPalettes(true);
-            refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
-        });
+    //     JButton importPaletteButton = createSecondaryButton(UiText.PaletteManager.IMPORT_BUTTON);
+    //     configureCompactPaletteButton(importPaletteButton);
+    //     importPaletteButton.addActionListener(event -> {
+    //         importSavedPalettes(true);
+    //         refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
+    //     });
 
-        JButton savePaletteButton = createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
-        configureCompactPaletteButton(savePaletteButton);
-        savePaletteButton.addActionListener(event -> {
-            String name = paletteNameField.getText().trim();
-            if (name.isEmpty()) {
-                JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteNameRequiredMessage(),
-                        UiText.Common.WARNING_TITLE,
-                        JOptionPane.WARNING_MESSAGE);
-                return;
-            }
+    //     JButton savePaletteButton = createPrimaryButton(UiText.OptionsWindow.SAVE_PALETTE_BUTTON);
+    //     configureCompactPaletteButton(savePaletteButton);
+    //     savePaletteButton.addActionListener(event -> {
+    //         String name = paletteNameField.getText().trim();
+    //         if (name.isEmpty()) {
+    //             JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteNameRequiredMessage(),
+    //                     UiText.Common.WARNING_TITLE,
+    //                     JOptionPane.WARNING_MESSAGE);
+    //             return;
+    //         }
 
-            Config.SaveGbcPalette(name);
-            JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteSavedMessage(name));
-            refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
-            savedPaletteSelector.setSelectedItem(name);
-        });
+    //         Config.SaveGbcPalette(name);
+    //         JOptionPane.showMessageDialog(this, UiText.OptionsWindow.PaletteSavedMessage(name));
+    //         refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
+    //         savedPaletteSelector.setSelectedItem(name);
+    //     });
 
-        actionCardContent.add(Box.createVerticalStrut(6));
-        actionCardContent.add(createResponsiveGroup(96, 2, savePaletteButton, importPaletteButton));
+    //     actionCardContent.add(Box.createVerticalStrut(6));
+    //     actionCardContent.add(createResponsiveGroup(96, 2, savePaletteButton, importPaletteButton));
 
-        JButton resetGbcPaletteButton = createSecondaryButton(UiText.OptionsWindow.RESET_GBC_SETTINGS_BUTTON);
-        configureCompactPaletteButton(resetGbcPaletteButton, 132);
-        resetGbcPaletteButton.addActionListener(event -> {
-            Settings.ResetGbcPaletteMode();
-            if (gbcCompatiblePaletteModeSelector != null) {
-                gbcCompatiblePaletteModeSelector.setSelectedItem(
-                        GbcCompatiblePaletteModeOption.fromSetting(Settings.preferDmgModeForGbcCompatibleGames));
-            }
-            if (dmgPaletteModeSelector != null) {
-                dmgPaletteModeSelector
-                        .setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.nonGbcColourMode));
-            }
-            refreshPaletteDetails();
-            Config.Save();
-        });
+    //     JButton resetGbcPaletteButton = createSecondaryButton(UiText.OptionsWindow.RESET_GBC_SETTINGS_BUTTON);
+    //     configureCompactPaletteButton(resetGbcPaletteButton, 132);
+    //     resetGbcPaletteButton.addActionListener(event -> {
+    //         Settings.ResetGbcPaletteMode();
+    //         if (gbcCompatiblePaletteModeSelector != null) {
+    //             gbcCompatiblePaletteModeSelector.setSelectedItem(
+    //                     GbcCompatiblePaletteModeOption.fromSetting(Settings.preferDmgModeForGbcCompatibleGames));
+    //         }
+    //         if (dmgPaletteModeSelector != null) {
+    //             dmgPaletteModeSelector
+    //                     .setSelectedItem(DmgPaletteModeOption.fromSetting(Settings.nonGbcColourMode));
+    //         }
+    //         refreshPaletteDetails();
+    //         Config.Save();
+    //     });
 
-        JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        actions.setOpaque(false);
-        actions.add(resetGbcPaletteButton);
-        actions.setAlignmentX(Component.LEFT_ALIGNMENT);
+    //     JPanel actions = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    //     actions.setOpaque(false);
+    //     actions.add(resetGbcPaletteButton);
+    //     actions.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-        container.add(createCompactSelectorWindowOptionCard(
-                UiText.OptionsWindow.GBC_COMPATIBLE_MODE_TITLE,
-                gbcCompatiblePaletteModeSelector));
-        container.add(Box.createVerticalStrut(6));
-        container.add(paletteGrid);
-        container.add(Box.createVerticalStrut(6));
-        JPanel savedPaletteCardContent = new JPanel();
-        savedPaletteCardContent.setLayout(new BoxLayout(savedPaletteCardContent, BoxLayout.Y_AXIS));
-        savedPaletteCardContent.setOpaque(false);
-        savedPaletteCardContent.add(createFieldCard(UiText.OptionsWindow.SAVED_GBC_PALETTE_LABEL, savedPaletteSelector));
-        savedPaletteCardContent.add(Box.createVerticalStrut(6));
-        savedPaletteCardContent.add(createResponsiveGroup(96, 2, loadPaletteButton, deletePaletteButton));
-        container.add(createResponsiveGroup(
-                240,
-                2,
-                createCompactWindowOptionCard(actionCardContent),
-                createCompactWindowOptionCard(savedPaletteCardContent)));
-        container.add(Box.createVerticalStrut(6));
-        container.add(actions);
-        refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
-        return container;
-    }
+    //     container.add(createCompactSelectorWindowOptionCard(
+    //             UiText.OptionsWindow.GBC_COMPATIBLE_MODE_TITLE,
+    //             gbcCompatiblePaletteModeSelector));
+    //     container.add(Box.createVerticalStrut(6));
+    //     container.add(paletteGrid);
+    //     container.add(Box.createVerticalStrut(6));
+    //     JPanel savedPaletteCardContent = new JPanel();
+    //     savedPaletteCardContent.setLayout(new BoxLayout(savedPaletteCardContent, BoxLayout.Y_AXIS));
+    //     savedPaletteCardContent.setOpaque(false);
+    //     savedPaletteCardContent
+    //             .add(createFieldCard(UiText.OptionsWindow.SAVED_GBC_PALETTE_LABEL, savedPaletteSelector));
+    //     savedPaletteCardContent.add(Box.createVerticalStrut(6));
+    //     savedPaletteCardContent.add(createResponsiveGroup(96, 2, loadPaletteButton, deletePaletteButton));
+    //     container.add(createResponsiveGroup(
+    //             240,
+    //             2,
+    //             createCompactWindowOptionCard(actionCardContent),
+    //             createCompactWindowOptionCard(savedPaletteCardContent)));
+    //     container.add(Box.createVerticalStrut(6));
+    //     container.add(actions);
+    //     refreshSavedPaletteSelector(savedPaletteSelector, true, loadPaletteButton, deletePaletteButton);
+    //     return container;
+    // }
 
-    private JComponent createPaletteModeSelectorCard(String titleText, String helperText, JComboBox<?> selector) {
-        JPanel toggleCard = new JPanel(new BorderLayout());
-        toggleCard.setBackground(Styling.sectionHighlightColour);
-        toggleCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(14, 14, 14, 14)));
+    // private JComponent createPaletteModeSelectorCard(String titleText, String helperText, JComboBox<?> selector) {
+    //     JPanel toggleCard = new JPanel(new BorderLayout());
+    //     toggleCard.setBackground(Styling.sectionHighlightColour);
+    //     toggleCard.setBorder(BorderFactory.createCompoundBorder(
+    //             BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
+    //             BorderFactory.createEmptyBorder(14, 14, 14, 14)));
 
-        JPanel toggleText = createInfoTextBlock(titleText, helperText, 16f);
+    //     JPanel toggleText = createInfoTextBlock(titleText, helperText, 16f);
 
-        JPanel toggleWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        toggleWrap.setOpaque(false);
-        selector.setPreferredSize(new Dimension(220, 34));
-        selector.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
-        selector.setBackground(Styling.surfaceColour);
-        selector.setForeground(accentColour);
-        toggleWrap.add(selector);
+    //     JPanel toggleWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+    //     toggleWrap.setOpaque(false);
+    //     selector.setPreferredSize(new Dimension(220, 34));
+    //     selector.setMaximumSize(new Dimension(Integer.MAX_VALUE, 34));
+    //     selector.setBackground(Styling.surfaceColour);
+    //     selector.setForeground(accentColour);
+    //     toggleWrap.add(selector);
 
-        toggleCard.add(createResponsiveGroup(260, 2, toggleText, toggleWrap), BorderLayout.CENTER);
-        return toggleCard;
-    }
+    //     toggleCard.add(createResponsiveGroup(260, 2, toggleText, toggleWrap), BorderLayout.CENTER);
+    //     return toggleCard;
+    // }
 
     private JTextArea createWrappingTextArea(String text) {
         JTextArea area = new JTextArea(text) {
@@ -1332,27 +1358,27 @@ public class OptionsWindow extends DuckWindow {
         return area;
     }
 
-    private JComponent createGbcPaletteRow(int paletteIndex, String titleText, String helperText, GBColor[] palette) {
-        JPanel card = new JPanel(new BorderLayout(0, 4));
-        card.setBackground(Styling.cardTintColour);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+    // private JComponent createGbcPaletteRow(int paletteIndex, String titleText, String helperText, GBColor[] palette) {
+    //     JPanel card = new JPanel(new BorderLayout(0, 4));
+    //     card.setBackground(Styling.cardTintColour);
+    //     card.setBorder(BorderFactory.createCompoundBorder(
+    //             BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
+    //             BorderFactory.createEmptyBorder(5, 5, 5, 5)));
 
-        JLabel title = new JLabel(titleText);
-        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
-        title.setForeground(accentColour);
+    //     JLabel title = new JLabel(titleText);
+    //     title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+    //     title.setForeground(accentColour);
 
-        JPanel swatchGrid = new JPanel(new GridLayout(1, 4, 4, 0));
-        swatchGrid.setOpaque(false);
-        for (int colourIndex = 0; colourIndex < palette.length; colourIndex++) {
-            swatchGrid.add(createGbcPaletteSwatch(paletteIndex, titleText, colourIndex, palette[colourIndex]));
-        }
+    //     JPanel swatchGrid = new JPanel(new GridLayout(1, 4, 4, 0));
+    //     swatchGrid.setOpaque(false);
+    //     for (int colourIndex = 0; colourIndex < palette.length; colourIndex++) {
+    //         swatchGrid.add(createGbcPaletteSwatch(paletteIndex, titleText, colourIndex, palette[colourIndex]));
+    //     }
 
-        card.add(title, BorderLayout.NORTH);
-        card.add(swatchGrid, BorderLayout.CENTER);
-        return card;
-    }
+    //     card.add(title, BorderLayout.NORTH);
+    //     card.add(swatchGrid, BorderLayout.CENTER);
+    //     return card;
+    // }
 
     private JComponent createGbcPaletteSwatch(int paletteIndex, String paletteTitle, int colourIndex, GBColor colour) {
         int flatIndex = (paletteIndex * 4) + colourIndex;
@@ -1519,9 +1545,9 @@ public class OptionsWindow extends DuckWindow {
         return container;
     }
 
-    private JComponent createControllerPanel() {
-        return createControllerHubCard();
-    }
+    // private JComponent createControllerPanel() {
+    //     return createControllerHubCard();
+    // }
 
     private JComponent createControllerHubCard() {
         JPanel content = new JPanel();
@@ -1587,7 +1613,8 @@ public class OptionsWindow extends DuckWindow {
                 return;
             }
 
-            ControllerPollingMode selectedMode = (ControllerPollingMode) controllerPollingModeSelector.getSelectedItem();
+            ControllerPollingMode selectedMode = (ControllerPollingMode) controllerPollingModeSelector
+                    .getSelectedItem();
             if (selectedMode == null || selectedMode == Settings.controllerPollingMode) {
                 return;
             }
@@ -1652,9 +1679,9 @@ public class OptionsWindow extends DuckWindow {
         return content;
     }
 
-    private JComponent createShortcutPanel() {
-        return createShortcutBindingList();
-    }
+    // private JComponent createShortcutPanel() {
+    //     return createShortcutBindingList();
+    // }
 
     private JComponent createBindingListSection(String title, String description, JComponent body, boolean expanded) {
         JPanel content = new JPanel(new BorderLayout(0, 8));
@@ -1869,7 +1896,8 @@ public class OptionsWindow extends DuckWindow {
         keyboardButton.addActionListener(event -> captureShortcut(shortcut));
         shortcutButtons.put(shortcut, keyboardButton);
 
-        JButton controllerButton = createSecondaryButton(Settings.appShortcutControllerBindings.GetBindingText(shortcut));
+        JButton controllerButton = createSecondaryButton(
+                Settings.appShortcutControllerBindings.GetBindingText(shortcut));
         configureCompactPaletteButton(controllerButton, 102);
         controllerButton.addActionListener(event -> captureControllerShortcut(shortcut));
         controllerShortcutButtons.put(shortcut, controllerButton);
@@ -1949,96 +1977,96 @@ public class OptionsWindow extends DuckWindow {
     // return card;
     // }
 
-    private JComponent createBindingIntroCard(String title, String description, String badgeText) {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(Styling.sectionHighlightColour);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
+    // private JComponent createBindingIntroCard(String title, String description, String badgeText) {
+    //     JPanel card = new JPanel(new BorderLayout());
+    //     card.setBackground(Styling.sectionHighlightColour);
+    //     card.setBorder(BorderFactory.createCompoundBorder(
+    //             BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
+    //             BorderFactory.createEmptyBorder(16, 16, 16, 16)));
 
-        JPanel textBlock = createInfoTextBlock(title, description, 16f);
+    //     JPanel textBlock = createInfoTextBlock(title, description, 16f);
 
-        JPanel badgeWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        badgeWrap.setOpaque(false);
-        badgeWrap.add(createBadgeLabel(badgeText));
+    //     JPanel badgeWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+    //     badgeWrap.setOpaque(false);
+    //     badgeWrap.add(createBadgeLabel(badgeText));
 
-        card.add(createResponsiveGroup(260, 2, textBlock, badgeWrap), BorderLayout.CENTER);
-        return card;
-    }
+    //     card.add(createResponsiveGroup(260, 2, textBlock, badgeWrap), BorderLayout.CENTER);
+    //     return card;
+    // }
 
-    private JComponent createPalettePreviewBanner() {
-        JPanel content = new JPanel(new BorderLayout(8, 0));
-        content.setOpaque(false);
+    // private JComponent createPalettePreviewBanner() {
+    //     JPanel content = new JPanel(new BorderLayout(8, 0));
+    //     content.setOpaque(false);
 
-        JLabel titleLabel = createFieldLabel(UiText.OptionsWindow.ACTIVE_DMG_PALETTE_TITLE);
-        titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
-        JPanel swatchStrip = createResponsiveGroup(30, 4);
+    //     JLabel titleLabel = createFieldLabel(UiText.OptionsWindow.ACTIVE_DMG_PALETTE_TITLE);
+    //     titleLabel.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+    //     JPanel swatchStrip = createResponsiveGroup(30, 4);
 
-        GBColor[] palette = Settings.CurrentPalette();
-        String[] toneNames = UiText.OptionsWindow.DMG_TONE_NAMES;
-        for (int i = 0; i < palette.length; i++) {
-            JPanel swatch = new JPanel();
-            swatch.setPreferredSize(new Dimension(28, 28));
-            swatch.setBackground(palette[i].ToColour());
-            swatch.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(58, 92, 132, 60), 1, true),
-                    BorderFactory.createEmptyBorder(1, 1, 1, 1)));
-            swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            swatch.setToolTipText(UiText.OptionsWindow.EditPaletteToneTooltip(toneNames[i]));
-            final int paletteIndex = i;
-            swatch.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent event) {
-                    chooseColor(paletteIndex, UiText.OptionsWindow.PaletteToneColorLabel(toneNames[paletteIndex]));
-                }
-            });
-            paletteStripPreviews[i] = swatch;
-            swatchStrip.add(swatch);
-        }
+    //     GBColor[] palette = Settings.CurrentPalette();
+    //     String[] toneNames = UiText.OptionsWindow.DMG_TONE_NAMES;
+    //     for (int i = 0; i < palette.length; i++) {
+    //         JPanel swatch = new JPanel();
+    //         swatch.setPreferredSize(new Dimension(28, 28));
+    //         swatch.setBackground(palette[i].ToColour());
+    //         swatch.setBorder(BorderFactory.createCompoundBorder(
+    //                 BorderFactory.createLineBorder(new Color(58, 92, 132, 60), 1, true),
+    //                 BorderFactory.createEmptyBorder(1, 1, 1, 1)));
+    //         swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    //         swatch.setToolTipText(UiText.OptionsWindow.EditPaletteToneTooltip(toneNames[i]));
+    //         final int paletteIndex = i;
+    //         swatch.addMouseListener(new MouseAdapter() {
+    //             @Override
+    //             public void mouseClicked(MouseEvent event) {
+    //                 chooseColor(paletteIndex, UiText.OptionsWindow.PaletteToneColorLabel(toneNames[paletteIndex]));
+    //             }
+    //         });
+    //         paletteStripPreviews[i] = swatch;
+    //         swatchStrip.add(swatch);
+    //     }
 
-        content.add(titleLabel, BorderLayout.WEST);
-        content.add(swatchStrip, BorderLayout.CENTER);
-        return createCompactWindowOptionCard(content);
-    }
+    //     content.add(titleLabel, BorderLayout.WEST);
+    //     content.add(swatchStrip, BorderLayout.CENTER);
+    //     return createCompactWindowOptionCard(content);
+    // }
 
-    private JComponent createThemePreviewBanner() {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(Styling.sectionHighlightColour);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(12, 14, 12, 14)));
+    // private JComponent createThemePreviewBanner() {
+    //     JPanel card = new JPanel(new BorderLayout());
+    //     card.setBackground(Styling.sectionHighlightColour);
+    //     card.setBorder(BorderFactory.createCompoundBorder(
+    //             BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
+    //             BorderFactory.createEmptyBorder(12, 14, 12, 14)));
 
-        JPanel textBlock = createInfoTextBlock(
-                UiText.OptionsWindow.ACTIVE_APP_THEME_TITLE,
-                UiText.OptionsWindow.ACTIVE_APP_THEME_HELPER,
-                16f);
+    //     JPanel textBlock = createInfoTextBlock(
+    //             UiText.OptionsWindow.ACTIVE_APP_THEME_TITLE,
+    //             UiText.OptionsWindow.ACTIVE_APP_THEME_HELPER,
+    //             16f);
 
-        JPanel swatchStrip = createResponsiveGroup(44, AppThemeColorRole.values().length);
+    //     JPanel swatchStrip = createResponsiveGroup(44, AppThemeColorRole.values().length);
 
-        AppTheme currentTheme = Settings.CurrentAppTheme();
-        for (AppThemeColorRole role : AppThemeColorRole.values()) {
-            final AppThemeColorRole swatchRole = role;
-            JPanel swatch = new JPanel();
-            swatch.setPreferredSize(new Dimension(38, 38));
-            swatch.setBackground(currentTheme.CoreColour(role));
-            swatch.setBorder(BorderFactory.createCompoundBorder(
-                    BorderFactory.createLineBorder(new Color(58, 92, 132, 60), 1, true),
-                    BorderFactory.createEmptyBorder(3, 3, 3, 3)));
-            swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            swatch.setToolTipText(UiText.OptionsWindow.ChooseColorTitle(role.Label()));
-            swatch.addMouseListener(new MouseAdapter() {
-                @Override
-                public void mouseClicked(MouseEvent event) {
-                    chooseThemeColor(swatchRole);
-                }
-            });
-            themeStripPreviews[role.ordinal()] = swatch;
-            swatchStrip.add(swatch);
-        }
+    //     AppTheme currentTheme = Settings.CurrentAppTheme();
+    //     for (AppThemeColorRole role : AppThemeColorRole.values()) {
+    //         final AppThemeColorRole swatchRole = role;
+    //         JPanel swatch = new JPanel();
+    //         swatch.setPreferredSize(new Dimension(38, 38));
+    //         swatch.setBackground(currentTheme.CoreColour(role));
+    //         swatch.setBorder(BorderFactory.createCompoundBorder(
+    //                 BorderFactory.createLineBorder(new Color(58, 92, 132, 60), 1, true),
+    //                 BorderFactory.createEmptyBorder(3, 3, 3, 3)));
+    //         swatch.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    //         swatch.setToolTipText(UiText.OptionsWindow.ChooseColorTitle(role.Label()));
+    //         swatch.addMouseListener(new MouseAdapter() {
+    //             @Override
+    //             public void mouseClicked(MouseEvent event) {
+    //                 chooseThemeColor(swatchRole);
+    //             }
+    //         });
+    //         themeStripPreviews[role.ordinal()] = swatch;
+    //         swatchStrip.add(swatch);
+    //     }
 
-        card.add(createResponsiveGroup(260, 2, textBlock, swatchStrip), BorderLayout.CENTER);
-        return card;
-    }
+    //     card.add(createResponsiveGroup(260, 2, textBlock, swatchStrip), BorderLayout.CENTER);
+    //     return card;
+    // }
 
     private JComponent createSoundPanel() {
         JPanel container = new JPanel();
@@ -3138,11 +3166,6 @@ public class OptionsWindow extends DuckWindow {
             }
         }
 
-        private void SetValue(int newValue) {
-            value = clampValue(newValue);
-            repaint();
-        }
-
         private void setValueInternal(int newValue, boolean adjusting) {
             int clampedValue = clampValue(newValue);
             if (clampedValue == value && adjusting) {
@@ -3551,84 +3574,84 @@ public class OptionsWindow extends DuckWindow {
         return panel;
     }
 
-    private JComponent createSaveDataSection() {
-        JPanel container = new JPanel(new BorderLayout(0, 10));
-        container.setOpaque(false);
+    // private JComponent createSaveDataSection() {
+    //     JPanel container = new JPanel(new BorderLayout(0, 10));
+    //     container.setOpaque(false);
 
-        int trackedGameCount = ManagedGameRegistry.GetKnownGames().size();
+    //     int trackedGameCount = ManagedGameRegistry.GetKnownGames().size();
 
-        JPanel titleCard = new JPanel(new BorderLayout());
-        titleCard.setBackground(Styling.sectionHighlightColour);
-        titleCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
+    //     JPanel titleCard = new JPanel(new BorderLayout());
+    //     titleCard.setBackground(Styling.sectionHighlightColour);
+    //     titleCard.setBorder(BorderFactory.createCompoundBorder(
+    //             BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
+    //             BorderFactory.createEmptyBorder(16, 16, 16, 16)));
 
-        JPanel titleText = createInfoTextBlock(
-                UiText.OptionsWindow.SAVE_DATA_TITLE,
-                UiText.OptionsWindow.SAVE_DATA_DESCRIPTION,
-                16f);
+    //     JPanel titleText = createInfoTextBlock(
+    //             UiText.OptionsWindow.SAVE_DATA_TITLE,
+    //             UiText.OptionsWindow.SAVE_DATA_DESCRIPTION,
+    //             16f);
 
-        JLabel badgeLabel = createBadgeLabel(UiText.OptionsWindow.SaveManagerTrackedGamesBadge(trackedGameCount));
+    //     JLabel badgeLabel = createBadgeLabel(UiText.OptionsWindow.SaveManagerTrackedGamesBadge(trackedGameCount));
 
-        titleCard.add(createResponsiveGroup(260, 2, titleText, badgeLabel), BorderLayout.CENTER);
+    //     titleCard.add(createResponsiveGroup(260, 2, titleText, badgeLabel), BorderLayout.CENTER);
 
-        JPanel detailsCard = new JPanel(new BorderLayout(0, 14));
-        detailsCard.setBackground(Styling.cardTintColour);
-        detailsCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
+    //     JPanel detailsCard = new JPanel(new BorderLayout(0, 14));
+    //     detailsCard.setBackground(Styling.cardTintColour);
+    //     detailsCard.setBorder(BorderFactory.createCompoundBorder(
+    //             BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
+    //             BorderFactory.createEmptyBorder(16, 16, 16, 16)));
 
-        JPanel detailsGrid = createResponsiveGroup(
-                240,
-                2,
-                createSaveDataDetailCard(
-                        UiText.OptionsWindow.SAVE_MANAGER_LAUNCH_TITLE,
-                        UiText.OptionsWindow.SAVE_MANAGER_LAUNCH_HELPER,
-                        trackedGameCount == 0
-                                ? UiText.OptionsWindow.SAVE_MANAGER_EMPTY_TITLE
-                                : UiText.OptionsWindow.SaveManagerTrackedGamesBadge(trackedGameCount)),
-                createSaveDataDetailCard(
-                        UiText.OptionsWindow.SAVE_DATA_MANAGED_PATH_TITLE,
-                        UiText.OptionsWindow.SAVE_MANAGER_SUBTITLE,
-                        SaveFileManager.SaveDirectoryPath().toString()));
+    //     JPanel detailsGrid = createResponsiveGroup(
+    //             240,
+    //             2,
+    //             createSaveDataDetailCard(
+    //                     UiText.OptionsWindow.SAVE_MANAGER_LAUNCH_TITLE,
+    //                     UiText.OptionsWindow.SAVE_MANAGER_LAUNCH_HELPER,
+    //                     trackedGameCount == 0
+    //                             ? UiText.OptionsWindow.SAVE_MANAGER_EMPTY_TITLE
+    //                             : UiText.OptionsWindow.SaveManagerTrackedGamesBadge(trackedGameCount)),
+    //             createSaveDataDetailCard(
+    //                     UiText.OptionsWindow.SAVE_DATA_MANAGED_PATH_TITLE,
+    //                     UiText.OptionsWindow.SAVE_MANAGER_SUBTITLE,
+    //                     SaveFileManager.SaveDirectoryPath().toString()));
 
-        detailsCard.add(detailsGrid, BorderLayout.CENTER);
+    //     detailsCard.add(detailsGrid, BorderLayout.CENTER);
 
-        JButton openManagerButton = createPrimaryButton(UiText.OptionsWindow.SAVE_MANAGER_OPEN_BUTTON);
-        openManagerButton.addActionListener(event -> new SaveDataManagerWindow(mainWindow));
+    //     JButton openManagerButton = createPrimaryButton(UiText.OptionsWindow.SAVE_MANAGER_OPEN_BUTTON);
+    //     openManagerButton.addActionListener(event -> new SaveDataManagerWindow(mainWindow));
 
-        container.add(titleCard, BorderLayout.NORTH);
-        container.add(detailsCard, BorderLayout.CENTER);
-        container.add(createResponsiveGroup(180, 1, openManagerButton), BorderLayout.SOUTH);
-        return container;
-    }
+    //     container.add(titleCard, BorderLayout.NORTH);
+    //     container.add(detailsCard, BorderLayout.CENTER);
+    //     container.add(createResponsiveGroup(180, 1, openManagerButton), BorderLayout.SOUTH);
+    //     return container;
+    // }
 
-    private JPanel createSaveDataDetailCard(String titleText, String helperText, String valueText) {
-        JPanel card = createInsetSurfaceCard(6);
+    // private JPanel createSaveDataDetailCard(String titleText, String helperText, String valueText) {
+    //     JPanel card = createInsetSurfaceCard(6);
 
-        JLabel title = new JLabel(titleText);
-        title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
-        title.setForeground(accentColour);
-        card.add(title, BorderLayout.NORTH);
+    //     JLabel title = new JLabel(titleText);
+    //     title.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+    //     title.setForeground(accentColour);
+    //     card.add(title, BorderLayout.NORTH);
 
-        JPanel valueStack = new JPanel();
-        valueStack.setLayout(new BoxLayout(valueStack, BoxLayout.Y_AXIS));
-        valueStack.setOpaque(false);
+    //     JPanel valueStack = new JPanel();
+    //     valueStack.setLayout(new BoxLayout(valueStack, BoxLayout.Y_AXIS));
+    //     valueStack.setOpaque(false);
 
-        JTextArea value = createWrappingTextArea(valueText);
-        value.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
-        value.setForeground(accentColour);
-        valueStack.add(value);
+    //     JTextArea value = createWrappingTextArea(valueText);
+    //     value.setFont(Styling.menuFont.deriveFont(Font.BOLD, 13f));
+    //     value.setForeground(accentColour);
+    //     valueStack.add(value);
 
-        if (helperText != null && !helperText.isBlank()) {
-            valueStack.add(Box.createVerticalStrut(4));
-            JTextArea helper = createBodyTextArea(helperText, 12f);
-            valueStack.add(helper);
-        }
+    //     if (helperText != null && !helperText.isBlank()) {
+    //         valueStack.add(Box.createVerticalStrut(4));
+    //         JTextArea helper = createBodyTextArea(helperText, 12f);
+    //         valueStack.add(helper);
+    //     }
 
-        card.add(valueStack, BorderLayout.CENTER);
-        return card;
-    }
+    //     card.add(valueStack, BorderLayout.CENTER);
+    //     return card;
+    // }
 
     private JComponent createEmulationPanel() {
         JPanel stack = new JPanel();
@@ -3757,12 +3780,12 @@ public class OptionsWindow extends DuckWindow {
         return row;
     }
 
-    private JPanel wrapLeadingComponent(JComponent component) {
-        JPanel wrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        wrap.setOpaque(false);
-        wrap.add(component);
-        return wrap;
-    }
+    // private JPanel wrapLeadingComponent(JComponent component) {
+    //     JPanel wrap = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    //     wrap.setOpaque(false);
+    //     wrap.add(component);
+    //     return wrap;
+    // }
 
     private JPanel wrapTrailingComponent(JComponent component) {
         JPanel wrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
@@ -3771,66 +3794,66 @@ public class OptionsWindow extends DuckWindow {
         return wrap;
     }
 
-    private JComponent createDmgBootRomSection() {
-        return createBootRomSection(new BootRomSectionSpec(
-                UiText.OptionsWindow.USE_DMG_BOOT_ROM_CHECKBOX,
-                Settings.useBootRom,
-                BootRomManager::HasDmgBootRom,
-                selected -> Settings.useBootRom = selected,
-                UiText.OptionsWindow::DmgBootRomRequiredMessage,
-                UiText.OptionsWindow.DMG_BOOT_SEQUENCE_TITLE,
-                UiText.OptionsWindow.DMG_BOOT_SEQUENCE_HELPER,
-                UiText.OptionsWindow.INSTALLED_BOOT_ROM_TITLE,
-                UiText.OptionsWindow.INSTALLED_BOOT_ROM_HELPER,
-                UiText.OptionsWindow.MANAGED_PATH_TITLE,
-                BootRomManager::DmgBootRomPath,
-                UiText.OptionsWindow.INSERT_BOOT_ROM_BUTTON,
-                UiText.OptionsWindow.REMOVE_BOOT_ROM_BUTTON,
-                BootRomManager::InstallDmgBootRom,
-                BootRomManager::RemoveDmgBootRom,
-                true));
-    }
+    // private JComponent createDmgBootRomSection() {
+    //     return createBootRomSection(new BootRomSectionSpec(
+    //             UiText.OptionsWindow.USE_DMG_BOOT_ROM_CHECKBOX,
+    //             Settings.useBootRom,
+    //             BootRomManager::HasDmgBootRom,
+    //             selected -> Settings.useBootRom = selected,
+    //             UiText.OptionsWindow::DmgBootRomRequiredMessage,
+    //             UiText.OptionsWindow.DMG_BOOT_SEQUENCE_TITLE,
+    //             UiText.OptionsWindow.DMG_BOOT_SEQUENCE_HELPER,
+    //             UiText.OptionsWindow.INSTALLED_BOOT_ROM_TITLE,
+    //             UiText.OptionsWindow.INSTALLED_BOOT_ROM_HELPER,
+    //             UiText.OptionsWindow.MANAGED_PATH_TITLE,
+    //             BootRomManager::DmgBootRomPath,
+    //             UiText.OptionsWindow.INSERT_BOOT_ROM_BUTTON,
+    //             UiText.OptionsWindow.REMOVE_BOOT_ROM_BUTTON,
+    //             BootRomManager::InstallDmgBootRom,
+    //             BootRomManager::RemoveDmgBootRom,
+    //             true));
+    // }
 
-    private JComponent createCgbBootRomSection() {
-        return createBootRomSection(new BootRomSectionSpec(
-                UiText.OptionsWindow.USE_CGB_BOOT_ROM_CHECKBOX,
-                Settings.useCgbBootRom,
-                BootRomManager::HasCgbBootRom,
-                selected -> Settings.useCgbBootRom = selected,
-                UiText.OptionsWindow::CgbBootRomRequiredMessage,
-                UiText.OptionsWindow.CGB_BOOT_SEQUENCE_TITLE,
-                UiText.OptionsWindow.CGB_BOOT_SEQUENCE_HELPER,
-                UiText.OptionsWindow.INSTALLED_CGB_BOOT_ROM_TITLE,
-                UiText.OptionsWindow.INSTALLED_CGB_BOOT_ROM_HELPER,
-                UiText.OptionsWindow.MANAGED_CGB_PATH_TITLE,
-                BootRomManager::CgbBootRomPath,
-                UiText.OptionsWindow.INSERT_CGB_BOOT_ROM_BUTTON,
-                UiText.OptionsWindow.REMOVE_CGB_BOOT_ROM_BUTTON,
-                BootRomManager::InstallCgbBootRom,
-                BootRomManager::RemoveCgbBootRom,
-                false));
-    }
+    // private JComponent createCgbBootRomSection() {
+    //     return createBootRomSection(new BootRomSectionSpec(
+    //             UiText.OptionsWindow.USE_CGB_BOOT_ROM_CHECKBOX,
+    //             Settings.useCgbBootRom,
+    //             BootRomManager::HasCgbBootRom,
+    //             selected -> Settings.useCgbBootRom = selected,
+    //             UiText.OptionsWindow::CgbBootRomRequiredMessage,
+    //             UiText.OptionsWindow.CGB_BOOT_SEQUENCE_TITLE,
+    //             UiText.OptionsWindow.CGB_BOOT_SEQUENCE_HELPER,
+    //             UiText.OptionsWindow.INSTALLED_CGB_BOOT_ROM_TITLE,
+    //             UiText.OptionsWindow.INSTALLED_CGB_BOOT_ROM_HELPER,
+    //             UiText.OptionsWindow.MANAGED_CGB_PATH_TITLE,
+    //             BootRomManager::CgbBootRomPath,
+    //             UiText.OptionsWindow.INSERT_CGB_BOOT_ROM_BUTTON,
+    //             UiText.OptionsWindow.REMOVE_CGB_BOOT_ROM_BUTTON,
+    //             BootRomManager::InstallCgbBootRom,
+    //             BootRomManager::RemoveCgbBootRom,
+    //             false));
+    // }
 
-    private JComponent createBootRomSection(BootRomSectionSpec spec) {
-        boolean bootRomInstalled = spec.installedSupplier().getAsBoolean();
-        JPanel container = new JPanel(new BorderLayout(0, 10));
-        container.setOpaque(false);
+    // private JComponent createBootRomSection(BootRomSectionSpec spec) {
+    //     boolean bootRomInstalled = spec.installedSupplier().getAsBoolean();
+    //     JPanel container = new JPanel(new BorderLayout(0, 10));
+    //     container.setOpaque(false);
 
-        JCheckBox useBootRomCheckBox = createBootRomCheckBox(spec, bootRomInstalled);
-        JPanel bootCard = createBootRomIntroCard(spec, useBootRomCheckBox);
-        JPanel detailsCard = createBootRomDetailsCard(spec, bootRomInstalled);
-        JPanel buttonRow = createBootRomButtonRow(spec);
+    //     JCheckBox useBootRomCheckBox = createBootRomCheckBox(spec, bootRomInstalled);
+    //     JPanel bootCard = createBootRomIntroCard(spec, useBootRomCheckBox);
+    //     JPanel detailsCard = createBootRomDetailsCard(spec, bootRomInstalled);
+    //     JPanel buttonRow = createBootRomButtonRow(spec);
 
-        if (spec.embedButtonsInDetailsCard()) {
-            detailsCard.add(buttonRow, BorderLayout.SOUTH);
-        } else {
-            container.add(buttonRow, BorderLayout.SOUTH);
-        }
+    //     if (spec.embedButtonsInDetailsCard()) {
+    //         detailsCard.add(buttonRow, BorderLayout.SOUTH);
+    //     } else {
+    //         container.add(buttonRow, BorderLayout.SOUTH);
+    //     }
 
-        container.add(bootCard, BorderLayout.NORTH);
-        container.add(detailsCard, BorderLayout.CENTER);
-        return container;
-    }
+    //     container.add(bootCard, BorderLayout.NORTH);
+    //     container.add(detailsCard, BorderLayout.CENTER);
+    //     return container;
+    // }
 
     private JCheckBox createBootRomCheckBox(BootRomSectionSpec spec, boolean bootRomInstalled) {
         JCheckBox checkBox = new JCheckBox(spec.checkboxText(), spec.settingEnabled());
@@ -3852,44 +3875,44 @@ public class OptionsWindow extends DuckWindow {
         return checkBox;
     }
 
-    private JPanel createBootRomIntroCard(BootRomSectionSpec spec, JCheckBox useBootRomCheckBox) {
-        JPanel card = new JPanel(new BorderLayout());
-        card.setBackground(Styling.sectionHighlightColour);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
+    // private JPanel createBootRomIntroCard(BootRomSectionSpec spec, JCheckBox useBootRomCheckBox) {
+    //     JPanel card = new JPanel(new BorderLayout());
+    //     card.setBackground(Styling.sectionHighlightColour);
+    //     card.setBorder(BorderFactory.createCompoundBorder(
+    //             BorderFactory.createLineBorder(Styling.sectionHighlightBorderColour, 1, true),
+    //             BorderFactory.createEmptyBorder(16, 16, 16, 16)));
 
-        JPanel textPanel = createInfoTextBlock(spec.bootTitle(), spec.bootHelper(), 16f);
+    //     JPanel textPanel = createInfoTextBlock(spec.bootTitle(), spec.bootHelper(), 16f);
 
-        JPanel toggleWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-        toggleWrap.setOpaque(false);
-        toggleWrap.add(useBootRomCheckBox);
+    //     JPanel toggleWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+    //     toggleWrap.setOpaque(false);
+    //     toggleWrap.add(useBootRomCheckBox);
 
-        card.add(createResponsiveGroup(260, 2, textPanel, toggleWrap), BorderLayout.CENTER);
-        return card;
-    }
+    //     card.add(createResponsiveGroup(260, 2, textPanel, toggleWrap), BorderLayout.CENTER);
+    //     return card;
+    // }
 
-    private JPanel createBootRomDetailsCard(BootRomSectionSpec spec, boolean bootRomInstalled) {
-        JPanel detailsCard = new JPanel(new BorderLayout(0, 14));
-        detailsCard.setBackground(Styling.cardTintColour);
-        detailsCard.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(16, 16, 16, 16)));
-        detailsCard.add(createBootRomStatusRow(spec.statusTitle(), spec.statusHelper(), bootRomInstalled),
-                BorderLayout.NORTH);
-        detailsCard.add(createManagedPathCard(spec.pathTitle(), spec.pathSupplier().get()), BorderLayout.CENTER);
-        return detailsCard;
-    }
+    // private JPanel createBootRomDetailsCard(BootRomSectionSpec spec, boolean bootRomInstalled) {
+    //     JPanel detailsCard = new JPanel(new BorderLayout(0, 14));
+    //     detailsCard.setBackground(Styling.cardTintColour);
+    //     detailsCard.setBorder(BorderFactory.createCompoundBorder(
+    //             BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
+    //             BorderFactory.createEmptyBorder(16, 16, 16, 16)));
+    //     detailsCard.add(createBootRomStatusRow(spec.statusTitle(), spec.statusHelper(), bootRomInstalled),
+    //             BorderLayout.NORTH);
+    //     detailsCard.add(createManagedPathCard(spec.pathTitle(), spec.pathSupplier().get()), BorderLayout.CENTER);
+    //     return detailsCard;
+    // }
 
-    private JPanel createBootRomStatusRow(String title, String helper, boolean installed) {
-        JPanel statusRow = new JPanel(new BorderLayout());
-        statusRow.setOpaque(false);
+    // private JPanel createBootRomStatusRow(String title, String helper, boolean installed) {
+    //     JPanel statusRow = new JPanel(new BorderLayout());
+    //     statusRow.setOpaque(false);
 
-        JPanel statusText = createInfoTextBlock(title, helper, 15f);
-        statusRow.add(createResponsiveGroup(240, 2, statusText, createInstallStatusBadge(installed)),
-                BorderLayout.CENTER);
-        return statusRow;
-    }
+    //     JPanel statusText = createInfoTextBlock(title, helper, 15f);
+    //     statusRow.add(createResponsiveGroup(240, 2, statusText, createInstallStatusBadge(installed)),
+    //             BorderLayout.CENTER);
+    //     return statusRow;
+    // }
 
     private JLabel createInstallStatusBadge(boolean installed) {
         JLabel badge = createBadgeLabel(installed ? UiText.Common.INSTALLED : UiText.Common.MISSING);
@@ -3904,27 +3927,27 @@ public class OptionsWindow extends DuckWindow {
         return badge;
     }
 
-    private JPanel createManagedPathCard(String title, Path path) {
-        JPanel pathCard = createInsetSurfaceCard(6);
+    // private JPanel createManagedPathCard(String title, Path path) {
+    //     JPanel pathCard = createInsetSurfaceCard(6);
 
-        JLabel pathTitle = new JLabel(title);
-        pathTitle.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
-        pathTitle.setForeground(accentColour);
+    //     JLabel pathTitle = new JLabel(title);
+    //     pathTitle.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+    //     pathTitle.setForeground(accentColour);
 
-        JTextArea pathLabel = new JTextArea(path.toString());
-        pathLabel.setEditable(false);
-        pathLabel.setFocusable(false);
-        pathLabel.setLineWrap(true);
-        pathLabel.setWrapStyleWord(true);
-        pathLabel.setOpaque(false);
-        pathLabel.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
-        pathLabel.setForeground(mutedText);
-        pathLabel.setBorder(BorderFactory.createEmptyBorder());
+    //     JTextArea pathLabel = new JTextArea(path.toString());
+    //     pathLabel.setEditable(false);
+    //     pathLabel.setFocusable(false);
+    //     pathLabel.setLineWrap(true);
+    //     pathLabel.setWrapStyleWord(true);
+    //     pathLabel.setOpaque(false);
+    //     pathLabel.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+    //     pathLabel.setForeground(mutedText);
+    //     pathLabel.setBorder(BorderFactory.createEmptyBorder());
 
-        pathCard.add(pathTitle, BorderLayout.NORTH);
-        pathCard.add(pathLabel, BorderLayout.CENTER);
-        return pathCard;
-    }
+    //     pathCard.add(pathTitle, BorderLayout.NORTH);
+    //     pathCard.add(pathLabel, BorderLayout.CENTER);
+    //     return pathCard;
+    // }
 
     private JPanel createInsetSurfaceCard(int verticalGap) {
         JPanel card = new JPanel(new BorderLayout(0, verticalGap));
@@ -3936,14 +3959,14 @@ public class OptionsWindow extends DuckWindow {
         return card;
     }
 
-    private JPanel createBootRomButtonRow(BootRomSectionSpec spec) {
-        JButton insertButton = createPrimaryButton(spec.insertButtonText());
-        insertButton.addActionListener(event -> installBootRom(spec));
+    // private JPanel createBootRomButtonRow(BootRomSectionSpec spec) {
+    //     JButton insertButton = createPrimaryButton(spec.insertButtonText());
+    //     insertButton.addActionListener(event -> installBootRom(spec));
 
-        JButton removeButton = createSecondaryButton(spec.removeButtonText());
-        removeButton.addActionListener(event -> removeBootRom(spec));
-        return createResponsiveGroup(180, 2, insertButton, removeButton);
-    }
+    //     JButton removeButton = createSecondaryButton(spec.removeButtonText());
+    //     removeButton.addActionListener(event -> removeBootRom(spec));
+    //     return createResponsiveGroup(180, 2, insertButton, removeButton);
+    // }
 
     private void installBootRom(BootRomSectionSpec spec) {
         File bootRomFile = PromptForBootRomFile();
@@ -4159,7 +4182,8 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private boolean captureKeyboardBinding(EmulatorButton button) {
-        JDialog dialog = new JDialog(this, UiText.OptionsWindow.RebindDialogTitle(formatControlButtonName(button)), true);
+        JDialog dialog = new JDialog(this, UiText.OptionsWindow.RebindDialogTitle(formatControlButtonName(button)),
+                true);
         dialog.setLayout(new BorderLayout());
         dialog.getContentPane().setBackground(panelBackground);
 
@@ -4679,16 +4703,16 @@ public class OptionsWindow extends DuckWindow {
         }
     }
 
-    private String audioEnhancementSummary(DefaultListModel<AudioEnhancementSetting> enhancementChainModel,
-            boolean enabled) {
-        int effectCount = enhancementChainModel == null ? 0 : enhancementChainModel.size();
-        if (effectCount == 0) {
-            return enabled ? "No effects added" : "Effects disabled";
-        }
-        return enabled
-                ? effectCount + " effect" + (effectCount == 1 ? "" : "s") + " enabled"
-                : effectCount + " effect" + (effectCount == 1 ? "" : "s") + " saved, disabled";
-    }
+    // private String audioEnhancementSummary(DefaultListModel<AudioEnhancementSetting> enhancementChainModel,
+    //         boolean enabled) {
+    //     int effectCount = enhancementChainModel == null ? 0 : enhancementChainModel.size();
+    //     if (effectCount == 0) {
+    //         return enabled ? "No effects added" : "Effects disabled";
+    //     }
+    //     return enabled
+    //             ? effectCount + " effect" + (effectCount == 1 ? "" : "s") + " enabled"
+    //             : effectCount + " effect" + (effectCount == 1 ? "" : "s") + " saved, disabled";
+    // }
 
     private void refreshKeyboardBindingButtons() {
         for (EmulatorButton button : backendProfile().controlButtons()) {
@@ -4712,9 +4736,9 @@ public class OptionsWindow extends DuckWindow {
         return backendProfile().controlButtonLabel(button);
     }
 
-    private String controlBadgeText() {
-        return backendProfile().displayName();
-    }
+    // private String controlBadgeText() {
+    //     return backendProfile().displayName();
+    // }
 
     private EmulatorProfile backendProfile() {
         return mainWindow == null ? GBBackendManager.Current().Profile() : mainWindow.GetBackendProfile();
@@ -4728,25 +4752,25 @@ public class OptionsWindow extends DuckWindow {
         return panel;
     }
 
-    private JComponent wrapControllerPollingModeControls() {
-        JPanel panel = new JPanel(new BorderLayout(0, 6));
-        panel.setOpaque(false);
-        panel.add(controllerPollingModeSelector, BorderLayout.NORTH);
+    // private JComponent wrapControllerPollingModeControls() {
+    //     JPanel panel = new JPanel(new BorderLayout(0, 6));
+    //     panel.setOpaque(false);
+    //     panel.add(controllerPollingModeSelector, BorderLayout.NORTH);
 
-        JLabel helperLabel = new JLabel(UiText.OptionsWindow.CONTROLLER_POLLING_MODE_HELPER);
-        helperLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 11f));
-        helperLabel.setForeground(mutedText);
-        panel.add(helperLabel, BorderLayout.CENTER);
-        return panel;
-    }
+    //     JLabel helperLabel = new JLabel(UiText.OptionsWindow.CONTROLLER_POLLING_MODE_HELPER);
+    //     helperLabel.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 11f));
+    //     helperLabel.setForeground(mutedText);
+    //     panel.add(helperLabel, BorderLayout.CENTER);
+    //     return panel;
+    // }
 
-    private JComponent wrapControllerStatusControls() {
-        JPanel panel = new JPanel(new BorderLayout(0, 6));
-        panel.setOpaque(false);
-        panel.add(controllerStatusBadgeLabel, BorderLayout.NORTH);
-        panel.add(controllerStatusHelperLabel, BorderLayout.CENTER);
-        return panel;
-    }
+    // private JComponent wrapControllerStatusControls() {
+    //     JPanel panel = new JPanel(new BorderLayout(0, 6));
+    //     panel.setOpaque(false);
+    //     panel.add(controllerStatusBadgeLabel, BorderLayout.NORTH);
+    //     panel.add(controllerStatusHelperLabel, BorderLayout.CENTER);
+    //     return panel;
+    // }
 
     private JLabel createCompactReadoutLabel(String text) {
         JLabel label = new JLabel();
@@ -4813,20 +4837,20 @@ public class OptionsWindow extends DuckWindow {
         return card;
     }
 
-    private JComponent createCompactSelectorWindowOptionCard(String labelText, JComponent selector) {
-        JPanel card = new JPanel(new BorderLayout(0, 6));
-        card.setOpaque(true);
-        card.setBackground(Styling.cardTintColour);
-        card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
-                BorderFactory.createEmptyBorder(8, 8, 8, 8)));
+    // private JComponent createCompactSelectorWindowOptionCard(String labelText, JComponent selector) {
+    //     JPanel card = new JPanel(new BorderLayout(0, 6));
+    //     card.setOpaque(true);
+    //     card.setBackground(Styling.cardTintColour);
+    //     card.setBorder(BorderFactory.createCompoundBorder(
+    //             BorderFactory.createLineBorder(Styling.cardTintBorderColour, 1, true),
+    //             BorderFactory.createEmptyBorder(8, 8, 8, 8)));
 
-        JLabel label = createFieldLabel(labelText);
-        label.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
-        card.add(label, BorderLayout.NORTH);
-        card.add(selector, BorderLayout.CENTER);
-        return card;
-    }
+    //     JLabel label = createFieldLabel(labelText);
+    //     label.setFont(Styling.menuFont.deriveFont(Font.BOLD, 12f));
+    //     card.add(label, BorderLayout.NORTH);
+    //     card.add(selector, BorderLayout.CENTER);
+    //     return card;
+    // }
 
     private void configureCompactPaletteField(JTextField field) {
         field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 32));
@@ -4842,9 +4866,9 @@ public class OptionsWindow extends DuckWindow {
         selector.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
     }
 
-    private void configureCompactPaletteButton(AbstractButton button) {
-        configureCompactPaletteButton(button, 88);
-    }
+    // private void configureCompactPaletteButton(AbstractButton button) {
+    //     configureCompactPaletteButton(button, 88);
+    // }
 
     private void configureCompactPaletteButton(AbstractButton button, int width) {
         button.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
@@ -4882,43 +4906,43 @@ public class OptionsWindow extends DuckWindow {
         return button;
     }
 
-    private void refreshSavedPaletteSelector(JComboBox<String> selector, boolean gbcPalette,
-            JButton loadButton, JButton deleteButton) {
-        if (selector == null) {
-            return;
-        }
+    // private void refreshSavedPaletteSelector(JComboBox<String> selector, boolean gbcPalette,
+    //         JButton loadButton, JButton deleteButton) {
+    //     if (selector == null) {
+    //         return;
+    //     }
 
-        String previousSelection = selector.getSelectedItem() instanceof String selectedName
-                ? selectedName
-                : null;
-        List<String> paletteNames = gbcPalette
-                ? Config.GetSavedGbcPaletteNames()
-                : Config.GetSavedPaletteNames();
+    //     String previousSelection = selector.getSelectedItem() instanceof String selectedName
+    //             ? selectedName
+    //             : null;
+    //     List<String> paletteNames = gbcPalette
+    //             ? Config.GetSavedGbcPaletteNames()
+    //             : Config.GetSavedPaletteNames();
 
-        DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
-        for (String paletteName : paletteNames) {
-            model.addElement(paletteName);
-        }
-        selector.setModel(model);
+    //     DefaultComboBoxModel<String> model = new DefaultComboBoxModel<>();
+    //     for (String paletteName : paletteNames) {
+    //         model.addElement(paletteName);
+    //     }
+    //     selector.setModel(model);
 
-        if (model.getSize() > 0) {
-            if (previousSelection != null) {
-                selector.setSelectedItem(previousSelection);
-            }
-            if (selector.getSelectedIndex() < 0) {
-                selector.setSelectedIndex(0);
-            }
-        }
+    //     if (model.getSize() > 0) {
+    //         if (previousSelection != null) {
+    //             selector.setSelectedItem(previousSelection);
+    //         }
+    //         if (selector.getSelectedIndex() < 0) {
+    //             selector.setSelectedIndex(0);
+    //         }
+    //     }
 
-        boolean hasSavedPalettes = model.getSize() > 0;
-        if (loadButton != null) {
-            loadButton.setEnabled(hasSavedPalettes);
-        }
-        if (deleteButton != null) {
-            deleteButton.setEnabled(hasSavedPalettes);
-        }
-        selector.setEnabled(hasSavedPalettes);
-    }
+    //     boolean hasSavedPalettes = model.getSize() > 0;
+    //     if (loadButton != null) {
+    //         loadButton.setEnabled(hasSavedPalettes);
+    //     }
+    //     if (deleteButton != null) {
+    //         deleteButton.setEnabled(hasSavedPalettes);
+    //     }
+    //     selector.setEnabled(hasSavedPalettes);
+    // }
 
     private void importSavedPalettes(boolean gbcPalette) {
         File importFile = promptForPaletteImportFile(gbcPalette);
@@ -4943,39 +4967,39 @@ public class OptionsWindow extends DuckWindow {
         }
     }
 
-    private void updateShaderStatusLabel(JLabel label) {
-        List<LoadedDisplayShader> loadedShaders = DisplayShaderManager.GetAvailableShaders();
-        List<String> shaderErrors = DisplayShaderManager.GetLoadErrors();
-        updateLoadStatusLabel(
-                label,
-                UiText.OptionsWindow.ShaderStatusSummary(loadedShaders.size(), shaderErrors.size()),
-                shaderErrors,
-                UiText.OptionsWindow.SHADER_STATUS_OK_HELPER);
-    }
+    // private void updateShaderStatusLabel(JLabel label) {
+    //     List<LoadedDisplayShader> loadedShaders = DisplayShaderManager.GetAvailableShaders();
+    //     List<String> shaderErrors = DisplayShaderManager.GetLoadErrors();
+    //     updateLoadStatusLabel(
+    //             label,
+    //             UiText.OptionsWindow.ShaderStatusSummary(loadedShaders.size(), shaderErrors.size()),
+    //             shaderErrors,
+    //             UiText.OptionsWindow.SHADER_STATUS_OK_HELPER);
+    // }
 
-    private void updateBorderStatusLabel(JLabel label) {
-        List<LoadedDisplayBorder> loadedBorders = DisplayBorderManager.GetAvailableBorders();
-        List<String> borderErrors = DisplayBorderManager.GetLoadErrors();
-        updateLoadStatusLabel(
-                label,
-                UiText.OptionsWindow.BorderStatusSummary(loadedBorders.size(), borderErrors.size()),
-                borderErrors,
-                UiText.OptionsWindow.BORDER_STATUS_OK_HELPER);
-    }
+    // private void updateBorderStatusLabel(JLabel label) {
+    //     List<LoadedDisplayBorder> loadedBorders = DisplayBorderManager.GetAvailableBorders();
+    //     List<String> borderErrors = DisplayBorderManager.GetLoadErrors();
+    //     updateLoadStatusLabel(
+    //             label,
+    //             UiText.OptionsWindow.BorderStatusSummary(loadedBorders.size(), borderErrors.size()),
+    //             borderErrors,
+    //             UiText.OptionsWindow.BORDER_STATUS_OK_HELPER);
+    // }
 
-    private void updateLoadStatusLabel(JLabel label, String statusText, List<String> errors, String okHelper) {
-        setCompactReadout(label, statusText);
-        if (errors.isEmpty()) {
-            label.setToolTipText(okHelper);
-            return;
-        }
+    // private void updateLoadStatusLabel(JLabel label, String statusText, List<String> errors, String okHelper) {
+    //     setCompactReadout(label, statusText);
+    //     if (errors.isEmpty()) {
+    //         label.setToolTipText(okHelper);
+    //         return;
+    //     }
 
-        List<String> escapedErrors = new ArrayList<>();
-        for (String error : errors) {
-            escapedErrors.add(WindowUiSupport.escapeHtml(error));
-        }
-        label.setToolTipText("<html>" + String.join("<br>", escapedErrors) + "</html>");
-    }
+    //     List<String> escapedErrors = new ArrayList<>();
+    //     for (String error : errors) {
+    //         escapedErrors.add(WindowUiSupport.escapeHtml(error));
+    //     }
+    //     label.setToolTipText("<html>" + String.join("<br>", escapedErrors) + "</html>");
+    // }
 
     private void setCompactReadout(JLabel label, String text) {
         if (label == null) {
@@ -5029,24 +5053,24 @@ public class OptionsWindow extends DuckWindow {
         return fileDialog.getFiles().length == 0 ? null : fileDialog.getFiles()[0];
     }
 
-    private void openDirectory(Path path) {
-        try {
-            Files.createDirectories(path);
-            if (Desktop.isDesktopSupported()) {
-                Desktop.getDesktop().open(path.toFile());
-                return;
-            }
-            JOptionPane.showMessageDialog(this,
-                    UiText.OptionsWindow.ShaderFolderPathMessage(path.toString()),
-                    UiText.OptionsWindow.OPEN_SHADER_FOLDER_BUTTON,
-                    JOptionPane.INFORMATION_MESSAGE);
-        } catch (IOException exception) {
-            JOptionPane.showMessageDialog(this,
-                    UiText.OptionsWindow.ShaderFolderOpenFailedMessage(path.toString()),
-                    UiText.Common.WARNING_TITLE,
-                    JOptionPane.WARNING_MESSAGE);
-        }
-    }
+    // private void openDirectory(Path path) {
+    //     try {
+    //         Files.createDirectories(path);
+    //         if (Desktop.isDesktopSupported()) {
+    //             Desktop.getDesktop().open(path.toFile());
+    //             return;
+    //         }
+    //         JOptionPane.showMessageDialog(this,
+    //                 UiText.OptionsWindow.ShaderFolderPathMessage(path.toString()),
+    //                 UiText.OptionsWindow.OPEN_SHADER_FOLDER_BUTTON,
+    //                 JOptionPane.INFORMATION_MESSAGE);
+    //     } catch (IOException exception) {
+    //         JOptionPane.showMessageDialog(this,
+    //                 UiText.OptionsWindow.ShaderFolderOpenFailedMessage(path.toString()),
+    //                 UiText.Common.WARNING_TITLE,
+    //                 JOptionPane.WARNING_MESSAGE);
+    //     }
+    // }
 
     @FunctionalInterface
     private interface BootRomInstaller {

@@ -399,3 +399,7 @@ function release{
     }
 
 }
+
+function doc{
+    javadoc -d docs/javadoc -sourcepath src/main/java -subpackages com.blackaby;
+}

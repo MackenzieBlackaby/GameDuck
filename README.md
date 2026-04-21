@@ -105,6 +105,7 @@ From there, you can use the commands:
 - `clean` to perform a complete clean, compile and run cycle.
 - `run` to run the desktop app without cleaning or recompiling first.
 - `release` to build a windows exe package of the app with a built in JRE.
+- `doc` to generate the javadoc for the project.
 
 ### Building with bash
 
@@ -132,7 +133,7 @@ To run the tests:
 mvn test
 ```
 
-To regenerate the Javadoc in `docs/javadoc/`:
+To regenerate the Javadoc in `docs/javadoc/` run the command:
 
 ```bash
 javadoc -d docs/javadoc -sourcepath src/main/java -subpackages com.blackaby

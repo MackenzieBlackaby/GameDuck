@@ -1,7 +1,0 @@
-{
-  "id": "none",
-  "name": "Off",
-  "description": "Raw emulator output with no post-process shader.",
-  "renderScale": 1,
-  "passes": []
-}

@@ -132,10 +132,10 @@ To run the tests:
 mvn test
 ```
 
-To regenerate the Javadoc in `docs/`:
+To regenerate the Javadoc in `docs/javadoc/`:
 
 ```bash
-javadoc -d docs -sourcepath src/main/java -subpackages com.blackaby
+javadoc -d docs/javadoc -sourcepath src/main/java -subpackages com.blackaby
 ```
 
 ## Files written outside the repo

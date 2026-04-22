@@ -4,8 +4,6 @@ This is a list of known bugs in the current version of GameDuck. If you encounte
 
 ## Functional
 
-- Even if roms are copied to the rom folder, the library isn't transferred. "Refresh library" must scan the rom folder to rebuild a missing library file.
-
 ## Performance
 
 - General stuttering and slowdowns.

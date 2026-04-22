@@ -7,12 +7,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Properties;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -26,20 +24,29 @@ class GameLibraryStoreTest {
 
     private String previousMetadataPath;
     private String previousRomDirectory;
+    private String previousPortableMetadataPath;
+    private String previousManagedGamesPath;
 
     @BeforeEach
-    void setUp() throws Exception {
+    void setUp() {
         previousMetadataPath = System.getProperty("gameduck.library_metadata_path");
         previousRomDirectory = System.getProperty("gameduck.library_rom_dir");
+        previousPortableMetadataPath = System.getProperty("gameduck.library_portable_metadata_path");
+        previousManagedGamesPath = System.getProperty("gameduck.managed_games_path");
         System.setProperty("gameduck.library_metadata_path", tempDir.resolve("game-library.properties").toString());
         System.setProperty("gameduck.library_rom_dir", tempDir.resolve("roms").toString());
+        System.setProperty("gameduck.library_portable_metadata_path",
+                tempDir.resolve("library-portable.properties").toString());
+        System.setProperty("gameduck.managed_games_path", tempDir.resolve("managed-games.properties").toString());
         resetStore();
     }
 
     @AfterEach
-    void tearDown() throws Exception {
+    void tearDown() {
         restoreProperty("gameduck.library_metadata_path", previousMetadataPath);
         restoreProperty("gameduck.library_rom_dir", previousRomDirectory);
+        restoreProperty("gameduck.library_portable_metadata_path", previousPortableMetadataPath);
+        restoreProperty("gameduck.managed_games_path", previousManagedGamesPath);
         resetStore();
     }
 
@@ -115,6 +122,67 @@ class GameLibraryStoreTest {
         assertTrue(GameLibraryStore.GetRecentEntries(10).isEmpty());
     }
 
+    @Test
+    void refreshLibraryRebuildsMissingMetadataFromStoredRoms() throws Exception {
+        GameLibraryStore.LibraryEntry storedEntry = GameLibraryStore.RememberGame(
+                createRom("portable-copy.gb", "Portable Copy", List.of(), List.of()));
+        Path metadataPath = tempDir.resolve("game-library.properties");
+        Files.deleteIfExists(metadataPath);
+        resetStore();
+
+        GameLibraryStore.RefreshResult result = GameLibraryStore.RefreshLibrary();
+
+        assertEquals(1, result.scannedRomCount());
+        assertEquals(1, result.preservedEntryCount());
+        assertEquals(0, result.rebuiltEntryCount());
+        assertEquals(0, result.removedEntryCount());
+
+        List<GameLibraryStore.LibraryEntry> rebuiltEntries = GameLibraryStore.GetEntries();
+        assertEquals(1, rebuiltEntries.size());
+        GameLibraryStore.LibraryEntry rebuiltEntry = rebuiltEntries.get(0);
+        assertEquals(storedEntry.romPath(), rebuiltEntry.romPath());
+        assertEquals(storedEntry.sourcePath(), rebuiltEntry.sourcePath());
+        assertFalse(rebuiltEntry.displayName().isBlank());
+        assertFalse(rebuiltEntry.favourite());
+    }
+
+    @Test
+    void recoverLibraryRestoresPortableMirrorAndPreservesMetadata() throws Exception {
+        Path patchPath = tempDir.resolve("mirror-patch.ips");
+        GameLibraryStore.LibraryEntry storedEntry = GameLibraryStore.RememberGame(
+                createRom("mirror-copy.gbc", "Mirror Copy", List.of("Patch One"), List.of(patchPath.toString())));
+        GameLibraryStore.SetFavourite(storedEntry.key(), true);
+        Path metadataPath = tempDir.resolve("game-library.properties");
+        Files.deleteIfExists(metadataPath);
+        resetStore();
+
+        GameLibraryStore.RefreshResult result = GameLibraryStore.RecoverLibrary();
+
+        assertTrue(result.restoredFromPortableMirror());
+        List<GameLibraryStore.LibraryEntry> recoveredEntries = GameLibraryStore.GetEntries();
+        assertEquals(1, recoveredEntries.size());
+        GameLibraryStore.LibraryEntry recoveredEntry = recoveredEntries.get(0);
+        assertEquals(storedEntry.key(), recoveredEntry.key());
+        assertEquals(storedEntry.sourcePath(), recoveredEntry.sourcePath());
+        assertEquals(storedEntry.patchSourcePaths(), recoveredEntry.patchSourcePaths());
+        assertTrue(recoveredEntry.favourite());
+    }
+
+    @Test
+    void refreshLibraryRemovesStaleEntriesAndRebuildsManagedSaveRegistry() throws Exception {
+        GameLibraryStore.LibraryEntry entry = GameLibraryStore.RememberGame(
+                createRom("battery-save.gb", "Battery Save", List.of(), List.of()));
+        Files.deleteIfExists(entry.romPath());
+        resetStore();
+
+        GameLibraryStore.RefreshResult result = GameLibraryStore.RefreshLibrary();
+
+        assertEquals(0, result.scannedRomCount());
+        assertEquals(1, result.removedEntryCount());
+        assertTrue(GameLibraryStore.GetEntries().isEmpty());
+        assertTrue(ManagedGameRegistry.GetKnownGames().isEmpty());
+    }
+
     private GBRom createRom(String filename, String displayName, List<String> patchNames, List<String> patchSourcePaths) {
         GBRom baseRom = EmulatorTestUtils.CreateBlankRom(
                 0x10,
@@ -138,20 +206,7 @@ class GameLibraryStoreTest {
     }
 
     private static void resetStore() {
-        try {
-            Field storeField = GameLibraryStore.class.getDeclaredField("store");
-            storeField.setAccessible(true);
-            Object store = storeField.get(null);
-
-            Field loadedField = KeyedPropertiesStore.class.getDeclaredField("loaded");
-            loadedField.setAccessible(true);
-            loadedField.setBoolean(store, false);
-
-            Field propertiesField = KeyedPropertiesStore.class.getDeclaredField("properties");
-            propertiesField.setAccessible(true);
-            ((Properties) propertiesField.get(store)).clear();
-        } catch (ReflectiveOperationException exception) {
-            throw new AssertionError(exception);
-        }
+        GameLibraryStore.ResetForTests();
+        ManagedGameRegistry.ResetForTests();
     }
 }

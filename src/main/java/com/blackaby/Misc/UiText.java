@@ -398,7 +398,7 @@ public final class UiText {
         // Main library window chrome.
         public static final String WINDOW_TITLE = "Library";
         public static final String TITLE = "Game Library";
-        public static final String SUBTITLE = "Load any ROM you have played";
+        public static final String SUBTITLE = "Browse managed ROMs and rebuild the library from disk when needed";
 
         // List controls: filter and view headings.
         public static final String FILTER_TITLE = "Filter";
@@ -428,7 +428,8 @@ public final class UiText {
         // Library item actions and icon tooltips.
         public static final String LOAD_BUTTON = "Load ROM";
         public static final String SAVE_MANAGER_BUTTON = "Save Manager";
-        public static final String REFRESH_BUTTON = "Refresh";
+        public static final String REFRESH_BUTTON = "Refresh Library";
+        public static final String REFRESHING_BUTTON = "Refreshing...";
         public static final String CLOSE_BUTTON = "Close";
         public static final String FAVOURITE_BUTTON = "\u2606";
         public static final String UNFAVOURITE_BUTTON = "\u2605";
@@ -485,6 +486,8 @@ public final class UiText {
         public static final String INFO_ARTWORK_FETCH_FAILED_TITLE = "Failed to get artwork";
         public static final String INFO_DELETE_CONFIRM_TITLE = "Delete ROM";
         public static final String INFO_DELETE_FAILED_TITLE = "Failed to delete ROM";
+        public static final String REFRESH_FAILED_TITLE = "Failed to refresh library";
+        public static final String REFRESH_FAILED_MESSAGE = "GameDuck could not rebuild the managed library from disk.";
 
         // ROM info units and formatting fragments.
         public static final String INFO_ROM_BANKS_SUFFIX = "banks";

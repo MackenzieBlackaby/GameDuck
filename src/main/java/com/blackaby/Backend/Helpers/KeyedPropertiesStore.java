@@ -38,7 +38,7 @@ abstract class KeyedPropertiesStore {
         }
 
         properties.clear();
-        Path path = StorePath();
+        Path path = ResolvedStorePath();
         if (Files.exists(path)) {
             try (InputStream inputStream = Files.newInputStream(path)) {
                 properties.load(inputStream);
@@ -50,7 +50,7 @@ abstract class KeyedPropertiesStore {
     }
 
     protected final void Persist() {
-        Path path = StorePath();
+        Path path = ResolvedStorePath();
         try {
             Path parent = path.getParent();
             if (parent != null) {
@@ -74,6 +74,10 @@ abstract class KeyedPropertiesStore {
 
     protected final void SetRawProperty(String key, String value) {
         properties.setProperty(key, NullToEmpty(value));
+    }
+
+    protected final void ClearAllProperties() {
+        properties.clear();
     }
 
     protected final List<String> StoredKeys() {
@@ -133,7 +137,7 @@ abstract class KeyedPropertiesStore {
         return Hash(value.getBytes(StandardCharsets.UTF_8));
     }
 
-    private Path StorePath() {
+    protected final Path ResolvedStorePath() {
         String configuredPath = System.getProperty(configuredPathProperty);
         if (configuredPath != null && !configuredPath.isBlank()) {
             return Path.of(configuredPath);

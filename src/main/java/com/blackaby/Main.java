@@ -1,5 +1,6 @@
 package com.blackaby;
 
+import com.blackaby.Backend.Helpers.GameLibraryStore;
 import com.blackaby.Frontend.MainWindow;
 import com.blackaby.Misc.Config;
 
@@ -20,6 +21,7 @@ public class Main {
             e.printStackTrace();
         }
         Config.Load();
+        GameLibraryStore.RecoverLibrary();
         new MainWindow();
     }
 

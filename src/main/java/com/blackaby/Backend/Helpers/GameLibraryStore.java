@@ -4,14 +4,18 @@ import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Platform.EmulatorGame;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 /**
@@ -72,6 +76,10 @@ public final class GameLibraryStore {
 
     private static final Store store = new Store();
 
+    public record RefreshResult(int scannedRomCount, int preservedEntryCount, int rebuiltEntryCount,
+                                int removedEntryCount, boolean restoredFromPortableMirror) {
+    }
+
     private GameLibraryStore() {
     }
 
@@ -106,7 +114,7 @@ public final class GameLibraryStore {
                 existingProperties.SetString(romPathSuffix, restoredPath.toString());
             }
             existingProperties.TouchFromExistingRom(rom, now, contentHash);
-            store.Persist();
+            PersistStores();
             return existingProperties.Read();
         }
 
@@ -122,8 +130,30 @@ public final class GameLibraryStore {
         }
 
         entry.WriteMetadata(rom, storedPath, now, contentHash);
-        store.Persist();
+        PersistStores();
         return entry.Read();
+    }
+
+    /**
+     * Repairs the managed library on startup by restoring mirrored metadata when
+     * available, then rescanning the stored ROM folder.
+     *
+     * @return refresh summary
+     */
+    public static synchronized RefreshResult RecoverLibrary() {
+        boolean restoredFromPortableMirror = RestorePortableMirrorIfNeeded();
+        RefreshResult refreshResult = RefreshLibraryInternal(restoredFromPortableMirror);
+        MirrorPrimaryMetadataToPortableStore();
+        return refreshResult;
+    }
+
+    /**
+     * Rescans the managed ROM folder and rebuilds the library metadata from disk.
+     *
+     * @return refresh summary
+     */
+    public static synchronized RefreshResult RefreshLibrary() {
+        return RefreshLibraryInternal(false);
     }
 
     /**
@@ -158,6 +188,10 @@ public final class GameLibraryStore {
                 .toList();
     }
 
+    static synchronized void ResetForTests() {
+        store.ResetForTests();
+    }
+
     /**
      * Marks a managed library entry as favourite or not favourite.
      *
@@ -177,7 +211,7 @@ public final class GameLibraryStore {
         }
 
         entry.SetBoolean(favouriteSuffix, favourite);
-        store.Persist();
+        PersistStores();
     }
 
     /**
@@ -200,7 +234,7 @@ public final class GameLibraryStore {
 
         Files.deleteIfExists(entry.romPath());
         new EntryProperties(key).RemoveAll();
-        store.Persist();
+        PersistStores();
     }
 
     /**
@@ -231,7 +265,61 @@ public final class GameLibraryStore {
                 entry.SetLong(lastPlayedSuffix, 0L);
             }
         }
-        store.Persist();
+        PersistStores();
+    }
+
+    private static RefreshResult RefreshLibraryInternal(boolean restoredFromPortableMirror) {
+        store.EnsureLoaded();
+
+        List<EntrySnapshot> existingSnapshots = BuildSnapshots();
+        List<EntrySnapshot> portableSnapshots = LoadSnapshotsFromMetadataFile(PortableMetadataPath());
+        List<EntrySnapshot> knownSnapshots = MergeSnapshots(existingSnapshots, portableSnapshots);
+        Map<Path, List<EntrySnapshot>> snapshotsByPath = IndexSnapshotsByPath(knownSnapshots);
+        Map<String, List<EntrySnapshot>> snapshotsByHash = IndexSnapshotsByHash(knownSnapshots);
+
+        List<ScannedRom> scannedRoms = ScanStoredRoms();
+        Map<String, List<ScannedRom>> scannedByHash = new HashMap<>();
+        for (ScannedRom scannedRom : scannedRoms) {
+            scannedByHash.computeIfAbsent(scannedRom.contentHash(), ignored -> new ArrayList<>()).add(scannedRom);
+        }
+
+        long now = System.currentTimeMillis();
+        Set<String> reusedKeys = new LinkedHashSet<>();
+        Set<String> previousKeys = new LinkedHashSet<>();
+        for (EntrySnapshot snapshot : knownSnapshots) {
+            previousKeys.add(snapshot.entry().key());
+        }
+
+        store.ClearEntries();
+        int preservedEntryCount = 0;
+        int rebuiltEntryCount = 0;
+        for (List<ScannedRom> duplicateGroup : scannedByHash.values()) {
+            duplicateGroup.sort(Comparator.comparing(scannedRom -> scannedRom.path().toString(), String.CASE_INSENSITIVE_ORDER));
+            ScannedRom canonicalRom = SelectCanonicalRom(duplicateGroup, snapshotsByPath);
+            EntrySnapshot candidateSnapshot = FindPreferredSnapshot(duplicateGroup, snapshotsByPath, snapshotsByHash);
+            LibraryEntry rebuiltEntry = BuildRefreshedEntry(candidateSnapshot, canonicalRom, now);
+            reusedKeys.add(rebuiltEntry.key());
+            if (candidateSnapshot == null) {
+                rebuiltEntryCount++;
+            } else {
+                preservedEntryCount++;
+            }
+            WriteEntry(rebuiltEntry, canonicalRom.contentHash());
+        }
+
+        PersistStores();
+        DeleteOrphanedStoredRoms();
+        ManagedGameRegistry.RefreshFromLibraryEntries(GetEntries());
+
+        int removedEntryCount = 0;
+        for (String previousKey : previousKeys) {
+            if (!reusedKeys.contains(previousKey)) {
+                removedEntryCount++;
+            }
+        }
+
+        return new RefreshResult(scannedRoms.size(), preservedEntryCount, rebuiltEntryCount,
+                removedEntryCount, restoredFromPortableMirror);
     }
 
     private static int CleanupDuplicateEntriesInternal() {
@@ -269,9 +357,328 @@ public final class GameLibraryStore {
         }
 
         if (changed) {
-            store.Persist();
+            PersistStores();
         }
         return removedCount;
+    }
+
+    private static void WriteEntry(LibraryEntry entry, String contentHash) {
+        GBRom rom = GBRom.FromBytes(
+                entry.sourcePath() == null || entry.sourcePath().isBlank()
+                        ? entry.romPath().toString()
+                        : entry.sourcePath(),
+                ReadRomBytes(entry.romPath()),
+                entry.displayName(),
+                entry.patchNames(),
+                entry.patchSourcePaths());
+        new EntryProperties(entry.key()).WriteMetadata(
+                rom,
+                entry.romPath(),
+                entry.addedAtMillis(),
+                entry.lastPlayedMillis(),
+                entry.favourite(),
+                contentHash);
+    }
+
+    private static byte[] ReadRomBytes(Path romPath) {
+        try {
+            return Files.readAllBytes(romPath);
+        } catch (IOException exception) {
+            throw new IllegalStateException("Unable to read the managed ROM library.", exception);
+        }
+    }
+
+    private static List<ScannedRom> ScanStoredRoms() {
+        Path storageDirectory = RomStorageDirectory();
+        if (!Files.isDirectory(storageDirectory)) {
+            return List.of();
+        }
+
+        List<ScannedRom> scannedRoms = new ArrayList<>();
+        try (var paths = Files.list(storageDirectory)) {
+            for (Path path : paths.toList()) {
+                if (!Files.isRegularFile(path)) {
+                    continue;
+                }
+                if (".gitkeep".equalsIgnoreCase(path.getFileName().toString())) {
+                    continue;
+                }
+
+                try {
+                    byte[] romBytes = Files.readAllBytes(path);
+                    GBRom rom = new GBRom(path.toString());
+                    scannedRoms.add(new ScannedRom(path, romBytes, KeyedPropertiesStore.Hash(romBytes), rom));
+                } catch (IOException | IllegalArgumentException exception) {
+                    // Ignore unreadable or invalid files in the managed ROM folder.
+                }
+            }
+        } catch (IOException exception) {
+            return List.of();
+        }
+        return scannedRoms;
+    }
+
+    private static ScannedRom SelectCanonicalRom(List<ScannedRom> duplicateGroup, Map<Path, List<EntrySnapshot>> snapshotsByPath) {
+        for (ScannedRom scannedRom : duplicateGroup) {
+            List<EntrySnapshot> matchingSnapshots = snapshotsByPath.get(NormalisePath(scannedRom.path()));
+            if (matchingSnapshots != null && !matchingSnapshots.isEmpty()) {
+                return scannedRom;
+            }
+        }
+        return duplicateGroup.get(0);
+    }
+
+    private static EntrySnapshot FindPreferredSnapshot(List<ScannedRom> duplicateGroup, Map<Path, List<EntrySnapshot>> snapshotsByPath,
+                                                       Map<String, List<EntrySnapshot>> snapshotsByHash) {
+        List<EntrySnapshot> candidates = new ArrayList<>();
+        for (ScannedRom scannedRom : duplicateGroup) {
+            List<EntrySnapshot> pathMatches = snapshotsByPath.get(NormalisePath(scannedRom.path()));
+            if (pathMatches != null) {
+                candidates.addAll(pathMatches);
+            }
+        }
+
+        String contentHash = duplicateGroup.get(0).contentHash();
+        List<EntrySnapshot> hashMatches = snapshotsByHash.get(contentHash);
+        if (hashMatches != null) {
+            candidates.addAll(hashMatches);
+        }
+
+        return candidates.stream()
+                .distinct()
+                .min(duplicatePreference)
+                .orElse(null);
+    }
+
+    private static LibraryEntry BuildRefreshedEntry(EntrySnapshot candidateSnapshot, ScannedRom scannedRom, long now) {
+        GBRom scannedMetadata = scannedRom.rom();
+        if (candidateSnapshot == null) {
+            String key = BuildEntryKey(scannedMetadata);
+            return new LibraryEntry(
+                    key,
+                    scannedRom.path(),
+                    scannedMetadata.GetSourcePath(),
+                    scannedMetadata.GetSourceName(),
+                    scannedMetadata.GetName(),
+                    scannedMetadata.GetPatchNames(),
+                    scannedMetadata.GetPatchSourcePaths(),
+                    scannedMetadata.GetHeaderTitle(),
+                    scannedMetadata.IsCgbCompatible(),
+                    scannedMetadata.IsCgbOnly(),
+                    now,
+                    0L,
+                    false);
+        }
+
+        LibraryEntry entry = candidateSnapshot.entry();
+        return new LibraryEntry(
+                entry.key(),
+                scannedRom.path(),
+                entry.sourcePath(),
+                entry.sourceName(),
+                entry.displayName(),
+                entry.patchNames(),
+                entry.patchSourcePaths(),
+                entry.headerTitle() == null || entry.headerTitle().isBlank()
+                        ? scannedMetadata.GetHeaderTitle()
+                        : entry.headerTitle(),
+                scannedMetadata.IsCgbCompatible(),
+                scannedMetadata.IsCgbOnly(),
+                entry.addedAtMillis() > 0L ? entry.addedAtMillis() : now,
+                Math.max(0L, entry.lastPlayedMillis()),
+                entry.favourite());
+    }
+
+    private static List<EntrySnapshot> MergeSnapshots(List<EntrySnapshot> primarySnapshots, List<EntrySnapshot> portableSnapshots) {
+        Map<String, EntrySnapshot> byKey = new HashMap<>();
+        for (EntrySnapshot snapshot : portableSnapshots) {
+            byKey.put(snapshot.entry().key(), snapshot);
+        }
+        for (EntrySnapshot snapshot : primarySnapshots) {
+            byKey.put(snapshot.entry().key(), snapshot);
+        }
+        return List.copyOf(byKey.values());
+    }
+
+    private static Map<Path, List<EntrySnapshot>> IndexSnapshotsByPath(List<EntrySnapshot> snapshots) {
+        Map<Path, List<EntrySnapshot>> snapshotsByPath = new HashMap<>();
+        for (EntrySnapshot snapshot : snapshots) {
+            Path normalisedPath = NormalisePath(snapshot.entry().romPath());
+            if (normalisedPath == null) {
+                continue;
+            }
+            snapshotsByPath.computeIfAbsent(normalisedPath, ignored -> new ArrayList<>()).add(snapshot);
+        }
+        return snapshotsByPath;
+    }
+
+    private static Map<String, List<EntrySnapshot>> IndexSnapshotsByHash(List<EntrySnapshot> snapshots) {
+        Map<String, List<EntrySnapshot>> snapshotsByHash = new HashMap<>();
+        for (EntrySnapshot snapshot : snapshots) {
+            if (snapshot.contentHash() == null || snapshot.contentHash().isBlank()) {
+                continue;
+            }
+            snapshotsByHash.computeIfAbsent(snapshot.contentHash(), ignored -> new ArrayList<>()).add(snapshot);
+        }
+        return snapshotsByHash;
+    }
+
+    private static List<EntrySnapshot> LoadSnapshotsFromMetadataFile(Path metadataPath) {
+        if (metadataPath == null || !Files.isRegularFile(metadataPath)) {
+            return List.of();
+        }
+
+        Properties properties = new Properties();
+        try (InputStream inputStream = Files.newInputStream(metadataPath)) {
+            properties.load(inputStream);
+        } catch (IOException exception) {
+            return List.of();
+        }
+
+        List<EntrySnapshot> snapshots = new ArrayList<>();
+        for (String key : ExtractStoredKeys(properties)) {
+            LibraryEntry entry = ReadEntry(properties, key);
+            if (entry == null) {
+                continue;
+            }
+            snapshots.add(new EntrySnapshot(entry, ResolveContentHash(properties, key, entry.romPath())));
+        }
+        return snapshots;
+    }
+
+    private static Set<String> ExtractStoredKeys(Properties properties) {
+        Set<String> keys = new LinkedHashSet<>();
+        for (String propertyName : properties.stringPropertyNames()) {
+            if (!propertyName.startsWith("entry.") || !propertyName.endsWith(sourceNameSuffix)) {
+                continue;
+            }
+
+            String key = propertyName.substring("entry.".length(), propertyName.length() - sourceNameSuffix.length());
+            if (!key.isBlank()) {
+                keys.add(key);
+            }
+        }
+        return keys;
+    }
+
+    private static LibraryEntry ReadEntry(Properties properties, String key) {
+        String prefix = "entry." + key;
+        String romPathValue = properties.getProperty(prefix + romPathSuffix, "");
+        String sourceName = properties.getProperty(prefix + sourceNameSuffix, "");
+        String displayName = properties.getProperty(prefix + displayNameSuffix, "");
+        if (romPathValue.isBlank() || (sourceName.isBlank() && displayName.isBlank())) {
+            return null;
+        }
+
+        Path romPath;
+        try {
+            romPath = Path.of(romPathValue);
+        } catch (RuntimeException exception) {
+            return null;
+        }
+
+        String sourcePath = properties.getProperty(prefix + sourcePathSuffix, "");
+        return new LibraryEntry(
+                key,
+                romPath,
+                sourcePath,
+                sourceName,
+                displayName,
+                ReadIndexedList(properties, prefix, patchNamePrefix, patchNameCountSuffix),
+                ReadIndexedList(properties, prefix, patchSourcePrefix, patchSourceCountSuffix),
+                properties.getProperty(prefix + headerTitleSuffix, ""),
+                Boolean.parseBoolean(properties.getProperty(prefix + cgbCompatibleSuffix, "false")),
+                Boolean.parseBoolean(properties.getProperty(prefix + cgbOnlySuffix, "false")),
+                KeyedPropertiesStore.ParseLong(properties.getProperty(prefix + addedAtSuffix, ""), 0L),
+                KeyedPropertiesStore.ParseLong(properties.getProperty(prefix + lastPlayedSuffix, ""), 0L),
+                Boolean.parseBoolean(properties.getProperty(prefix + favouriteSuffix, "false")));
+    }
+
+    private static List<String> ReadIndexedList(Properties properties, String prefix, String itemPrefix, String countSuffix) {
+        int count = KeyedPropertiesStore.ParseInt(properties.getProperty(prefix + countSuffix, ""), 0);
+        List<String> values = new ArrayList<>(count);
+        for (int index = 0; index < count; index++) {
+            values.add(properties.getProperty(prefix + itemPrefix + index, ""));
+        }
+        return List.copyOf(values);
+    }
+
+    private static String ResolveContentHash(Properties properties, String key, Path romPath) {
+        String storedHash = properties.getProperty("entry." + key + contentHashSuffix, "");
+        if (!storedHash.isBlank()) {
+            return storedHash;
+        }
+        if (romPath == null || !Files.isRegularFile(romPath)) {
+            return "";
+        }
+
+        try {
+            return KeyedPropertiesStore.Hash(Files.readAllBytes(romPath));
+        } catch (IOException exception) {
+            return "";
+        }
+    }
+
+    private static Path NormalisePath(Path path) {
+        if (path == null) {
+            return null;
+        }
+
+        try {
+            return path.toAbsolutePath().normalize();
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
+    private static boolean RestorePortableMirrorIfNeeded() {
+        Path primaryPath = store.MetadataPath();
+        Path portablePath = PortableMetadataPath();
+        if (Files.exists(primaryPath) || !Files.isRegularFile(portablePath)) {
+            return false;
+        }
+
+        try {
+            Path parent = primaryPath.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.copy(portablePath, primaryPath, StandardCopyOption.REPLACE_EXISTING);
+            return true;
+        } catch (IOException exception) {
+            return false;
+        }
+    }
+
+    private static void PersistStores() {
+        store.Persist();
+        MirrorPrimaryMetadataToPortableStore();
+    }
+
+    private static void MirrorPrimaryMetadataToPortableStore() {
+        Path primaryPath = store.MetadataPath();
+        Path portablePath = PortableMetadataPath();
+        if (!Files.isRegularFile(primaryPath)) {
+            return;
+        }
+
+        try {
+            Path parent = portablePath.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
+            Files.copy(primaryPath, portablePath, StandardCopyOption.REPLACE_EXISTING);
+        } catch (IOException exception) {
+            // Keep the primary metadata even when the portable mirror cannot be updated.
+        }
+    }
+
+    private static Path PortableMetadataPath() {
+        String configuredPath = System.getProperty("gameduck.library_portable_metadata_path");
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            return Path.of(configuredPath);
+        }
+        return Path.of("library", "game-library.properties");
     }
 
     private static void MergeDuplicateMetadata(EntrySnapshot canonical, List<EntrySnapshot> group) {
@@ -457,6 +864,9 @@ public final class GameLibraryStore {
     private record EntrySnapshot(LibraryEntry entry, String contentHash) {
     }
 
+    private record ScannedRom(Path path, byte[] romBytes, String contentHash, GBRom rom) {
+    }
+
     private static String BuildEntryKey(GBRom rom) {
         return KeyedPropertiesStore.Hash(String.join("|",
                 KeyedPropertiesStore.Hash(rom.ToByteArray()),
@@ -515,7 +925,7 @@ public final class GameLibraryStore {
         }
 
         store.SetValue(prefix + cgbCompatibleSuffix, String.valueOf(cgbCompatible));
-        store.Persist();
+        PersistStores();
         return cgbCompatible;
     }
 
@@ -527,7 +937,7 @@ public final class GameLibraryStore {
 
         boolean cgbOnly = RomConsoleSupport.IsCgbOnly(romPath);
         store.SetValue(prefix + cgbOnlySuffix, String.valueOf(cgbOnly));
-        store.Persist();
+        PersistStores();
         return cgbOnly;
     }
 
@@ -537,12 +947,20 @@ public final class GameLibraryStore {
                     Path.of("cache", "game-library.properties"), "GameDuck library");
         }
 
+        private Path MetadataPath() {
+            return ResolvedStorePath();
+        }
+
         private String EntryValue(String key) {
             return RawProperty(key);
         }
 
         private void SetValue(String key, String value) {
             SetRawProperty(key, value);
+        }
+
+        private void ClearEntries() {
+            ClearAllProperties();
         }
     }
 
@@ -558,6 +976,12 @@ public final class GameLibraryStore {
         }
 
         private void WriteMetadata(GBRom rom, Path storedPath, long now, String contentHash) {
+            WriteMetadata(rom, storedPath, entry.GetLong(addedAtSuffix, now), now,
+                    entry.GetBoolean(favouriteSuffix, false), contentHash);
+        }
+
+        private void WriteMetadata(GBRom rom, Path storedPath, long addedAt, long lastPlayed, boolean favourite,
+                                   String contentHash) {
             entry.Set(romPathSuffix, storedPath.toString());
             entry.Set(sourcePathSuffix, rom.GetSourcePath());
             entry.Set(sourceNameSuffix, rom.GetSourceName());
@@ -566,8 +990,9 @@ public final class GameLibraryStore {
             entry.Set(cgbCompatibleSuffix, RomConsoleSupport.IsGbc(rom));
             entry.Set(cgbOnlySuffix, RomConsoleSupport.IsCgbOnly(rom));
             entry.Set(contentHashSuffix, contentHash);
-            entry.Set(addedAtSuffix, entry.GetLong(addedAtSuffix, now));
-            entry.Set(lastPlayedSuffix, now);
+            entry.Set(addedAtSuffix, addedAt);
+            entry.Set(lastPlayedSuffix, lastPlayed);
+            entry.Set(favouriteSuffix, favourite);
             entry.WriteIndexedList(patchNamePrefix, patchNameCountSuffix, rom.GetPatchNames());
             entry.WriteIndexedList(patchSourcePrefix, patchSourceCountSuffix, rom.GetPatchSourcePaths());
         }

@@ -24,12 +24,9 @@ import java.util.Properties;
  */
 public final class Config {
 
-    private static final Path appDataDirectoryPath = Path.of(System.getProperty("user.home"), ".gameduck");
     private static final Path legacyConfigPath = Path.of(System.getProperty("user.home"), ".gameduck.properties");
     private static final Path legacyPaletteConfigPath = Path.of(System.getProperty("user.home"),
             ".gameduck-palettes.json");
-    private static final Path configPath = appDataDirectoryPath.resolve("config.properties");
-    private static final Path paletteConfigPath = appDataDirectoryPath.resolve("palettes.json");
     private static final String currentPalettePrefix = "palette.current.";
     private static final String savedPaletteListKey = "palette.names";
     private static final String savedPalettePrefix = "palette.saved.";
@@ -87,6 +84,8 @@ public final class Config {
      * Loads the configuration file into {@link Settings}.
      */
     public static synchronized void Load() {
+        Path configPath = ConfigPath();
+        Path paletteConfigPath = PaletteConfigPath();
         MigrateLegacyFileIfNeeded(legacyConfigPath, configPath);
         MigrateLegacyFileIfNeeded(legacyPaletteConfigPath, paletteConfigPath);
         properties.clear();
@@ -792,6 +791,9 @@ public final class Config {
     }
 
     private static void Persist() {
+        Path appDataDirectoryPath = AppDataDirectoryPath();
+        Path configPath = ConfigPath();
+        Path paletteConfigPath = PaletteConfigPath();
         try {
             RemoveLegacyPaletteProperties();
             paletteStore.Save(paletteConfigPath);
@@ -810,10 +812,47 @@ public final class Config {
         }
 
         try {
-            Files.createDirectories(appDataDirectoryPath);
+            Path parent = newPath.getParent();
+            if (parent != null) {
+                Files.createDirectories(parent);
+            }
             Files.move(legacyPath, newPath);
         } catch (IOException exception) {
             exception.printStackTrace();
         }
+    }
+
+    private static Path AppDataDirectoryPath() {
+        String configuredDirectory = System.getProperty("gameduck.config_dir");
+        if (configuredDirectory != null && !configuredDirectory.isBlank()) {
+            return Path.of(configuredDirectory);
+        }
+
+        String configuredConfigPath = System.getProperty("gameduck.config_path");
+        if (configuredConfigPath != null && !configuredConfigPath.isBlank()) {
+            Path configuredPath = Path.of(configuredConfigPath);
+            Path parent = configuredPath.getParent();
+            if (parent != null) {
+                return parent;
+            }
+        }
+
+        return Path.of(System.getProperty("user.home"), ".gameduck");
+    }
+
+    private static Path ConfigPath() {
+        String configuredPath = System.getProperty("gameduck.config_path");
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            return Path.of(configuredPath);
+        }
+        return AppDataDirectoryPath().resolve("config.properties");
+    }
+
+    private static Path PaletteConfigPath() {
+        String configuredPath = System.getProperty("gameduck.palette_config_path");
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            return Path.of(configuredPath);
+        }
+        return AppDataDirectoryPath().resolve("palettes.json");
     }
 }

@@ -118,6 +118,48 @@ public final class ManagedGameRegistry {
     }
 
     /**
+     * Rebuilds the tracked save-capable game registry from the current library.
+     *
+     * @param libraryEntries current managed-library entries
+     */
+    public static synchronized void RefreshFromLibraryEntries(List<GameLibraryStore.LibraryEntry> libraryEntries) {
+        store.EnsureLoaded();
+        List<GameSnapshot> existingSnapshots = BuildSnapshots();
+        Map<String, StoredGame> existingByHash = new HashMap<>();
+        for (GameSnapshot snapshot : existingSnapshots) {
+            if (snapshot.contentHash() != null && !snapshot.contentHash().isBlank()) {
+                existingByHash.putIfAbsent(snapshot.contentHash(), snapshot.game());
+            }
+        }
+
+        store.ClearEntries();
+        List<GameLibraryStore.LibraryEntry> safeEntries = libraryEntries == null ? List.of() : libraryEntries;
+        for (GameLibraryStore.LibraryEntry entry : safeEntries) {
+            if (entry == null) {
+                continue;
+            }
+
+            try {
+                GBRom rom = entry.LoadRom();
+                if (!rom.HasBatteryBackedSave()) {
+                    continue;
+                }
+
+                String contentHash = KeyedPropertiesStore.Hash(rom.ToByteArray());
+                StoredGame existingGame = existingByHash.get(contentHash);
+                long lastSeenMillis = Math.max(
+                        existingGame == null ? 0L : existingGame.lastSeenMillis(),
+                        Math.max(entry.lastPlayedMillis(), entry.addedAtMillis()));
+                EntryProperties refreshedEntry = new EntryProperties(BuildGameKey(rom));
+                refreshedEntry.WriteMetadata(rom, SaveFileManager.SaveIdentity.FromRom(rom), contentHash, lastSeenMillis);
+            } catch (IOException | IllegalArgumentException exception) {
+                // Ignore entries that can no longer be reconstructed from disk.
+            }
+        }
+        store.Persist();
+    }
+
+    /**
      * Builds the registry key used for a loaded ROM.
      *
      * @param rom loaded ROM
@@ -135,6 +177,10 @@ public final class ManagedGameRegistry {
             return "";
         }
         return BuildGameKey(game.sourcePath(), game.sourceName(), game.patchSourcePaths(), game.patchNames());
+    }
+
+    static synchronized void ResetForTests() {
+        store.ResetForTests();
     }
 
     private static String BuildGameKey(String sourcePath, String sourceName, List<String> patchSourcePaths, List<String> patchNames) {
@@ -329,6 +375,10 @@ public final class ManagedGameRegistry {
             super("game.", sourceNameSuffix, "gameduck.managed_games_path",
                     Path.of("cache", "managed-games.properties"), "GameDuck managed games");
         }
+
+        private void ClearEntries() {
+            ClearAllProperties();
+        }
     }
 
     private static final class EntryProperties {
@@ -338,7 +388,7 @@ public final class ManagedGameRegistry {
             this.entry = store.Entry(key);
         }
 
-        private void WriteMetadata(GBRom rom, SaveFileManager.SaveIdentity saveIdentity, String contentHash, long now) {
+        private void WriteMetadata(GBRom rom, SaveFileManager.SaveIdentity saveIdentity, String contentHash, long lastSeen) {
             entry.Set(sourcePathSuffix, saveIdentity.sourcePath());
             entry.Set(sourceNameSuffix, saveIdentity.sourceName());
             entry.Set(displayNameSuffix, saveIdentity.displayName());
@@ -347,7 +397,7 @@ public final class ManagedGameRegistry {
             entry.Set(cgbOnlySuffix, RomConsoleSupport.IsCgbOnly(rom));
             entry.Set(expectedSaveSizeSuffix, rom.GetExternalRamSizeBytes());
             entry.Set(contentHashSuffix, contentHash);
-            entry.Set(lastSeenSuffix, now);
+            entry.Set(lastSeenSuffix, lastSeen);
             entry.WriteIndexedList(patchNamePrefix, patchNameCountSuffix, saveIdentity.patchNames());
             entry.WriteIndexedList(patchSourcePrefix, patchSourceCountSuffix, rom.GetPatchSourcePaths());
         }

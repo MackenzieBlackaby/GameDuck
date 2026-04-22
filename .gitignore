@@ -22,6 +22,7 @@ saves/*.rtc
 quickstates/*.gqs
 library/roms/*.gb
 library/roms/*.gbc
+library/*.properties
 devassets
 demo-roms-dev
 release

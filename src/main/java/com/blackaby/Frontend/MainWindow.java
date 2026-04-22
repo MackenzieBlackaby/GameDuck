@@ -407,6 +407,11 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         RefreshFullViewRecentGames();
     }
 
+    public void RefreshLibraryCollections() {
+        recentGamesMenuDirty = true;
+        RefreshReadyPageRecentGames();
+    }
+
     private int CalculateRecentGameTileSize() {
         int width = displayFrame == null || displayFrame.getWidth() <= 0 ? getWidth() : displayFrame.getWidth();
         int height = displayFrame == null || displayFrame.getHeight() <= 0 ? getHeight() : displayFrame.getHeight();

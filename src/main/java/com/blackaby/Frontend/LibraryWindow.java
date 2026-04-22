@@ -158,6 +158,7 @@ public final class LibraryWindow extends DuckWindow {
     private JButton infoButton;
     private JButton loadButton;
     private JButton favouriteButton;
+    private JButton refreshButton;
     private ViewMode viewMode = ViewMode.LIST;
     private FilterMode filterMode = FilterMode.ALL;
     private SortMode sortMode = SortMode.ALPHABETICAL;
@@ -227,8 +228,8 @@ public final class LibraryWindow extends DuckWindow {
         saveManagerButton.addActionListener(event -> new SaveDataManagerWindow(mainWindow));
         actionStack.add(saveManagerButton);
 
-        JButton refreshButton = createSecondaryButton(UiText.LibraryWindow.REFRESH_BUTTON);
-        refreshButton.addActionListener(event -> refreshEntryList());
+        refreshButton = createSecondaryButton(UiText.LibraryWindow.REFRESH_BUTTON);
+        refreshButton.addActionListener(event -> performLibraryRefresh());
         actionStack.add(refreshButton);
 
         JButton closeButton = createSecondaryButton(UiText.LibraryWindow.CLOSE_BUTTON);
@@ -735,6 +736,39 @@ public final class LibraryWindow extends DuckWindow {
         } else if (entryList != null) {
             repaintEntryCell(entry.key());
         }
+    }
+
+    private void performLibraryRefresh() {
+        if (refreshButton != null) {
+            refreshButton.setEnabled(false);
+            refreshButton.setText(UiText.LibraryWindow.REFRESHING_BUTTON);
+        }
+
+        CompletableFuture
+                .supplyAsync(GameLibraryStore::RefreshLibrary)
+                .thenAccept(result -> SwingUtilities.invokeLater(() -> {
+                    refreshEntryList();
+                    if (mainWindow != null) {
+                        mainWindow.RefreshLibraryCollections();
+                    }
+                    if (refreshButton != null) {
+                        refreshButton.setEnabled(true);
+                        refreshButton.setText(UiText.LibraryWindow.REFRESH_BUTTON);
+                    }
+                }))
+                .exceptionally(exception -> {
+                    SwingUtilities.invokeLater(() -> {
+                        if (refreshButton != null) {
+                            refreshButton.setEnabled(true);
+                            refreshButton.setText(UiText.LibraryWindow.REFRESH_BUTTON);
+                        }
+                        JOptionPane.showMessageDialog(this,
+                                UiText.LibraryWindow.REFRESH_FAILED_MESSAGE,
+                                UiText.LibraryWindow.REFRESH_FAILED_TITLE,
+                                JOptionPane.ERROR_MESSAGE);
+                    });
+                    return null;
+                });
     }
 
     private void requestArt(LibraryEntry entry) {

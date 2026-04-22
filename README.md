@@ -66,7 +66,7 @@ The project is currently aimed at original Game Boy and Game Boy Color software.
 ## What is planned by the time of V 1.0
 
 - SGB Support
-- Library and Config migration (To make updating easy)
+- Library/config migration and startup recovery for portable installs and app updates
 - 2 Emulations running simultaneously with link cable support between them.
 - Dual controller support for split-screen style play
 
@@ -81,7 +81,8 @@ The project is currently aimed at original Game Boy and Game Boy Color software.
 
 At the top level there are also a few working directories used by the app itself.
 
-- `library/` stores managed copies of ROMs that have been loaded into the in-app library.
+- `library/` stores managed copies of ROMs that have been loaded into the in-app library, plus a mirrored
+  library metadata file used for recovery if the cache copy goes missing.
 - `saves/` stores cartridge save data.
 - `saves/notes/` stores plain-text per-game notes.
 - `quickstates/` stores `.gqs` save-state files.
@@ -143,11 +144,13 @@ javadoc -d docs/javadoc -sourcepath src/main/java -subpackages com.blackaby
 
 Not everything lives in the working tree.
 
-- The main settings file is written to `~/.gameduck/config.properties`.
+- The main settings file is written to `~/.gameduck/config.properties` by default.
+- Portable launchers can override the config location with `gameduck.config_dir`, `gameduck.config_path`,
+  and `gameduck.palette_config_path`.
 - Palettes are written to `~/.gameduck/palettes.json`.
 - Installed boot ROMs are kept in `~/.gameduck/`.
 
-That split is deliberate. Runtime data tied to the current checkout stays in the project folders, while configuration and boot ROMs live in the user profile.
+That split is deliberate. Runtime data tied to the current checkout stays in the project folders, while configuration and boot ROMs live in the user profile by default. The library metadata is also mirrored inside `library/` so copied installs can rebuild the cache metadata and refresh the managed library from disk.
 
 ## Notes on ROMs and boot ROMs
 

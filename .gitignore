@@ -28,3 +28,4 @@ demo-roms-dev
 release
 .github
 releaseNotes.md
+docs/*.md

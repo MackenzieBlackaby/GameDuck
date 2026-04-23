@@ -144,6 +144,10 @@ public final class ThemeStore {
         }
     }
 
+    public static Path ThemeDirectoryPath() {
+        return ThemeDirectory();
+    }
+
     static Path ThemeDirectory() {
         String configuredPath = System.getProperty("gameduck.theme_dir");
         if (configuredPath != null && !configuredPath.isBlank()) {

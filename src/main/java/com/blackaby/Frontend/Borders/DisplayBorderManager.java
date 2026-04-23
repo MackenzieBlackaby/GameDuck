@@ -35,6 +35,10 @@ public final class DisplayBorderManager {
     }
 
     public static Path BorderDirectory() {
+        String configuredPath = System.getProperty("gameduck.border_dir");
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            return Path.of(configuredPath);
+        }
         return Path.of(System.getProperty("user.home"), ".gameduck", "borders");
     }
 

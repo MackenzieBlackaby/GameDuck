@@ -813,7 +813,7 @@ public final class UiText {
         public static final String SECTION_SOUND_TITLE = "Audio Output";
         public static final String SECTION_SOUND_DESCRIPTION = "Adjust various audio settings and effects";
         public static final String SECTION_EMULATION_TITLE = "Data";
-        public static final String SECTION_EMULATION_DESCRIPTION = "Save files and startup ROMs.";
+        public static final String SECTION_EMULATION_DESCRIPTION = "Backups, save tools, and startup ROMs.";
         public static final String SECTION_WINDOW_TITLE = "Main Window Layout";
         public static final String SECTION_WINDOW_DESCRIPTION = "Core window, border, shader, and ready-page controls.";
         public static final String SECTION_DISPLAY_SHADER_TITLE = "Display Shaders";
@@ -1074,6 +1074,24 @@ public final class UiText {
         public static final String SAVE_MANAGER_LAUNCH_HELPER = "";
         public static final String SAVE_MANAGER_OPEN_BUTTON = "Open Save Manager";
         public static final String SAVE_DATA_MANAGED_PATH_TITLE = "Save Path location";
+        public static final String DATA_BACKUP_TITLE = "Backup and Restore";
+        public static final String DATA_BACKUP_HELPER = "Create or restore a full .gdlib snapshot containing library ROMs, saves, save states, preferences, custom shaders, and other managed data.";
+        public static final String DATA_BACKUP_BUTTON = "Backup";
+        public static final String DATA_RESTORE_BUTTON = "Restore";
+        public static final String DATA_RESET_TITLE = "Reset and Delete";
+        public static final String DATA_RESET_HELPER = "Use these actions carefully. Delete Library keeps save data; Delete All Save Data leaves the library alone.";
+        public static final String DATA_RESET_PREFERENCES_BUTTON = "Reset Preferences";
+        public static final String DATA_RESET_SHADERS_BUTTON = "Reset Shaders";
+        public static final String DATA_DELETE_LIBRARY_BUTTON = "Delete Library";
+        public static final String DATA_DELETE_SAVE_DATA_BUTTON = "Delete All Save Data";
+        public static final String DATA_DELETE_EVERYTHING_BUTTON = "Delete Everything";
+        public static final String DATA_BUNDLE_SAVE_DIALOG_TITLE = "Create GameDuck backup";
+        public static final String DATA_BUNDLE_RESTORE_DIALOG_TITLE = "Restore GameDuck backup";
+        public static final String DATA_BUNDLE_FILE_DESCRIPTION = "GameDuck library bundle";
+        public static final String DATA_BUNDLE_BACKUP_FAILED_TITLE = "Failed to create backup";
+        public static final String DATA_BUNDLE_RESTORE_FAILED_TITLE = "Failed to restore backup";
+        public static final String DATA_RESET_FAILED_TITLE = "Failed to reset data";
+        public static final String DATA_DELETE_FAILED_TITLE = "Failed to delete data";
         public static final String SAVE_DATA_EXISTING_FILES_TITLE = "Detected Save Files";
         public static final String SAVE_DATA_EXISTING_FILES_HELPER = "Managed saves are stored in GameDuck's save directory. Older legacy filenames are detected here too.";
         public static final String SAVE_DATA_NO_ROM_TITLE = "No Battery Save Game Loaded";
@@ -1096,6 +1114,11 @@ public final class UiText {
         public static final String SAVE_DETAILS_NOT_AVAILABLE = "Not available";
         public static final String SAVE_DETAILS_UNKNOWN_TIME = "Unknown";
         public static final String SAVE_DELETE_WARNING = "Deleting clears the live cartridge RAM and removes the managed .sav file";
+        public static final String DATA_RESET_PREFERENCES_CONFIRM_TITLE = "Reset Preferences";
+        public static final String DATA_RESET_SHADERS_CONFIRM_TITLE = "Reset Shaders";
+        public static final String DATA_DELETE_LIBRARY_CONFIRM_TITLE = "Delete Library";
+        public static final String DATA_DELETE_SAVE_DATA_CONFIRM_TITLE = "Delete All Save Data";
+        public static final String DATA_DELETE_EVERYTHING_CONFIRM_TITLE = "Delete Everything";
 
         // -----------------------------------------------------------------
         // Emulation tab: DMG and CGB boot ROM configuration.
@@ -1371,6 +1394,34 @@ public final class UiText {
         public static String SaveStateMoveSuccessMessage(String gameName, String sourceSlotLabel,
                 String targetSlotLabel) {
             return "Moved " + sourceSlotLabel + " to " + targetSlotLabel + " for " + gameName;
+        }
+
+        public static String DataBackupSuccessMessage(String destinationPath) {
+            return "Created GameDuck backup at:\n" + destinationPath;
+        }
+
+        public static String DataRestoreSuccessMessage(String sourcePath) {
+            return "Restored GameDuck data from:\n" + sourcePath;
+        }
+
+        public static String DataResetPreferencesConfirmMessage() {
+            return "Reset GameDuck preferences and palette selections back to defaults?";
+        }
+
+        public static String DataResetShadersConfirmMessage() {
+            return "Delete every custom shader preset and reset the active shader to Off?";
+        }
+
+        public static String DataDeleteLibraryConfirmMessage() {
+            return "Delete every ROM from the managed library?\n\nSave files and save states will be left alone.";
+        }
+
+        public static String DataDeleteSaveDataConfirmMessage() {
+            return "Delete every managed save file, note, and save state?\n\nThe library ROMs will be left alone.";
+        }
+
+        public static String DataDeleteEverythingConfirmMessage() {
+            return "Delete all managed GameDuck data, preferences, custom shaders, borders, themes, boot ROMs, saves, save states, cache files, and library ROMs?";
         }
 
         public static String ShaderFolderPathMessage(String pathText) {

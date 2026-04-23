@@ -179,7 +179,11 @@ public final class ManagedGameRegistry {
         return BuildGameKey(game.sourcePath(), game.sourceName(), game.patchSourcePaths(), game.patchNames());
     }
 
-    static synchronized void ResetForTests() {
+    public static Path MetadataFilePath() {
+        return store.MetadataPath();
+    }
+
+    public static synchronized void ResetForTests() {
         store.ResetForTests();
     }
 
@@ -287,7 +291,7 @@ public final class ManagedGameRegistry {
 
         try {
             Path candidatePath = Path.of(sourcePath).toAbsolutePath().normalize();
-            Path libraryPath = Path.of("library", "roms").toAbsolutePath().normalize();
+            Path libraryPath = GameLibraryStore.LibraryDirectoryPath().toAbsolutePath().normalize();
             return candidatePath.startsWith(libraryPath);
         } catch (RuntimeException exception) {
             return false;
@@ -374,6 +378,10 @@ public final class ManagedGameRegistry {
         private Store() {
             super("game.", sourceNameSuffix, "gameduck.managed_games_path",
                     Path.of("cache", "managed-games.properties"), "GameDuck managed games");
+        }
+
+        private Path MetadataPath() {
+            return ResolvedStorePath();
         }
 
         private void ClearEntries() {

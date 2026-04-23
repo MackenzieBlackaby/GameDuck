@@ -200,6 +200,10 @@ public final class QuickStateManager {
         return QuickStateDirectory().resolve(baseFileName + SlotSuffix(slot) + ".gqs");
     }
 
+    public static Path QuickStateDirectoryPath() {
+        return QuickStateDirectory();
+    }
+
     /**
      * Describes every managed slot for the supplied ROM.
      *

@@ -188,7 +188,7 @@ public final class GameLibraryStore {
                 .toList();
     }
 
-    static synchronized void ResetForTests() {
+    public static synchronized void ResetForTests() {
         store.ResetForTests();
     }
 
@@ -266,6 +266,20 @@ public final class GameLibraryStore {
             }
         }
         PersistStores();
+    }
+
+    public static Path LibraryDirectoryPath() {
+        Path romDirectory = RomStorageDirectory();
+        Path parent = romDirectory.getParent();
+        return parent == null ? romDirectory : parent;
+    }
+
+    public static Path MetadataFilePath() {
+        return store.MetadataPath();
+    }
+
+    public static Path PortableMetadataFilePath() {
+        return PortableMetadataPath();
     }
 
     private static RefreshResult RefreshLibraryInternal(boolean restoredFromPortableMirror) {

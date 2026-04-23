@@ -13,10 +13,6 @@ public final class BootRomManager {
     public static final int cgbBootRomSizeBytes = 0x800;
     public static final int cgbBootRomFullDumpSizeBytes = 0x900;
 
-    private static final Path bootRomDirectoryPath = Path.of(System.getProperty("user.home"), ".gameduck");
-    private static final Path dmgBootRomPath = bootRomDirectoryPath.resolve("dmg_boot.bin");
-    private static final Path cgbBootRomPath = bootRomDirectoryPath.resolve("cgb_boot.bin");
-
     private BootRomManager() {
     }
 
@@ -26,7 +22,11 @@ public final class BootRomManager {
      * @return absolute managed path
      */
     public static Path DmgBootRomPath() {
-        return dmgBootRomPath;
+        String configuredPath = System.getProperty("gameduck.dmg_boot_rom_path");
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            return Path.of(configuredPath);
+        }
+        return BootRomDirectoryPath().resolve("dmg_boot.bin");
     }
 
     /**
@@ -35,7 +35,11 @@ public final class BootRomManager {
      * @return absolute managed path
      */
     public static Path CgbBootRomPath() {
-        return cgbBootRomPath;
+        String configuredPath = System.getProperty("gameduck.cgb_boot_rom_path");
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            return Path.of(configuredPath);
+        }
+        return BootRomDirectoryPath().resolve("cgb_boot.bin");
     }
 
     /**
@@ -44,7 +48,7 @@ public final class BootRomManager {
      * @return {@code true} when the file exists
      */
     public static boolean HasDmgBootRom() {
-        return Files.exists(dmgBootRomPath);
+        return Files.exists(DmgBootRomPath());
     }
 
     /**
@@ -53,7 +57,7 @@ public final class BootRomManager {
      * @return {@code true} when the file exists
      */
     public static boolean HasCgbBootRom() {
-        return Files.exists(cgbBootRomPath);
+        return Files.exists(CgbBootRomPath());
     }
 
     /**
@@ -63,7 +67,7 @@ public final class BootRomManager {
      * @throws IOException when the file cannot be read
      */
     public static byte[] LoadDmgBootRom() throws IOException {
-        byte[] bytes = Files.readAllBytes(dmgBootRomPath);
+        byte[] bytes = Files.readAllBytes(DmgBootRomPath());
         ValidateDmgBootRom(bytes);
         return bytes;
     }
@@ -75,7 +79,7 @@ public final class BootRomManager {
      * @throws IOException when the file cannot be read
      */
     public static byte[] LoadCgbBootRom() throws IOException {
-        byte[] bytes = Files.readAllBytes(cgbBootRomPath);
+        byte[] bytes = Files.readAllBytes(CgbBootRomPath());
         return NormaliseCgbBootRom(bytes);
     }
 
@@ -89,7 +93,7 @@ public final class BootRomManager {
         byte[] bytes = Files.readAllBytes(sourcePath);
         ValidateDmgBootRom(bytes);
         EnsureBootRomDirectory();
-        Files.write(dmgBootRomPath, bytes);
+        Files.write(DmgBootRomPath(), bytes);
     }
 
     /**
@@ -102,7 +106,7 @@ public final class BootRomManager {
         byte[] bytes = Files.readAllBytes(sourcePath);
         byte[] normalisedBytes = NormaliseCgbBootRom(bytes);
         EnsureBootRomDirectory();
-        Files.write(cgbBootRomPath, normalisedBytes);
+        Files.write(CgbBootRomPath(), normalisedBytes);
     }
 
     /**
@@ -111,7 +115,7 @@ public final class BootRomManager {
      * @throws IOException when the file cannot be removed
      */
     public static void RemoveDmgBootRom() throws IOException {
-        Files.deleteIfExists(dmgBootRomPath);
+        Files.deleteIfExists(DmgBootRomPath());
     }
 
     /**
@@ -120,7 +124,7 @@ public final class BootRomManager {
      * @throws IOException when the file cannot be removed
      */
     public static void RemoveCgbBootRom() throws IOException {
-        Files.deleteIfExists(cgbBootRomPath);
+        Files.deleteIfExists(CgbBootRomPath());
     }
 
     /**
@@ -171,7 +175,15 @@ public final class BootRomManager {
     }
 
     private static void EnsureBootRomDirectory() throws IOException {
-        Files.createDirectories(bootRomDirectoryPath);
+        Files.createDirectories(BootRomDirectoryPath());
+    }
+
+    private static Path BootRomDirectoryPath() {
+        String configuredPath = System.getProperty("gameduck.boot_rom_dir");
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            return Path.of(configuredPath);
+        }
+        return Path.of(System.getProperty("user.home"), ".gameduck");
     }
 
     private static void ValidateDmgBootRom(byte[] bytes) {

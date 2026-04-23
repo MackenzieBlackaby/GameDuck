@@ -43,6 +43,10 @@ public final class DisplayShaderManager {
      * @return shader directory path
      */
     public static Path ShaderDirectory() {
+        String configuredPath = System.getProperty("gameduck.shader_dir");
+        if (configuredPath != null && !configuredPath.isBlank()) {
+            return Path.of(configuredPath);
+        }
         return Path.of(System.getProperty("user.home"), ".gameduck", "shaders");
     }
 

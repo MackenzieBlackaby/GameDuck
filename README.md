@@ -21,6 +21,7 @@ The project is currently aimed at original Game Boy and Game Boy Color software.
 - Added per-game notes in the main window.
 - Added recent-game artwork buttons to the Ready to Play page, with a configurable limit in Window options.
 - Continued options window and main UI cleanup.
+- Added `.gdlib` backup and restore bundles for full GameDuck data migration, plus reset and delete actions in the data options.
 - Added more focused regression tests across controller input, display rendering, library UI, options layout, memory, RTC, and notes.
 
 ### V 0.3.2
@@ -66,7 +67,6 @@ The project is currently aimed at original Game Boy and Game Boy Color software.
 ## What is planned by the time of V 1.0
 
 - SGB Support
-- Library/config migration and startup recovery for portable installs and app updates
 - 2 Emulations running simultaneously with link cable support between them.
 - Dual controller support for split-screen style play
 
@@ -151,6 +151,8 @@ Not everything lives in the working tree.
 - Installed boot ROMs are kept in `~/.gameduck/`.
 
 That split is deliberate. Runtime data tied to the current checkout stays in the project folders, while configuration and boot ROMs live in the user profile by default. The library metadata is also mirrored inside `library/` so copied installs can rebuild the cache metadata and refresh the managed library from disk.
+
+The Options window also exposes a Data section for creating and restoring `.gdlib` bundles. A bundle captures the managed ROM library, saves, quick states, notes, cached artwork and metadata, cheats, preferences, themes, shaders, borders, and installed boot ROMs in one portable archive. Restore uses the backup contents where they exist and lets current defaults fill in anything newer versions of the app may have added later.
 
 ## Notes on ROMs and boot ROMs
 

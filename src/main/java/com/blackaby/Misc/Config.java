@@ -281,6 +281,14 @@ public final class Config {
         return new ArrayList<>(ThemeStore.SavedThemeNames());
     }
 
+    public static synchronized Path ConfigFilePath() {
+        return ConfigPath();
+    }
+
+    public static synchronized Path PaletteFilePath() {
+        return PaletteConfigPath();
+    }
+
     /**
      * Loads a saved palette into the active settings.
      *

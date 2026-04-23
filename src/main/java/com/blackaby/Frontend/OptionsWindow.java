@@ -20,6 +20,7 @@ import com.blackaby.Misc.Config;
 import com.blackaby.Misc.ControllerBinding;
 import com.blackaby.Misc.ControllerPollingMode;
 import com.blackaby.Misc.GameArtDisplayMode;
+import com.blackaby.Misc.GameDuckDataBundleManager;
 import com.blackaby.Misc.GameNameBracketDisplayMode;
 import com.blackaby.Misc.NonGbcColourMode;
 import com.blackaby.Misc.Settings;
@@ -2889,8 +2890,84 @@ public class OptionsWindow extends DuckWindow {
         footerCard.add(title, BorderLayout.NORTH);
         footerCard.add(pathLabel, BorderLayout.CENTER);
 
+        JPanel backupCard = createInsetSurfaceCard(8);
+        backupCard.add(createInfoTextBlock(
+                UiText.OptionsWindow.DATA_BACKUP_TITLE,
+                UiText.OptionsWindow.DATA_BACKUP_HELPER,
+                13f), BorderLayout.NORTH);
+
+        JButton backupButton = createPrimaryButton(UiText.OptionsWindow.DATA_BACKUP_BUTTON);
+        configureCompactPaletteButton(backupButton, 154);
+        backupButton.addActionListener(event -> triggerDataBackup());
+
+        JButton restoreButton = createSecondaryButton(UiText.OptionsWindow.DATA_RESTORE_BUTTON);
+        configureCompactPaletteButton(restoreButton, 154);
+        restoreButton.addActionListener(event -> triggerDataRestore());
+        backupCard.add(createResponsiveGroup(160, 2, backupButton, restoreButton), BorderLayout.CENTER);
+
+        JPanel resetCard = createInsetSurfaceCard(8);
+        resetCard.add(createInfoTextBlock(
+                UiText.OptionsWindow.DATA_RESET_TITLE,
+                UiText.OptionsWindow.DATA_RESET_HELPER,
+                13f), BorderLayout.NORTH);
+
+        JButton resetPreferencesButton = createSecondaryButton(UiText.OptionsWindow.DATA_RESET_PREFERENCES_BUTTON);
+        configureCompactPaletteButton(resetPreferencesButton, 170);
+        resetPreferencesButton.addActionListener(event -> confirmAndRunDataAction(
+                UiText.OptionsWindow.DATA_RESET_PREFERENCES_CONFIRM_TITLE,
+                UiText.OptionsWindow.DataResetPreferencesConfirmMessage(),
+                this::resetPreferencesData,
+                UiText.OptionsWindow.DATA_RESET_FAILED_TITLE));
+
+        JButton resetShadersButton = createSecondaryButton(UiText.OptionsWindow.DATA_RESET_SHADERS_BUTTON);
+        configureCompactPaletteButton(resetShadersButton, 170);
+        resetShadersButton.addActionListener(event -> confirmAndRunDataAction(
+                UiText.OptionsWindow.DATA_RESET_SHADERS_CONFIRM_TITLE,
+                UiText.OptionsWindow.DataResetShadersConfirmMessage(),
+                this::resetShaderData,
+                UiText.OptionsWindow.DATA_RESET_FAILED_TITLE));
+
+        JButton deleteLibraryButton = createSecondaryButton(UiText.OptionsWindow.DATA_DELETE_LIBRARY_BUTTON);
+        configureCompactPaletteButton(deleteLibraryButton, 170);
+        deleteLibraryButton.addActionListener(event -> confirmAndRunDataAction(
+                UiText.OptionsWindow.DATA_DELETE_LIBRARY_CONFIRM_TITLE,
+                UiText.OptionsWindow.DataDeleteLibraryConfirmMessage(),
+                this::deleteLibraryData,
+                UiText.OptionsWindow.DATA_DELETE_FAILED_TITLE));
+
+        JButton deleteSaveDataButton = createSecondaryButton(UiText.OptionsWindow.DATA_DELETE_SAVE_DATA_BUTTON);
+        configureCompactPaletteButton(deleteSaveDataButton, 170);
+        deleteSaveDataButton.addActionListener(event -> confirmAndRunDataAction(
+                UiText.OptionsWindow.DATA_DELETE_SAVE_DATA_CONFIRM_TITLE,
+                UiText.OptionsWindow.DataDeleteSaveDataConfirmMessage(),
+                this::deleteAllSaveData,
+                UiText.OptionsWindow.DATA_DELETE_FAILED_TITLE));
+
+        JButton deleteEverythingButton = createSecondaryButton(UiText.OptionsWindow.DATA_DELETE_EVERYTHING_BUTTON);
+        configureCompactPaletteButton(deleteEverythingButton, 170);
+        deleteEverythingButton.addActionListener(event -> confirmAndRunDataAction(
+                UiText.OptionsWindow.DATA_DELETE_EVERYTHING_CONFIRM_TITLE,
+                UiText.OptionsWindow.DataDeleteEverythingConfirmMessage(),
+                this::deleteEverythingData,
+                UiText.OptionsWindow.DATA_DELETE_FAILED_TITLE));
+        resetCard.add(createResponsiveGroup(170, 2,
+                resetPreferencesButton,
+                resetShadersButton,
+                deleteLibraryButton,
+                deleteSaveDataButton,
+                deleteEverythingButton), BorderLayout.CENTER);
+
         card.add(header, BorderLayout.NORTH);
-        card.add(createResponsiveGroup(160, 2, openManagerButton, openStateManagerButton), BorderLayout.CENTER);
+        JPanel content = new JPanel();
+        content.setOpaque(false);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
+        content.add(createResponsiveGroup(160, 2, openManagerButton, openStateManagerButton));
+        content.add(Box.createVerticalStrut(10));
+        content.add(backupCard);
+        content.add(Box.createVerticalStrut(10));
+        content.add(resetCard);
+
+        card.add(content, BorderLayout.CENTER);
         card.add(footerCard, BorderLayout.SOUTH);
         return card;
     }
@@ -3968,6 +4045,113 @@ public class OptionsWindow extends DuckWindow {
         SwingUtilities.invokeLater(() -> new OptionsWindow(mainWindow, selectedTab));
     }
 
+    private void triggerDataBackup() {
+        File backupFile = PromptForDataBundleFile(UiText.OptionsWindow.DATA_BUNDLE_SAVE_DIALOG_TITLE, FileDialog.SAVE);
+        if (backupFile == null) {
+            return;
+        }
+
+        Path backupPath = backupFile.toPath();
+        if (!backupPath.getFileName().toString().toLowerCase().endsWith(GameDuckDataBundleManager.bundleExtension)) {
+            backupPath = backupPath.resolveSibling(backupPath.getFileName() + GameDuckDataBundleManager.bundleExtension);
+        }
+
+        try {
+            GameDuckDataBundleManager.CreateBackup(backupPath);
+            JOptionPane.showMessageDialog(this,
+                    UiText.OptionsWindow.DataBackupSuccessMessage(backupPath.toString()));
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this,
+                    exception.getMessage(),
+                    UiText.OptionsWindow.DATA_BUNDLE_BACKUP_FAILED_TITLE,
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void triggerDataRestore() {
+        File backupFile = PromptForDataBundleFile(UiText.OptionsWindow.DATA_BUNDLE_RESTORE_DIALOG_TITLE, FileDialog.LOAD);
+        if (backupFile == null) {
+            return;
+        }
+
+        try {
+            GameDuckDataBundleManager.RestoreBackup(backupFile.toPath());
+            if (mainWindow != null) {
+                mainWindow.RefreshLibraryCollections();
+                mainWindow.RefreshLoadedRomDisplay();
+                mainWindow.RefreshWindowPanels();
+                mainWindow.RefreshDisplayShader();
+                mainWindow.RefreshDisplayBorder();
+            }
+            JOptionPane.showMessageDialog(this,
+                    UiText.OptionsWindow.DataRestoreSuccessMessage(backupFile.getAbsolutePath()));
+            reopenWithCurrentTab();
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this,
+                    exception.getMessage(),
+                    UiText.OptionsWindow.DATA_BUNDLE_RESTORE_FAILED_TITLE,
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void confirmAndRunDataAction(String title, String message, DataAction action, String errorTitle) {
+        int result = JOptionPane.showConfirmDialog(
+                this,
+                message,
+                title,
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        if (result != JOptionPane.OK_OPTION) {
+            return;
+        }
+
+        try {
+            action.run();
+            reopenWithCurrentTab();
+        } catch (IOException exception) {
+            JOptionPane.showMessageDialog(this, exception.getMessage(), errorTitle, JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void resetPreferencesData() throws IOException {
+        GameDuckDataBundleManager.ResetPreferences();
+        if (mainWindow != null) {
+            mainWindow.RefreshLoadedRomDisplay();
+            mainWindow.RefreshWindowPanels();
+            mainWindow.RefreshDisplayShader();
+            mainWindow.RefreshDisplayBorder();
+        }
+    }
+
+    private void resetShaderData() throws IOException {
+        GameDuckDataBundleManager.ResetShaders();
+        if (mainWindow != null) {
+            mainWindow.RefreshDisplayShader();
+        }
+    }
+
+    private void deleteLibraryData() throws IOException {
+        GameDuckDataBundleManager.DeleteLibrary();
+        if (mainWindow != null) {
+            mainWindow.RefreshLibraryCollections();
+        }
+    }
+
+    private void deleteAllSaveData() throws IOException {
+        GameDuckDataBundleManager.DeleteAllSaveData();
+    }
+
+    private void deleteEverythingData() throws IOException {
+        GameDuckDataBundleManager.DeleteEverything();
+        if (mainWindow != null) {
+            mainWindow.RefreshLibraryCollections();
+            mainWindow.RefreshLoadedRomDisplay();
+            mainWindow.RefreshWindowPanels();
+            mainWindow.RefreshDisplayShader();
+            mainWindow.RefreshDisplayBorder();
+        }
+    }
+
     private File PromptForBootRomFile() {
         FileDialog fileDialog = new FileDialog(this, UiText.OptionsWindow.BOOT_ROM_FILE_DIALOG_TITLE, FileDialog.LOAD);
         fileDialog.setAlwaysOnTop(true);
@@ -3975,6 +4159,15 @@ public class OptionsWindow extends DuckWindow {
             String lowerName = name.toLowerCase();
             return lowerName.endsWith(".bin") || lowerName.endsWith(".rom") || lowerName.endsWith(".gb");
         });
+        fileDialog.setVisible(true);
+        return fileDialog.getFiles().length == 0 ? null : fileDialog.getFiles()[0];
+    }
+
+    private File PromptForDataBundleFile(String title, int mode) {
+        FileDialog fileDialog = new FileDialog(this, title, mode);
+        fileDialog.setAlwaysOnTop(true);
+        fileDialog.setFile("*" + GameDuckDataBundleManager.bundleExtension);
+        fileDialog.setFilenameFilter((directory, name) -> name.toLowerCase().endsWith(GameDuckDataBundleManager.bundleExtension));
         fileDialog.setVisible(true);
         return fileDialog.getFiles().length == 0 ? null : fileDialog.getFiles()[0];
     }
@@ -4053,5 +4246,10 @@ public class OptionsWindow extends DuckWindow {
         public String toString() {
             return label;
         }
+    }
+
+    @FunctionalInterface
+    private interface DataAction {
+        void run() throws IOException;
     }
 }

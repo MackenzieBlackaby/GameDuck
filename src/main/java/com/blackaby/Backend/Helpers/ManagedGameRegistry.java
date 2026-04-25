@@ -44,6 +44,9 @@ public final class ManagedGameRegistry {
     }
 
     private static final String sourcePathSuffix = ".source_path";
+    private static final String systemIdSuffix = ".system_id";
+    private static final String systemVariantIdSuffix = ".system_variant_id";
+    private static final String systemVariantLabelSuffix = ".system_variant_label";
     private static final String sourceNameSuffix = ".source_name";
     private static final String displayNameSuffix = ".display_name";
     private static final String patchNameCountSuffix = ".patch_name_count";
@@ -247,6 +250,9 @@ public final class ManagedGameRegistry {
                 .orElse(canonical.game().expectedSaveSizeBytes());
 
         canonicalProperties.SetString(sourcePathSuffix, preferredSource.game().saveIdentity().sourcePath());
+        canonicalProperties.SetString(systemIdSuffix, preferredSource.game().saveIdentity().systemId());
+        canonicalProperties.SetString(systemVariantIdSuffix, preferredSource.game().saveIdentity().systemVariantId());
+        canonicalProperties.SetString(systemVariantLabelSuffix, preferredSource.game().saveIdentity().systemVariantLabel());
         canonicalProperties.SetString(sourceNameSuffix, preferredSource.game().saveIdentity().sourceName());
         canonicalProperties.SetString(displayNameSuffix, preferredSource.game().saveIdentity().displayName());
         canonicalProperties.SetString(headerTitleSuffix, preferredSource.game().headerTitle());
@@ -398,6 +404,9 @@ public final class ManagedGameRegistry {
 
         private void WriteMetadata(GBRom rom, SaveFileManager.SaveIdentity saveIdentity, String contentHash, long lastSeen) {
             entry.Set(sourcePathSuffix, saveIdentity.sourcePath());
+            entry.Set(systemIdSuffix, saveIdentity.systemId());
+            entry.Set(systemVariantIdSuffix, saveIdentity.systemVariantId());
+            entry.Set(systemVariantLabelSuffix, saveIdentity.systemVariantLabel());
             entry.Set(sourceNameSuffix, saveIdentity.sourceName());
             entry.Set(displayNameSuffix, saveIdentity.displayName());
             entry.Set(headerTitleSuffix, rom.GetHeaderTitle());
@@ -418,6 +427,9 @@ public final class ManagedGameRegistry {
             entry.Set(expectedSaveSizeSuffix, rom.GetExternalRamSizeBytes());
             if (ShouldPreferSourcePath(entry.Get(sourcePathSuffix), saveIdentity.sourcePath())) {
                 entry.Set(sourcePathSuffix, saveIdentity.sourcePath());
+                entry.Set(systemIdSuffix, saveIdentity.systemId());
+                entry.Set(systemVariantIdSuffix, saveIdentity.systemVariantId());
+                entry.Set(systemVariantLabelSuffix, saveIdentity.systemVariantLabel());
                 entry.Set(sourceNameSuffix, saveIdentity.sourceName());
                 entry.Set(displayNameSuffix, saveIdentity.displayName());
                 entry.Set(headerTitleSuffix, rom.GetHeaderTitle());
@@ -460,7 +472,22 @@ public final class ManagedGameRegistry {
 
             List<String> patchNames = entry.ReadIndexedList(patchNamePrefix, patchNameCountSuffix);
             List<String> patchSourcePaths = entry.ReadIndexedList(patchSourcePrefix, patchSourceCountSuffix);
+            SaveFileManager.SaveIdentity legacyIdentity = new SaveFileManager.SaveIdentity(
+                    sourcePath,
+                    sourceName,
+                    displayName,
+                    patchNames,
+                    true);
+            boolean cgbCompatible = ResolveCgbCompatible(entry.Prefix(), sourcePath, legacyIdentity, patchSourcePaths);
+            boolean cgbOnly = ResolveCgbOnly(entry.Prefix(), sourcePath, legacyIdentity, patchSourcePaths);
             SaveFileManager.SaveIdentity saveIdentity = new SaveFileManager.SaveIdentity(
+                    entry.Get(systemIdSuffix).isBlank() ? GBRom.systemId : entry.Get(systemIdSuffix),
+                    entry.Get(systemVariantIdSuffix).isBlank()
+                            ? (cgbCompatible ? GBRom.variantIdGbc : GBRom.variantIdGb)
+                            : entry.Get(systemVariantIdSuffix),
+                    entry.Get(systemVariantLabelSuffix).isBlank()
+                            ? (cgbCompatible ? "GBC" : "GB")
+                            : entry.Get(systemVariantLabelSuffix),
                     sourcePath,
                     sourceName,
                     displayName,
@@ -472,8 +499,8 @@ public final class ManagedGameRegistry {
                     saveIdentity,
                     patchSourcePaths,
                     entry.Get(headerTitleSuffix),
-                    ResolveCgbCompatible(entry.Prefix(), sourcePath, saveIdentity, patchSourcePaths),
-                    ResolveCgbOnly(entry.Prefix(), sourcePath, saveIdentity, patchSourcePaths),
+                    cgbCompatible,
+                    cgbOnly,
                     entry.GetInt(expectedSaveSizeSuffix, 0),
                     entry.GetLong(lastSeenSuffix, 0L));
         }

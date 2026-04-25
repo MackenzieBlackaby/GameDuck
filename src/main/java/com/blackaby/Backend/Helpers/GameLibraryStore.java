@@ -1,7 +1,9 @@
 package com.blackaby.Backend.Helpers;
 
 import com.blackaby.Backend.GB.Misc.GBRom;
+import com.blackaby.Backend.Platform.BasicEmulatorMedia;
 import com.blackaby.Backend.Platform.EmulatorGame;
+import com.blackaby.Backend.Platform.EmulatorMedia;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,17 +25,56 @@ import java.util.Set;
  */
 public final class GameLibraryStore {
 
-    public record LibraryEntry(String key, Path romPath, String sourcePath, String sourceName, String displayName,
+    public record LibraryEntry(String key, Path romPath, String systemId, String systemVariantId,
+                               String systemVariantLabel, String sourcePath, String sourceName, String displayName,
                                List<String> patchNames, List<String> patchSourcePaths, String headerTitle,
                                boolean cgbCompatible, boolean cgbOnly, long addedAtMillis, long lastPlayedMillis,
                                boolean favourite) implements EmulatorGame {
         public LibraryEntry {
+            systemId = systemId == null || systemId.isBlank() ? GBRom.systemId : systemId.trim();
+            systemVariantId = systemVariantId == null || systemVariantId.isBlank()
+                    ? (cgbCompatible ? GBRom.variantIdGbc : GBRom.variantIdGb)
+                    : systemVariantId.trim();
+            systemVariantLabel = systemVariantLabel == null || systemVariantLabel.isBlank()
+                    ? (cgbCompatible ? "GBC" : "GB")
+                    : systemVariantLabel.trim();
             patchNames = List.copyOf(patchNames == null ? List.of() : patchNames);
             patchSourcePaths = List.copyOf(patchSourcePaths == null ? List.of() : patchSourcePaths);
         }
 
+        public LibraryEntry(String key, Path romPath, String sourcePath, String sourceName, String displayName,
+                            List<String> patchNames, List<String> patchSourcePaths, String headerTitle,
+                            boolean cgbCompatible, boolean cgbOnly, long addedAtMillis, long lastPlayedMillis,
+                            boolean favourite) {
+            this(
+                    key,
+                    romPath,
+                    GBRom.systemId,
+                    cgbCompatible ? GBRom.variantIdGbc : GBRom.variantIdGb,
+                    cgbCompatible ? "GBC" : "GB",
+                    sourcePath,
+                    sourceName,
+                    displayName,
+                    patchNames,
+                    patchSourcePaths,
+                    headerTitle,
+                    cgbCompatible,
+                    cgbOnly,
+                    addedAtMillis,
+                    lastPlayedMillis,
+                    favourite);
+        }
+
         public SaveFileManager.SaveIdentity SaveIdentity() {
-            return new SaveFileManager.SaveIdentity(sourcePath, sourceName, displayName, patchNames, true);
+            return new SaveFileManager.SaveIdentity(
+                    systemId,
+                    systemVariantId,
+                    systemVariantLabel,
+                    sourcePath,
+                    sourceName,
+                    displayName,
+                    patchNames,
+                    true);
         }
 
         public GameArtProvider.GameArtDescriptor ArtDescriptor() {
@@ -44,9 +85,27 @@ public final class GameLibraryStore {
             byte[] romBytes = Files.readAllBytes(romPath);
             return GBRom.FromBytes(sourcePath, romBytes, displayName, patchNames, patchSourcePaths);
         }
+
+        public EmulatorMedia LoadMedia() throws IOException {
+            return new BasicEmulatorMedia(
+                    systemId(),
+                    systemVariantId(),
+                    systemVariantLabel(),
+                    sourcePath,
+                    sourceName,
+                    displayName,
+                    headerTitle,
+                    patchNames,
+                    patchSourcePaths,
+                    true,
+                    Files.readAllBytes(romPath));
+        }
     }
 
     private static final String romPathSuffix = ".rom_path";
+    private static final String systemIdSuffix = ".system_id";
+    private static final String systemVariantIdSuffix = ".system_variant_id";
+    private static final String systemVariantLabelSuffix = ".system_variant_label";
     private static final String sourcePathSuffix = ".source_path";
     private static final String sourceNameSuffix = ".source_name";
     private static final String displayNameSuffix = ".display_name";
@@ -488,6 +547,9 @@ public final class GameLibraryStore {
         return new LibraryEntry(
                 entry.key(),
                 scannedRom.path(),
+                entry.systemId(),
+                entry.systemVariantId(),
+                entry.systemVariantLabel(),
                 entry.sourcePath(),
                 entry.sourceName(),
                 entry.displayName(),
@@ -592,17 +654,23 @@ public final class GameLibraryStore {
         }
 
         String sourcePath = properties.getProperty(prefix + sourcePathSuffix, "");
+        boolean cgbCompatible = Boolean.parseBoolean(properties.getProperty(prefix + cgbCompatibleSuffix, "false"));
+        boolean cgbOnly = Boolean.parseBoolean(properties.getProperty(prefix + cgbOnlySuffix, "false"));
         return new LibraryEntry(
                 key,
                 romPath,
+                properties.getProperty(prefix + systemIdSuffix, GBRom.systemId),
+                properties.getProperty(prefix + systemVariantIdSuffix,
+                        cgbCompatible ? GBRom.variantIdGbc : GBRom.variantIdGb),
+                properties.getProperty(prefix + systemVariantLabelSuffix, cgbCompatible ? "GBC" : "GB"),
                 sourcePath,
                 sourceName,
                 displayName,
                 ReadIndexedList(properties, prefix, patchNamePrefix, patchNameCountSuffix),
                 ReadIndexedList(properties, prefix, patchSourcePrefix, patchSourceCountSuffix),
                 properties.getProperty(prefix + headerTitleSuffix, ""),
-                Boolean.parseBoolean(properties.getProperty(prefix + cgbCompatibleSuffix, "false")),
-                Boolean.parseBoolean(properties.getProperty(prefix + cgbOnlySuffix, "false")),
+                cgbCompatible,
+                cgbOnly,
                 KeyedPropertiesStore.ParseLong(properties.getProperty(prefix + addedAtSuffix, ""), 0L),
                 KeyedPropertiesStore.ParseLong(properties.getProperty(prefix + lastPlayedSuffix, ""), 0L),
                 Boolean.parseBoolean(properties.getProperty(prefix + favouriteSuffix, "false")));
@@ -708,6 +776,9 @@ public final class GameLibraryStore {
         EntrySnapshot preferredSource = group.stream().min(duplicatePreference).orElse(canonical);
 
         canonicalProperties.SetString(sourcePathSuffix, preferredSource.entry().sourcePath());
+        canonicalProperties.SetString(systemIdSuffix, preferredSource.entry().systemId());
+        canonicalProperties.SetString(systemVariantIdSuffix, preferredSource.entry().systemVariantId());
+        canonicalProperties.SetString(systemVariantLabelSuffix, preferredSource.entry().systemVariantLabel());
         canonicalProperties.SetString(sourceNameSuffix, preferredSource.entry().sourceName());
         canonicalProperties.SetString(displayNameSuffix, preferredSource.entry().displayName());
         canonicalProperties.SetString(headerTitleSuffix, preferredSource.entry().headerTitle());
@@ -997,6 +1068,9 @@ public final class GameLibraryStore {
         private void WriteMetadata(GBRom rom, Path storedPath, long addedAt, long lastPlayed, boolean favourite,
                                    String contentHash) {
             entry.Set(romPathSuffix, storedPath.toString());
+            entry.Set(systemIdSuffix, rom.systemId());
+            entry.Set(systemVariantIdSuffix, rom.systemVariantId());
+            entry.Set(systemVariantLabelSuffix, rom.systemVariantLabel());
             entry.Set(sourcePathSuffix, rom.GetSourcePath());
             entry.Set(sourceNameSuffix, rom.GetSourceName());
             entry.Set(displayNameSuffix, rom.GetName());
@@ -1021,6 +1095,9 @@ public final class GameLibraryStore {
             entry.Set(cgbOnlySuffix, RomConsoleSupport.IsCgbOnly(rom));
             if (ShouldPreferSourcePath(entry.Get(sourcePathSuffix), rom.GetSourcePath())) {
                 entry.Set(sourcePathSuffix, rom.GetSourcePath());
+                entry.Set(systemIdSuffix, rom.systemId());
+                entry.Set(systemVariantIdSuffix, rom.systemVariantId());
+                entry.Set(systemVariantLabelSuffix, rom.systemVariantLabel());
                 entry.Set(sourceNameSuffix, rom.GetSourceName());
                 entry.Set(displayNameSuffix, rom.GetName());
                 entry.Set(headerTitleSuffix, rom.GetHeaderTitle());
@@ -1057,17 +1134,26 @@ public final class GameLibraryStore {
 
             Path romPath = Path.of(romPathValue);
             String sourcePath = entry.Get(sourcePathSuffix);
+            boolean cgbCompatible = ResolveCgbCompatible(entry.Prefix(), romPath, sourcePath);
+            boolean cgbOnly = ResolveCgbOnly(entry.Prefix(), romPath);
             return new LibraryEntry(
                     entry.Key(),
                     romPath,
+                    entry.Get(systemIdSuffix).isBlank() ? GBRom.systemId : entry.Get(systemIdSuffix),
+                    entry.Get(systemVariantIdSuffix).isBlank()
+                            ? (cgbCompatible ? GBRom.variantIdGbc : GBRom.variantIdGb)
+                            : entry.Get(systemVariantIdSuffix),
+                    entry.Get(systemVariantLabelSuffix).isBlank()
+                            ? (cgbCompatible ? "GBC" : "GB")
+                            : entry.Get(systemVariantLabelSuffix),
                     sourcePath,
                     sourceName,
                     displayName,
                     entry.ReadIndexedList(patchNamePrefix, patchNameCountSuffix),
                     entry.ReadIndexedList(patchSourcePrefix, patchSourceCountSuffix),
                     entry.Get(headerTitleSuffix),
-                    ResolveCgbCompatible(entry.Prefix(), romPath, sourcePath),
-                    ResolveCgbOnly(entry.Prefix(), romPath),
+                    cgbCompatible,
+                    cgbOnly,
                     entry.GetLong(addedAtSuffix, 0L),
                     entry.GetLong(lastPlayedSuffix, 0L),
                     entry.GetBoolean(favouriteSuffix, false));

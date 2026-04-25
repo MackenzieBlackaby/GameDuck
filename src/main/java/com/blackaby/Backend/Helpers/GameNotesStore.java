@@ -70,6 +70,7 @@ public final class GameNotesStore {
     private static String BuildNoteKey(EmulatorGame game) {
         if (game instanceof GBRom rom) {
             return KeyedPropertiesStore.Hash(String.join("|",
+                    rom.systemId(),
                     KeyedPropertiesStore.Hash(rom.ToByteArray()),
                     String.join("|", rom.GetPatchNames())));
         }
@@ -80,6 +81,7 @@ public final class GameNotesStore {
 
         SaveFileManager.SaveIdentity identity = SaveFileManager.SaveIdentity.FromGame(game);
         return KeyedPropertiesStore.Hash(String.join("|",
+                KeyedPropertiesStore.NullToEmpty(identity.systemId()),
                 KeyedPropertiesStore.NullToEmpty(identity.sourcePath()),
                 KeyedPropertiesStore.NullToEmpty(identity.sourceName()),
                 KeyedPropertiesStore.NullToEmpty(identity.displayName()),

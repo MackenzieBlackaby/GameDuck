@@ -1,6 +1,6 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.GB.GBBackendManager;
+import com.blackaby.Backend.Platform.BackendRegistry;
 import com.blackaby.Backend.Platform.EmulatorButton;
 import com.blackaby.Backend.Platform.EmulatorProfile;
 import com.blackaby.Misc.Config;
@@ -384,7 +384,7 @@ public final class InputMappingWindow extends DuckWindow {
                 return true;
             }
 
-            Settings.inputBindings.SetKeyCode(button, event.getKeyCode());
+            Settings.inputBindings.SetKeyCode(backendProfile().backendId(), button, event.getKeyCode());
             captured[0] = true;
             refreshKeyboardBindingButtons();
             Config.Save();
@@ -475,7 +475,7 @@ public final class InputMappingWindow extends DuckWindow {
                 return;
             }
 
-            Settings.controllerBindings.SetBinding(button, candidate);
+            Settings.controllerBindings.SetBinding(backendProfile().backendId(), button, candidate);
             captured[0] = true;
             refreshControllerBindingButtons();
             refreshControllerStatus();
@@ -503,7 +503,7 @@ public final class InputMappingWindow extends DuckWindow {
         for (EmulatorButton button : controlButtons()) {
             JButton bindingButton = keyboardBindingButtons.get(button);
             if (bindingButton != null) {
-                bindingButton.setText(Settings.inputBindings.GetKeyText(button));
+                bindingButton.setText(Settings.inputBindings.GetKeyText(backendProfile().backendId(), button));
             }
         }
     }
@@ -512,7 +512,7 @@ public final class InputMappingWindow extends DuckWindow {
         for (EmulatorButton button : controlButtons()) {
             JButton bindingButton = controllerBindingButtons.get(button);
             if (bindingButton != null) {
-                bindingButton.setText(Settings.controllerBindings.GetBindingText(button));
+                bindingButton.setText(Settings.controllerBindings.GetBindingText(backendProfile().backendId(), button));
             }
         }
     }
@@ -565,7 +565,7 @@ public final class InputMappingWindow extends DuckWindow {
     }
 
     private EmulatorProfile backendProfile() {
-        return mainWindow == null ? GBBackendManager.Current().Profile() : mainWindow.GetBackendProfile();
+        return mainWindow == null ? BackendRegistry.Default().Profile() : mainWindow.GetBackendProfile();
     }
 
     private String wrapHtml(String text, int width) {
@@ -868,8 +868,8 @@ public final class InputMappingWindow extends DuckWindow {
                 titleLabel.setForeground(accentColour);
 
                 JButton actionButton = createPrimaryButton(mode == InputMode.KEYBOARD
-                        ? Settings.inputBindings.GetKeyText(button)
-                        : Settings.controllerBindings.GetBindingText(button));
+                        ? Settings.inputBindings.GetKeyText(backendProfile().backendId(), button)
+                        : Settings.controllerBindings.GetBindingText(backendProfile().backendId(), button));
                 actionButton.setPreferredSize(new Dimension(116, 30));
                 actionButton.setFont(Styling.menuFont.deriveFont(Font.BOLD, 11f));
                 actionButton.addActionListener(event -> {

@@ -4,7 +4,7 @@ import com.blackaby.Backend.Helpers.GameArtProvider;
 import com.blackaby.Backend.Helpers.GameLibraryStore;
 import com.blackaby.Backend.Helpers.GameLibraryStore.LibraryEntry;
 import com.blackaby.Backend.Helpers.GameMetadataStore;
-import com.blackaby.Backend.Platform.EmulatorRuntime;
+import com.blackaby.Backend.Platform.EmulatorGame;
 import com.blackaby.Misc.Config;
 import com.blackaby.Misc.GameArtDisplayMode;
 import com.blackaby.Misc.RomConsoleFilter;
@@ -126,7 +126,6 @@ public final class LibraryWindow extends DuckWindow {
     private static final int searchRefreshDelayMillis = 160;
 
     private final MainWindow mainWindow;
-    private final EmulatorRuntime emulation;
     private final Color panelBackground;
     private final Color cardBackground;
     private final Color cardBorder;
@@ -167,10 +166,9 @@ public final class LibraryWindow extends DuckWindow {
     private String selectedEntryKey = "";
     private volatile int currentLargeIconContentSize = largeArtSize;
 
-    public LibraryWindow(MainWindow mainWindow, EmulatorRuntime emulation) {
+    public LibraryWindow(MainWindow mainWindow) {
         super(UiText.LibraryWindow.WINDOW_TITLE, 920, 620, true);
         this.mainWindow = mainWindow;
-        this.emulation = emulation;
         this.viewMode = resolveSavedViewMode();
         this.filterMode = resolveSavedFilterMode();
         this.consoleFilter = resolveSavedConsoleFilter();
@@ -560,12 +558,12 @@ public final class LibraryWindow extends DuckWindow {
     }
 
     private void loadSelectedEntry(LibraryEntry entry) {
-        if (entry == null || emulation == null) {
+        if (entry == null || mainWindow == null) {
             return;
         }
 
         try {
-            emulation.StartEmulation(entry.LoadRom());
+            mainWindow.StartEmulation(entry.LoadMedia());
             dispose();
         } catch (IOException | IllegalArgumentException exception) {
             JOptionPane.showMessageDialog(mainWindow, exception.getMessage(),
@@ -675,7 +673,7 @@ public final class LibraryWindow extends DuckWindow {
     }
 
     private boolean matchesConsoleFilter(LibraryEntry entry) {
-        return entry != null && consoleFilter.Matches(entry.cgbCompatible());
+        return entry != null && consoleFilter.Matches(entry);
     }
 
     private boolean matchesSearchQuery(LibraryEntry entry) {
@@ -706,7 +704,8 @@ public final class LibraryWindow extends DuckWindow {
         }
 
         try {
-            new LibraryGameInfoWindow(entry, entry.LoadRom(),
+            EmulatorGame game = entry.LoadMedia();
+            new LibraryGameInfoWindow(entry, game,
                     () -> refreshArtworkForEntry(entry),
                     this::refreshEntryList);
         } catch (IOException | IllegalArgumentException exception) {

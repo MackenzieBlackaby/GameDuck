@@ -97,7 +97,8 @@ public final class GameMetadataStore {
     }
 
     static String BuildRomKey(SaveFileManager.SaveIdentity saveIdentity) {
-        String identity = SaveFileManager.BuildFallbackBaseName(saveIdentity) + "|"
+        String identity = (saveIdentity == null ? "" : saveIdentity.systemId()) + "|"
+                + SaveFileManager.BuildFallbackBaseName(saveIdentity) + "|"
                 + String.join("|", saveIdentity == null ? java.util.List.of() : saveIdentity.patchNames());
         return Hash(identity);
     }

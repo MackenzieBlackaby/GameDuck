@@ -79,7 +79,9 @@ public final class SaveDataManagerWindow extends AbstractSaveManagerWindow<Store
 
     @Override
     protected boolean matchesConsoleFilter(StoredGame game, RomConsoleFilter filter) {
-        return game != null && filter.Matches(game.cgbCompatible());
+        return game != null
+                && game.saveIdentity() != null
+                && filter.Matches(game.saveIdentity().systemId(), game.saveIdentity().systemVariantId());
     }
 
     @Override
@@ -304,9 +306,9 @@ public final class SaveDataManagerWindow extends AbstractSaveManagerWindow<Store
 
     private boolean isCurrentGame(StoredGame game) {
         return mainWindow != null
-                && mainWindow.GetCurrentLoadedRom() != null
+                && mainWindow.GetCurrentLoadedGame() != null
                 && game != null
-                && game.key().equals(ManagedGameRegistry.BuildGameKey(mainWindow.GetCurrentLoadedRom()));
+                && game.key().equals(ManagedGameRegistry.BuildGameKey(mainWindow.GetCurrentLoadedGame()));
     }
 
     private boolean isLiveSession(StoredGame game) {

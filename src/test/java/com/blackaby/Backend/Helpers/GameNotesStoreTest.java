@@ -57,6 +57,11 @@ class GameNotesStoreTest {
     private record TestGame(String sourceName, String displayName, List<String> patchNames)
             implements EmulatorGame {
         @Override
+        public String systemId() {
+            return "test-system";
+        }
+
+        @Override
         public String sourcePath() {
             return sourceName;
         }

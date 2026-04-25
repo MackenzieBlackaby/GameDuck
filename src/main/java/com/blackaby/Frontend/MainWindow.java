@@ -1,7 +1,5 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.GB.GBBackendManager;
-import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Helpers.GameMetadataStore;
 import com.blackaby.Backend.Helpers.GUIActions;
 import com.blackaby.Backend.Helpers.GUIActions.Action;
@@ -10,9 +8,11 @@ import com.blackaby.Backend.Helpers.GameArtProvider.GameArtResult;
 import com.blackaby.Backend.Helpers.GameLibraryStore;
 import com.blackaby.Backend.Helpers.QuickStateManager;
 import com.blackaby.Backend.Helpers.GameNotesStore;
+import com.blackaby.Backend.Platform.BackendRegistry;
 import com.blackaby.Backend.Platform.EmulatorBackend;
 import com.blackaby.Backend.Platform.EmulatorGame;
 import com.blackaby.Backend.Platform.EmulatorHost;
+import com.blackaby.Backend.Platform.EmulatorMedia;
 import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Backend.Platform.EmulatorStateSlot;
 import com.blackaby.Misc.AppShortcut;
@@ -95,10 +95,10 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     private static final DateTimeFormatter saveStateTimestampFormatter = DateTimeFormatter
             .ofPattern("dd MMM yyyy HH:mm");
 
-    private final EmulatorBackend backend;
-    private final DuckDisplay display;
-    private final EmulatorRuntime emulation;
-    private final InputRouter inputRouter;
+    private EmulatorBackend backend;
+    private DuckDisplay display;
+    private EmulatorRuntime emulation;
+    private InputRouter inputRouter;
     private final List<JButton> headerButtons = new ArrayList<>();
     private final EnumMap<Action, JMenuItem> menuItemsByAction = new EnumMap<>(Action.class);
     private final AtomicInteger gameArtRequestVersion = new AtomicInteger();
@@ -182,11 +182,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     public MainWindow() {
         super(UiText.MainWindow.WINDOW_TITLE);
 
-        backend = GBBackendManager.Current();
-        display = new DuckDisplay(backend.Profile().displaySpec());
-        emulation = backend.CreateRuntime(this, display);
-        inputRouter = new InputRouter(this, emulation, backend.Profile());
-        inputRouter.Install();
+        ActivateBackend(BackendRegistry.Default());
 
         setLayout(new BorderLayout(0, 0));
         getContentPane().setBackground(Styling.appBackgroundColour);
@@ -225,16 +221,84 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
                 SaveCurrentGameNotes();
                 displayStatsTimer.stop();
                 DebugLogger.RemoveSerialListener(serialOutputListener);
-                inputRouter.Uninstall();
+                if (inputRouter != null) {
+                    inputRouter.Uninstall();
+                }
                 DebugLogger.Shutdown();
-                emulation.StopEmulation();
-                display.Shutdown();
+                if (emulation != null) {
+                    emulation.StopEmulation();
+                }
+                if (display != null) {
+                    display.Shutdown();
+                }
                 dispose();
                 System.exit(0);
             }
         });
         setVisible(true);
         updateDisplayStage();
+    }
+
+    public void StartEmulation(java.nio.file.Path gamePath) throws IOException {
+        if (gamePath == null) {
+            throw new IOException("Select a valid ROM to load.");
+        }
+
+        ActivateBackend(BackendRegistry.ResolveBackendForGame(gamePath));
+        emulation.StartEmulation(BackendRegistry.LoadMedia(gamePath));
+    }
+
+    public void StartEmulation(EmulatorMedia media) throws IOException {
+        if (media == null) {
+            throw new IOException("Select a valid ROM to load.");
+        }
+
+        ActivateBackend(BackendRegistry.ResolveBackendForGame(media));
+        emulation.StartEmulation(media);
+    }
+
+    public void StartPatchedEmulation(java.nio.file.Path baseGamePath, java.nio.file.Path patchPath) throws IOException {
+        if (baseGamePath == null || patchPath == null) {
+            throw new IOException("Select both a base ROM and a patch file.");
+        }
+
+        ActivateBackend(BackendRegistry.ResolveBackendForGame(baseGamePath));
+        emulation.StartEmulation(BackendRegistry.LoadPatchedMedia(baseGamePath, patchPath));
+    }
+
+    private void ActivateBackend(EmulatorBackend nextBackend) {
+        EmulatorBackend resolvedBackend = nextBackend == null ? BackendRegistry.Default() : nextBackend;
+        if (backend != null
+                && resolvedBackend.Profile() != null
+                && backend.Profile() != null
+                && resolvedBackend.Profile().backendId().equals(backend.Profile().backendId())) {
+            return;
+        }
+
+        if (inputRouter != null) {
+            inputRouter.Uninstall();
+        }
+        if (emulation != null) {
+            emulation.StopEmulation();
+        }
+        if (display != null) {
+            display.Shutdown();
+        }
+
+        backend = resolvedBackend;
+        display = new DuckDisplay(backend.Profile().displaySpec());
+        emulation = backend.CreateRuntime(this, display);
+        inputRouter = new InputRouter(this, emulation, backend.Profile());
+        inputRouter.Install();
+
+        if (embeddedDisplaySurface != null) {
+            embeddedDisplaySurface.removeAll();
+            embeddedDisplaySurface.add(display, BorderLayout.CENTER);
+            embeddedDisplaySurface.revalidate();
+            embeddedDisplaySurface.repaint();
+        }
+
+        RefreshSaveStateMenus();
     }
 
     private JComponent BuildDisplaySection() {
@@ -623,7 +687,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         } else {
             styleHeaderButton(button);
         }
-        button.addActionListener(new GUIActions(this, action, emulation));
+        button.addActionListener(new GUIActions(this, action));
         headerButtons.add(button);
         return button;
     }
@@ -663,7 +727,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
     private void AddMenuItem(JMenu menu, String item, Action action) {
         JMenuItem menuItem = new JMenuItem(item);
-        menuItem.addActionListener(new GUIActions(this, action, emulation));
+        menuItem.addActionListener(new GUIActions(this, action));
         ConfigureMenuItem(menuItem);
         menuItemsByAction.put(action, menuItem);
         menu.add(menuItem);
@@ -702,12 +766,10 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_PAUSE_GAME, Action.PAUSEGAME);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_RESET_GAME, Action.RESETGAME);
         AddMenuItem(menu, UiText.MainWindow.GAME_MENU_CLOSE_GAME, Action.CLOSEGAME);
-        if (backend.Profile().capabilities().supportsCheats()) {
-            cheatManagerMenuItem = new JMenuItem(UiText.MainWindow.GAME_MENU_CHEATS);
-            ConfigureMenuItem(cheatManagerMenuItem);
-            cheatManagerMenuItem.addActionListener(event -> new CheatManagerWindow(this, emulation));
-            menu.add(cheatManagerMenuItem);
-        }
+        cheatManagerMenuItem = new JMenuItem(UiText.MainWindow.GAME_MENU_CHEATS);
+        ConfigureMenuItem(cheatManagerMenuItem);
+        cheatManagerMenuItem.addActionListener(event -> new CheatManagerWindow(this, GetEmulation()));
+        menu.add(cheatManagerMenuItem);
         AddMenuDivider(menu);
 
         JMenuItem saveStateManagerItem = new JMenuItem(UiText.MainWindow.GAME_MENU_SAVE_STATE_MANAGER);
@@ -749,7 +811,6 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             ConfigureMenuItem(menuItem);
             menuItem.addActionListener(new GUIActions(this,
                     saveMenu ? Action.SAVESTATE : Action.LOADSTATE,
-                    emulation,
                     slot));
 
             if (saveMenu) {
@@ -1037,15 +1098,6 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
     }
 
     /**
-     * Updates the status bar with the preferred ROM title.
-     *
-     * @param rom active ROM
-     */
-    public void SetLoadedRom(GBRom rom) {
-        SetLoadedGame(rom, true);
-    }
-
-    /**
      * Updates the status bar with either a resolved libretro title or a temporary
      * loading state.
      *
@@ -1143,7 +1195,13 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
                 loadStateMenu.setText(UiText.MainWindow.GAME_MENU_LOAD_STATE);
             }
             if (cheatManagerMenuItem != null) {
-                cheatManagerMenuItem.setEnabled(currentLoadedGame != null);
+                boolean supportsCheats = backend != null && backend.Profile().capabilities().supportsCheats();
+                cheatManagerMenuItem.setVisible(supportsCheats);
+                cheatManagerMenuItem.setEnabled(supportsCheats && currentLoadedGame != null);
+            }
+
+            if (emulation == null) {
+                return;
             }
 
             List<EmulatorStateSlot> slots = emulation.DescribeCurrentStateSlots();
@@ -1502,7 +1560,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         }
 
         try {
-            emulation.StartEmulation(entry.LoadRom());
+            StartEmulation(entry.LoadMedia());
         } catch (IOException | IllegalArgumentException exception) {
             JOptionPane.showMessageDialog(this, exception.getMessage(), UiText.GuiActions.LIBRARY_LOAD_ERROR_TITLE,
                     JOptionPane.ERROR_MESSAGE);
@@ -1574,15 +1632,6 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
 
     public EmulatorGame GetCurrentLoadedGame() {
         return currentLoadedGame;
-    }
-
-    /**
-     * Returns the currently loaded ROM shown by the main window.
-     *
-     * @return loaded ROM or {@code null}
-     */
-    public GBRom GetCurrentLoadedRom() {
-        return currentLoadedGame instanceof GBRom rom ? rom : null;
     }
 
     /**

@@ -1,10 +1,12 @@
 package com.blackaby.Backend.GB;
 
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Platform.EmulatorBackend;
 import com.blackaby.Backend.Platform.EmulatorButton;
 import com.blackaby.Backend.Platform.EmulatorCapabilities;
 import com.blackaby.Backend.Platform.EmulatorDisplaySpec;
 import com.blackaby.Backend.Platform.EmulatorHost;
+import com.blackaby.Backend.Platform.EmulatorMedia;
 import com.blackaby.Backend.Platform.EmulatorProfile;
 import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Frontend.DuckDisplay;
@@ -12,6 +14,8 @@ import com.blackaby.Misc.UiText;
 
 import java.awt.Color;
 import java.awt.Dimension;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -34,6 +38,22 @@ public final class GBBackend implements EmulatorBackend {
     @Override
     public EmulatorRuntime CreateRuntime(EmulatorHost host, DuckDisplay display) {
         return new GBRuntime(host, display, profile);
+    }
+
+    @Override
+    public EmulatorMedia LoadMedia(Path mediaPath) throws IOException {
+        if (mediaPath == null) {
+            throw new IOException("Select a valid ROM to load.");
+        }
+        return new GBRom(mediaPath.toString());
+    }
+
+    @Override
+    public EmulatorMedia LoadPatchedMedia(Path baseGamePath, Path patchPath) throws IOException {
+        if (baseGamePath == null || patchPath == null) {
+            throw new IOException("Select both a base ROM and a patch file.");
+        }
+        return GBRom.LoadPatched(baseGamePath.toString(), patchPath.toString());
     }
 
     private static final class DuckProfile implements EmulatorProfile {

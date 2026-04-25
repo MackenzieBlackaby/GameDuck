@@ -20,6 +20,10 @@ import java.util.List;
  */
 public class GBRom implements EmulatorMedia {
 
+    public static final String systemId = "duck-game-boy";
+    public static final String variantIdGb = "gb";
+    public static final String variantIdGbc = "gbc";
+
     private static final int headerCartridgeType = 0x0147;
     private static final int headerRomSize = 0x0148;
     private static final int headerRamSize = 0x0149;
@@ -275,6 +279,11 @@ public class GBRom implements EmulatorMedia {
     }
 
     @Override
+    public String systemId() {
+        return systemId;
+    }
+
+    @Override
     public String sourcePath() {
         return GetSourcePath();
     }
@@ -373,13 +382,13 @@ public class GBRom implements EmulatorMedia {
     }
 
     @Override
-    public boolean cgbCompatible() {
-        return IsCgbCompatible();
+    public String systemVariantId() {
+        return IsCgbCompatible() ? variantIdGbc : variantIdGb;
     }
 
     @Override
-    public boolean cgbOnly() {
-        return IsCgbOnly();
+    public String systemVariantLabel() {
+        return IsCgbCompatible() ? "GBC" : "GB";
     }
 
     private void ParseHeader() {

@@ -7,6 +7,7 @@ import com.blackaby.Backend.Helpers.GameLibraryStore.LibraryEntry;
 import com.blackaby.Backend.Helpers.GameMetadataStore;
 import com.blackaby.Backend.Helpers.LibretroMetadataProvider;
 import com.blackaby.Backend.Helpers.LibretroMetadataProvider.LibretroMetadata;
+import com.blackaby.Backend.Platform.EmulatorGame;
 import com.blackaby.Misc.UiText;
 
 import javax.swing.BorderFactory;
@@ -40,7 +41,7 @@ public final class LibraryGameInfoWindow extends DuckWindow {
     private static final DateTimeFormatter lastPlayedFormatter = DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm");
 
     private final LibraryEntry entry;
-    private final GBRom rom;
+    private final EmulatorGame game;
     private final Color panelBackground;
     private final Color cardBackground;
     private final Color cardBorder;
@@ -54,14 +55,14 @@ public final class LibraryGameInfoWindow extends DuckWindow {
     private final JButton getArtworkButton = new JButton();
     private final JButton deleteRomButton = new JButton();
 
-    public LibraryGameInfoWindow(LibraryEntry entry, GBRom rom) {
-        this(entry, rom, null, null);
+    public LibraryGameInfoWindow(LibraryEntry entry, EmulatorGame game) {
+        this(entry, game, null, null);
     }
 
-    public LibraryGameInfoWindow(LibraryEntry entry, GBRom rom, Runnable artworkUpdatedAction, Runnable entryDeletedAction) {
+    public LibraryGameInfoWindow(LibraryEntry entry, EmulatorGame game, Runnable artworkUpdatedAction, Runnable entryDeletedAction) {
         super(UiText.LibraryWindow.INFO_WINDOW_TITLE, 760, 640, true);
         this.entry = entry;
-        this.rom = rom;
+        this.game = game;
         this.artworkUpdatedAction = artworkUpdatedAction;
         this.entryDeletedAction = entryDeletedAction;
         panelBackground = Styling.appBackgroundColour;
@@ -124,10 +125,10 @@ public final class LibraryGameInfoWindow extends DuckWindow {
         content.setOpaque(false);
         content.add(createDetailRow(UiText.LibraryWindow.INFO_LAST_PLAYED_TITLE, formatLastPlayed(entry.lastPlayedMillis())));
         content.add(createDetailRow(UiText.LibraryWindow.INFO_TARGET_HARDWARE_TITLE,
-                UiText.LibraryWindow.InfoTargetHardware(rom.IsCgbOnly(), rom.IsCgbEnhanced())));
+                UiText.LibraryWindow.InfoTargetHardware(isCgbOnly(), isCgbEnhanced())));
         content.add(createDetailRow(UiText.LibraryWindow.INFO_COMPATIBILITY_TITLE,
-                UiText.LibraryWindow.InfoCompatibility(rom.IsCgbOnly(), rom.IsCgbEnhanced())));
-        content.add(createDetailRow(UiText.LibraryWindow.INFO_HEADER_TITLE, valueOrUnknown(rom.GetHeaderTitle())));
+                UiText.LibraryWindow.InfoCompatibility(isCgbOnly(), isCgbEnhanced())));
+        content.add(createDetailRow(UiText.LibraryWindow.INFO_HEADER_TITLE, valueOrUnknown(game == null ? null : game.headerTitle())));
         content.add(createDetailRow(UiText.LibraryWindow.INFO_MAPPER_TITLE, mapperDisplayName()));
         content.add(createDetailRow(UiText.LibraryWindow.INFO_ROM_SIZE_TITLE, buildRomSizeSummary()));
         return createSectionCard(UiText.LibraryWindow.INFO_OVERVIEW_TITLE, content);
@@ -148,7 +149,7 @@ public final class LibraryGameInfoWindow extends DuckWindow {
 
     private JComponent createStorageSection() {
         JLabel pathValueLabel = new JLabel(asHtml(entry.romPath().toString()));
-        JLabel saveSupportLabel = new JLabel(asHtml(UiText.LibraryWindow.InfoBatterySave(rom.HasBatteryBackedSave())));
+        JLabel saveSupportLabel = new JLabel(asHtml(UiText.LibraryWindow.InfoBatterySave(game != null && game.batteryBackedSave())));
 
         JPanel content = new JPanel(new BorderLayout(0, 12));
         content.setOpaque(false);
@@ -222,7 +223,7 @@ public final class LibraryGameInfoWindow extends DuckWindow {
     }
 
     private void populateLocalDetails() {
-        if (entry == null || rom == null) {
+        if (entry == null || game == null) {
             publisherValueLabel.setText(asHtml(UiText.LibraryWindow.INFO_UNKNOWN_VALUE));
             releaseYearValueLabel.setText(asHtml(UiText.LibraryWindow.INFO_UNKNOWN_VALUE));
             databaseValueLabel.setText(asHtml(UiText.LibraryWindow.INFO_UNKNOWN_VALUE));
@@ -230,6 +231,7 @@ public final class LibraryGameInfoWindow extends DuckWindow {
     }
 
     private void requestLibretroMetadata() {
+        GBRom rom = gbRom();
         if (rom == null) {
             setLibretroMetadata(null);
             return;
@@ -358,6 +360,7 @@ public final class LibraryGameInfoWindow extends DuckWindow {
     }
 
     private String mapperDisplayName() {
+        GBRom rom = gbRom();
         if (rom == null || rom.GetMapperType() == null) {
             return UiText.LibraryWindow.INFO_UNKNOWN_VALUE;
         }
@@ -365,6 +368,7 @@ public final class LibraryGameInfoWindow extends DuckWindow {
     }
 
     private String buildRomSizeSummary() {
+        GBRom rom = gbRom();
         if (rom == null) {
             return UiText.LibraryWindow.INFO_UNKNOWN_VALUE;
         }
@@ -401,6 +405,20 @@ public final class LibraryGameInfoWindow extends DuckWindow {
 
     private void styleSecondaryButton(JButton button) {
         WindowUiSupport.styleSecondaryButton(button, accentColour, cardBorder);
+    }
+
+    private GBRom gbRom() {
+        return game instanceof GBRom rom ? rom : null;
+    }
+
+    private boolean isCgbOnly() {
+        GBRom rom = gbRom();
+        return rom != null && rom.IsCgbOnly();
+    }
+
+    private boolean isCgbEnhanced() {
+        GBRom rom = gbRom();
+        return rom != null && rom.IsCgbEnhanced();
     }
 
 }

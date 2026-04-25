@@ -1,6 +1,6 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.GB.GBBackendManager;
+import com.blackaby.Backend.Platform.BackendRegistry;
 import com.blackaby.Backend.GB.Graphics.GBColor;
 import com.blackaby.Backend.Platform.EmulatorButton;
 import com.blackaby.Backend.Platform.EmulatorProfile;
@@ -1290,12 +1290,12 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createControlBindingRow(EmulatorButton button) {
-        JButton keyboardButton = createPrimaryButton(Settings.inputBindings.GetKeyText(button));
+        JButton keyboardButton = createPrimaryButton(Settings.inputBindings.GetKeyText(backendProfile().backendId(), button));
         configureCompactPaletteButton(keyboardButton, 96);
         keyboardButton.addActionListener(event -> captureKeyboardBinding(button));
         keyboardBindingButtons.put(button, keyboardButton);
 
-        JButton controllerButton = createSecondaryButton(Settings.controllerBindings.GetBindingText(button));
+        JButton controllerButton = createSecondaryButton(Settings.controllerBindings.GetBindingText(backendProfile().backendId(), button));
         configureCompactPaletteButton(controllerButton, 102);
         controllerButton.addActionListener(event -> captureControllerBinding(button));
         controllerBindingButtons.put(button, controllerButton);
@@ -3359,7 +3359,7 @@ public class OptionsWindow extends DuckWindow {
                 return true;
             }
 
-            Settings.inputBindings.SetKeyCode(button, event.getKeyCode());
+            Settings.inputBindings.SetKeyCode(backendProfile().backendId(), button, event.getKeyCode());
             refreshKeyboardBindingButtons();
             captured[0] = true;
             Config.Save();
@@ -3485,7 +3485,7 @@ public class OptionsWindow extends DuckWindow {
                 UiText.OptionsWindow.ControllerRebindDialogTitle(formatControlButtonName(button)),
                 UiText.OptionsWindow.ControllerRebindDialogPrompt(formatControlButtonName(button)),
                 binding -> {
-                    Settings.controllerBindings.SetBinding(button, binding);
+                    Settings.controllerBindings.SetBinding(backendProfile().backendId(), button, binding);
                     refreshControllerBindingButtons();
                     refreshControllerStatus();
                     Config.Save();
@@ -3647,8 +3647,9 @@ public class OptionsWindow extends DuckWindow {
         }
 
         Map<String, String> mappedPressedButtons = new java.util.LinkedHashMap<>();
-        for (EmulatorButton button : liveSnapshot.boundButtons()) {
-            mappedPressedButtons.put(button.id(), formatControlButtonName(button));
+        for (String buttonId : liveSnapshot.boundButtons()) {
+            EmulatorButton button = controlButtonById(buttonId);
+            mappedPressedButtons.put(buttonId, button == null ? buttonId : formatControlButtonName(button));
         }
         setCompactReadout(controllerMappedButtonsArea, mappedPressedButtons.isEmpty()
                 ? UiText.OptionsWindow.CONTROLLER_MAPPED_NONE
@@ -3662,7 +3663,7 @@ public class OptionsWindow extends DuckWindow {
         }
 
         CompletableFuture
-                .supplyAsync(controllerInputService::PollLiveSnapshot)
+                .supplyAsync(() -> controllerInputService.PollLiveSnapshot(backendProfile()))
                 .whenComplete((snapshot, exception) -> SwingUtilities.invokeLater(() -> {
                     controllerStatusPollQueued.set(false);
                     if (exception == null && snapshot != null) {
@@ -3707,8 +3708,9 @@ public class OptionsWindow extends DuckWindow {
         }
 
         Map<String, String> mappedPressedButtons = new java.util.LinkedHashMap<>();
-        for (EmulatorButton button : liveSnapshot.boundButtons()) {
-            mappedPressedButtons.put(button.id(), formatControlButtonName(button));
+        for (String buttonId : liveSnapshot.boundButtons()) {
+            EmulatorButton button = controlButtonById(buttonId);
+            mappedPressedButtons.put(buttonId, button == null ? buttonId : formatControlButtonName(button));
         }
         setCompactReadout(controllerMappedButtonsArea, mappedPressedButtons.isEmpty()
                 ? UiText.OptionsWindow.CONTROLLER_MAPPED_NONE
@@ -3846,7 +3848,7 @@ public class OptionsWindow extends DuckWindow {
         for (EmulatorButton button : backendProfile().controlButtons()) {
             JButton bindingButton = keyboardBindingButtons.get(button);
             if (bindingButton != null) {
-                bindingButton.setText(Settings.inputBindings.GetKeyText(button));
+                bindingButton.setText(Settings.inputBindings.GetKeyText(backendProfile().backendId(), button));
             }
         }
     }
@@ -3855,7 +3857,7 @@ public class OptionsWindow extends DuckWindow {
         for (EmulatorButton button : backendProfile().controlButtons()) {
             JButton bindingButton = controllerBindingButtons.get(button);
             if (bindingButton != null) {
-                bindingButton.setText(Settings.controllerBindings.GetBindingText(button));
+                bindingButton.setText(Settings.controllerBindings.GetBindingText(backendProfile().backendId(), button));
             }
         }
     }
@@ -3864,8 +3866,20 @@ public class OptionsWindow extends DuckWindow {
         return backendProfile().controlButtonLabel(button);
     }
 
+    private EmulatorButton controlButtonById(String buttonId) {
+        if (buttonId == null || buttonId.isBlank()) {
+            return null;
+        }
+        for (EmulatorButton button : backendProfile().controlButtons()) {
+            if (buttonId.equals(button.id())) {
+                return button;
+            }
+        }
+        return null;
+    }
+
     private EmulatorProfile backendProfile() {
-        return mainWindow == null ? GBBackendManager.Current().Profile() : mainWindow.GetBackendProfile();
+        return mainWindow == null ? BackendRegistry.Default().Profile() : mainWindow.GetBackendProfile();
     }
 
     private JComponent wrapControllerDeadzoneControls() {

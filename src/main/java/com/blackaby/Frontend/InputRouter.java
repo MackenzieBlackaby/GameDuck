@@ -1,6 +1,5 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.GB.GBButton;
 import com.blackaby.Backend.Helpers.GUIActions;
 import com.blackaby.Backend.Platform.EmulatorButton;
 import com.blackaby.Backend.Platform.EmulatorProfile;
@@ -36,7 +35,7 @@ public final class InputRouter implements KeyEventDispatcher {
 
     private static final long shutdownAwaitMillis = 200L;
 
-    private record ControlButtonState(String buttonId, GBButton gameBoyButton) {
+    private record ControlButtonState(String buttonId) {
     }
 
     private final MainWindow mainWindow;
@@ -103,7 +102,7 @@ public final class InputRouter implements KeyEventDispatcher {
 
         List<ControlButtonState> buttonStates = new ArrayList<>();
         for (EmulatorButton button : profile.controlButtons()) {
-            buttonStates.add(new ControlButtonState(button.id(), GBButton.FromId(button.id())));
+            buttonStates.add(new ControlButtonState(button.id()));
         }
         this.controlButtons = List.copyOf(buttonStates);
     }
@@ -205,7 +204,8 @@ public final class InputRouter implements KeyEventDispatcher {
             return true;
         }
 
-        EmulatorButton button = Settings.inputBindings.GetButtonForKeyCode(profile.controlButtons(), event.getKeyCode());
+        EmulatorButton button = Settings.inputBindings.GetButtonForKeyCode(
+                profile.controlButtons(), profile.backendId(), event.getKeyCode());
         if (button == null) {
             return false;
         }
@@ -262,7 +262,7 @@ public final class InputRouter implements KeyEventDispatcher {
     }
 
     private void TriggerShortcut(AppShortcut shortcut) {
-        Runnable action = () -> new GUIActions(mainWindow, shortcut.Action(), emulation)
+        Runnable action = () -> new GUIActions(mainWindow, shortcut.Action())
                 .actionPerformed(new ActionEvent(mainWindow, ActionEvent.ACTION_PERFORMED, shortcut.name()));
         if (SwingUtilities.isEventDispatchThread()) {
             action.run();
@@ -301,7 +301,7 @@ public final class InputRouter implements KeyEventDispatcher {
         }
 
         routedInputActive = true;
-        ControllerInputService.ControllerPollSnapshot controllerPollSnapshot = controllerInputService.PollInputSnapshot();
+        ControllerInputService.ControllerPollSnapshot controllerPollSnapshot = controllerInputService.PollInputSnapshot(profile);
         ApplyControllerState(controllerPollSnapshot.boundButtons());
         ApplyControllerShortcutState(controllerPollSnapshot.pressedShortcuts());
     }
@@ -319,10 +319,10 @@ public final class InputRouter implements KeyEventDispatcher {
         }
     }
 
-    private void ApplyControllerState(EnumSet<GBButton> pressedButtons) {
+    private void ApplyControllerState(Set<String> pressedButtons) {
         synchronized (inputStateLock) {
             for (ControlButtonState button : controlButtons) {
-                boolean nextPressed = button.gameBoyButton() != null && pressedButtons.contains(button.gameBoyButton());
+                boolean nextPressed = pressedButtons.contains(button.buttonId());
                 boolean currentlyPressed = controllerPressedButtons.contains(button.buttonId());
                 if (nextPressed == currentlyPressed) {
                     continue;

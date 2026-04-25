@@ -1,6 +1,5 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Helpers.GameArtProvider;
 import com.blackaby.Backend.Helpers.GameLibraryStore;
 import com.blackaby.Backend.Helpers.GameLibraryStore.LibraryEntry;
@@ -86,7 +85,7 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
 
     @Override
     protected boolean matchesConsoleFilter(LibraryEntry entry, RomConsoleFilter filter) {
-        return entry != null && filter.Matches(entry.cgbCompatible());
+        return entry != null && filter.Matches(entry);
     }
 
     @Override
@@ -467,6 +466,9 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
         return entry == null
                 ? null
                 : new QuickStateManager.QuickStateIdentity(
+                        entry.systemId(),
+                        entry.systemVariantId(),
+                        entry.systemVariantLabel(),
                         entry.sourcePath(),
                         entry.sourceName(),
                         entry.displayName(),
@@ -474,13 +476,14 @@ public final class SaveStateManagerWindow extends AbstractSaveManagerWindow<Libr
     }
 
     private boolean isCurrentGame(LibraryEntry entry) {
-        GBRom currentRom = mainWindow == null ? null : mainWindow.GetCurrentLoadedRom();
+        com.blackaby.Backend.Platform.EmulatorGame currentGame = mainWindow == null ? null : mainWindow.GetCurrentLoadedGame();
         return entry != null
-                && currentRom != null
-                && safeText(entry.sourcePath()).equals(safeText(currentRom.GetSourcePath()))
-                && safeText(entry.sourceName()).equals(safeText(currentRom.GetSourceName()))
-                && safeText(entry.displayName()).equals(safeText(currentRom.GetName()))
-                && entry.patchNames().equals(currentRom.GetPatchNames());
+                && currentGame != null
+                && safeText(entry.systemId()).equals(safeText(currentGame.systemId()))
+                && safeText(entry.sourcePath()).equals(safeText(currentGame.sourcePath()))
+                && safeText(entry.sourceName()).equals(safeText(currentGame.sourceName()))
+                && safeText(entry.displayName()).equals(safeText(currentGame.displayName()))
+                && entry.patchNames().equals(currentGame.patchNames());
     }
 
     private String resolveGameDisplayName(LibraryEntry entry) {

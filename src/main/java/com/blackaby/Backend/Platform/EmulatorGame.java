@@ -7,6 +7,8 @@ import java.util.List;
  */
 public interface EmulatorGame {
 
+    String systemId();
+
     String sourcePath();
 
     String sourceName();
@@ -29,11 +31,11 @@ public interface EmulatorGame {
         return false;
     }
 
-    default boolean cgbCompatible() {
-        return false;
+    default String systemVariantId() {
+        return "";
     }
 
-    default boolean cgbOnly() {
-        return false;
+    default String systemVariantLabel() {
+        return "";
     }
 }

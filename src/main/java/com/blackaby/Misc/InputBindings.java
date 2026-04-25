@@ -1,17 +1,19 @@
 package com.blackaby.Misc;
 
 import com.blackaby.Backend.GB.GBButton;
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Platform.EmulatorButton;
 
 import java.awt.event.KeyEvent;
-import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
- * Stores the keyboard map for the emulated Game Boy buttons.
+ * Stores keyboard bindings for backend-defined emulator buttons.
  */
 public final class InputBindings {
 
-    private final EnumMap<GBButton, Integer> bindings = new EnumMap<>(GBButton.class);
+    private final Map<String, Integer> bindings = new HashMap<>();
 
     /**
      * Creates a binding set initialised with the default controls.
@@ -25,86 +27,96 @@ public final class InputBindings {
      */
     public synchronized void ResetToDefaults() {
         bindings.clear();
-        bindings.put(GBButton.UP, KeyEvent.VK_UP);
-        bindings.put(GBButton.DOWN, KeyEvent.VK_DOWN);
-        bindings.put(GBButton.LEFT, KeyEvent.VK_LEFT);
-        bindings.put(GBButton.RIGHT, KeyEvent.VK_RIGHT);
-        bindings.put(GBButton.A, KeyEvent.VK_X);
-        bindings.put(GBButton.B, KeyEvent.VK_Z);
-        bindings.put(GBButton.START, KeyEvent.VK_ENTER);
-        bindings.put(GBButton.SELECT, KeyEvent.VK_BACK_SPACE);
+        SeedGbDefaults();
     }
 
     /**
      * Returns the key code assigned to an emulated button.
      *
+     * @param backendId backend identifier
      * @param button button to inspect
      * @return assigned host key code
      */
+    public synchronized int GetKeyCode(String backendId, EmulatorButton button) {
+        if (button == null) {
+            return KeyEvent.VK_UNDEFINED;
+        }
+        return bindings.getOrDefault(Key(backendId, button.id()), KeyEvent.VK_UNDEFINED);
+    }
+
     public synchronized int GetKeyCode(GBButton button) {
-        return bindings.getOrDefault(button, KeyEvent.VK_UNDEFINED);
+        return GetKeyCode(GBRom.systemId, button);
     }
 
     public synchronized int GetKeyCode(EmulatorButton button) {
-        return button instanceof GBButton joypadButton
-                ? GetKeyCode(joypadButton)
-                : KeyEvent.VK_UNDEFINED;
+        return GetKeyCode(GBRom.systemId, button);
     }
 
     /**
      * Returns the assigned key as readable text.
      *
+     * @param backendId backend identifier
      * @param button button to inspect
      * @return display text for the assigned key
      */
+    public synchronized String GetKeyText(String backendId, EmulatorButton button) {
+        int keyCode = GetKeyCode(backendId, button);
+        return keyCode == KeyEvent.VK_UNDEFINED ? "Unbound" : KeyEvent.getKeyText(keyCode);
+    }
+
     public synchronized String GetKeyText(GBButton button) {
-        int keyCode = GetKeyCode(button);
-        if (keyCode == KeyEvent.VK_UNDEFINED) {
-            return "Unbound";
-        }
-        return KeyEvent.getKeyText(keyCode);
+        return GetKeyText(GBRom.systemId, button);
     }
 
     public synchronized String GetKeyText(EmulatorButton button) {
-        int keyCode = GetKeyCode(button);
-        return keyCode == KeyEvent.VK_UNDEFINED ? "Unbound" : KeyEvent.getKeyText(keyCode);
+        return GetKeyText(GBRom.systemId, button);
     }
 
     /**
      * Assigns a new host key to an emulated button.
      *
+     * @param backendId backend identifier
      * @param button button to update
      * @param keyCode replacement host key code
      */
-    public synchronized void SetKeyCode(GBButton button, int keyCode) {
-        if (keyCode == KeyEvent.VK_UNDEFINED) {
+    public synchronized void SetKeyCode(String backendId, EmulatorButton button, int keyCode) {
+        if (button == null || keyCode == KeyEvent.VK_UNDEFINED) {
             return;
         }
 
-        int currentKeyCode = GetKeyCode(button);
-        GBButton existingButton = GetButtonForKeyCode(keyCode);
-        bindings.put(button, keyCode);
+        String bindingKey = Key(backendId, button.id());
+        int currentKeyCode = bindings.getOrDefault(bindingKey, KeyEvent.VK_UNDEFINED);
+        EmulatorButton existingButton = GetButtonForKeyCodeForBackend(backendId, null, keyCode);
+        bindings.put(bindingKey, keyCode);
 
-        if (existingButton != null && existingButton != button) {
-            bindings.put(existingButton, currentKeyCode);
+        if (existingButton != null && !existingButton.id().equals(button.id())) {
+            bindings.put(Key(backendId, existingButton.id()), currentKeyCode);
         }
     }
 
+    public synchronized void SetKeyCode(GBButton button, int keyCode) {
+        SetKeyCode(GBRom.systemId, button, keyCode);
+    }
+
     public synchronized void SetKeyCode(EmulatorButton button, int keyCode) {
-        if (button instanceof GBButton joypadButton) {
-            SetKeyCode(joypadButton, keyCode);
-        }
+        SetKeyCode(GBRom.systemId, button, keyCode);
     }
 
     /**
      * Finds the emulated button already using a host key.
      *
+     * @param buttons buttons available on the active backend
+     * @param backendId backend identifier
      * @param keyCode host key code to look up
      * @return matching button, or {@code null} if none is bound
      */
-    public synchronized GBButton GetButtonForKeyCode(int keyCode) {
-        for (GBButton button : GBButton.values()) {
-            if (bindings.getOrDefault(button, KeyEvent.VK_UNDEFINED) == keyCode) {
+    public synchronized EmulatorButton GetButtonForKeyCode(Iterable<? extends EmulatorButton> buttons, String backendId,
+            int keyCode) {
+        if (buttons == null) {
+            return null;
+        }
+        for (EmulatorButton button : buttons) {
+            if (GetKeyCode(backendId, button) == keyCode) {
                 return button;
             }
         }
@@ -112,17 +124,38 @@ public final class InputBindings {
     }
 
     public synchronized EmulatorButton GetButtonForKeyCode(Iterable<? extends EmulatorButton> buttons, int keyCode) {
-        if (buttons == null) {
-            return null;
+        return GetButtonForKeyCode(buttons, GBRom.systemId, keyCode);
+    }
+
+    private EmulatorButton GetButtonForKeyCodeForBackend(String backendId, Iterable<? extends EmulatorButton> buttons,
+            int keyCode) {
+        if (buttons != null) {
+            return GetButtonForKeyCode(buttons, backendId, keyCode);
         }
-        for (EmulatorButton button : buttons) {
-            if (GetKeyCode(button) == keyCode) {
-                return button;
+
+        if (GBRom.systemId.equals(backendId)) {
+            for (GBButton button : GBButton.values()) {
+                if (GetKeyCode(backendId, button) == keyCode) {
+                    return button;
+                }
             }
         }
+
         return null;
     }
 
+    private void SeedGbDefaults() {
+        bindings.put(Key(GBRom.systemId, GBButton.UP.id()), KeyEvent.VK_UP);
+        bindings.put(Key(GBRom.systemId, GBButton.DOWN.id()), KeyEvent.VK_DOWN);
+        bindings.put(Key(GBRom.systemId, GBButton.LEFT.id()), KeyEvent.VK_LEFT);
+        bindings.put(Key(GBRom.systemId, GBButton.RIGHT.id()), KeyEvent.VK_RIGHT);
+        bindings.put(Key(GBRom.systemId, GBButton.A.id()), KeyEvent.VK_X);
+        bindings.put(Key(GBRom.systemId, GBButton.B.id()), KeyEvent.VK_Z);
+        bindings.put(Key(GBRom.systemId, GBButton.START.id()), KeyEvent.VK_ENTER);
+        bindings.put(Key(GBRom.systemId, GBButton.SELECT.id()), KeyEvent.VK_BACK_SPACE);
+    }
+
+    private String Key(String backendId, String buttonId) {
+        return (backendId == null ? "" : backendId) + "|" + (buttonId == null ? "" : buttonId);
+    }
 }
-
-

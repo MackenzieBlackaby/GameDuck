@@ -1,7 +1,11 @@
 package com.blackaby.Misc;
 
-import com.blackaby.Backend.GB.GBButton;
 import com.blackaby.Backend.GB.Graphics.GBColor;
+import com.blackaby.Backend.GB.Misc.GBRom;
+import com.blackaby.Backend.Platform.BackendRegistry;
+import com.blackaby.Backend.Platform.EmulatorBackend;
+import com.blackaby.Backend.Platform.EmulatorButton;
+import com.blackaby.Backend.Platform.EmulatorProfile;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -466,17 +470,23 @@ public final class Config {
 
     private static void ApplyInputBindings() {
         Settings.ResetControls();
-        for (GBButton button : GBButton.values()) {
-            String storedCode = properties.getProperty(inputPrefix + button.name());
-            if (storedCode == null) {
-                continue;
-            }
+        for (EmulatorBackend backend : BackendRegistry.All()) {
+            EmulatorProfile profile = backend.Profile();
+            for (EmulatorButton button : profile.controlButtons()) {
+                String storedCode = properties.getProperty(InputBindingKey(profile.backendId(), button.id()));
+                if (storedCode == null && GBRom.systemId.equals(profile.backendId())) {
+                    storedCode = properties.getProperty(inputPrefix + button.id());
+                }
+                if (storedCode == null) {
+                    continue;
+                }
 
-            try {
-                Settings.inputBindings.SetKeyCode(button, Integer.parseInt(storedCode));
-            } catch (NumberFormatException exception) {
-                Settings.ResetControls();
-                return;
+                try {
+                    Settings.inputBindings.SetKeyCode(profile.backendId(), button, Integer.parseInt(storedCode));
+                } catch (NumberFormatException exception) {
+                    Settings.ResetControls();
+                    return;
+                }
             }
         }
     }
@@ -510,11 +520,17 @@ public final class Config {
             Settings.controllerPollingMode = ControllerPollingMode.BALANCED;
         }
 
-        for (GBButton button : GBButton.values()) {
-            ControllerBinding binding = ControllerBinding.FromConfigValue(
-                    properties.getProperty(controllerInputPrefix + button.name()));
-            if (binding != null) {
-                Settings.controllerBindings.SetBinding(button, binding);
+        for (EmulatorBackend backend : BackendRegistry.All()) {
+            EmulatorProfile profile = backend.Profile();
+            for (EmulatorButton button : profile.controlButtons()) {
+                String storedValue = properties.getProperty(ControllerInputBindingKey(profile.backendId(), button.id()));
+                if (storedValue == null && GBRom.systemId.equals(profile.backendId())) {
+                    storedValue = properties.getProperty(controllerInputPrefix + button.id());
+                }
+                ControllerBinding binding = ControllerBinding.FromConfigValue(storedValue);
+                if (binding != null) {
+                    Settings.controllerBindings.SetBinding(profile.backendId(), button, binding);
+                }
             }
         }
     }
@@ -635,9 +651,15 @@ public final class Config {
     }
 
     private static void SyncInputBindings() {
-        for (GBButton button : GBButton.values()) {
-            properties.setProperty(inputPrefix + button.name(),
-                    String.valueOf(Settings.inputBindings.GetKeyCode(button)));
+        for (EmulatorBackend backend : BackendRegistry.All()) {
+            EmulatorProfile profile = backend.Profile();
+            for (EmulatorButton button : profile.controlButtons()) {
+                String keyCode = String.valueOf(Settings.inputBindings.GetKeyCode(profile.backendId(), button));
+                properties.setProperty(InputBindingKey(profile.backendId(), button.id()), keyCode);
+                if (GBRom.systemId.equals(profile.backendId())) {
+                    properties.setProperty(inputPrefix + button.id(), keyCode);
+                }
+            }
         }
     }
 
@@ -647,10 +669,16 @@ public final class Config {
                 Settings.preferredControllerId == null ? "" : Settings.preferredControllerId);
         properties.setProperty(controllerDeadzoneKey, String.valueOf(Settings.controllerDeadzonePercent));
         properties.setProperty(controllerPollingModeKey, Settings.controllerPollingMode.name());
-        for (GBButton button : GBButton.values()) {
-            ControllerBinding binding = Settings.controllerBindings.GetBinding(button);
-            properties.setProperty(controllerInputPrefix + button.name(),
-                    binding == null ? "" : binding.ToConfigValue());
+        for (EmulatorBackend backend : BackendRegistry.All()) {
+            EmulatorProfile profile = backend.Profile();
+            for (EmulatorButton button : profile.controlButtons()) {
+                ControllerBinding binding = Settings.controllerBindings.GetBinding(profile.backendId(), button);
+                String configValue = binding == null ? "" : binding.ToConfigValue();
+                properties.setProperty(ControllerInputBindingKey(profile.backendId(), button.id()), configValue);
+                if (GBRom.systemId.equals(profile.backendId())) {
+                    properties.setProperty(controllerInputPrefix + button.id(), configValue);
+                }
+            }
         }
     }
 
@@ -718,6 +746,18 @@ public final class Config {
         properties.setProperty(librarySearchQueryKey,
                 Settings.librarySearchQuery == null ? "" : Settings.librarySearchQuery);
         properties.setProperty(loadRecentMenuLimitKey, String.valueOf(Settings.loadRecentMenuLimit));
+    }
+
+    private static String InputBindingKey(String backendId, String buttonId) {
+        return inputPrefix + NullToEmpty(backendId) + "." + NullToEmpty(buttonId);
+    }
+
+    private static String ControllerInputBindingKey(String backendId, String buttonId) {
+        return controllerInputPrefix + NullToEmpty(backendId) + "." + NullToEmpty(buttonId);
+    }
+
+    private static String NullToEmpty(String value) {
+        return value == null ? "" : value;
     }
 
     private static void EnsureLoaded() {

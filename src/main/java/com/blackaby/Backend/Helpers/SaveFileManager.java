@@ -1,6 +1,7 @@
 package com.blackaby.Backend.Helpers;
 
 import com.blackaby.Backend.GB.Misc.GBRom;
+import com.blackaby.Backend.Platform.BackendRegistry;
 import com.blackaby.Backend.Platform.EmulatorGame;
 
 import java.io.IOException;
@@ -17,10 +18,19 @@ import java.util.Optional;
  */
 public final class SaveFileManager {
 
-    public record SaveIdentity(String sourcePath, String sourceName, String displayName, List<String> patchNames,
+    public record SaveIdentity(String systemId, String systemVariantId, String systemVariantLabel,
+                               String sourcePath, String sourceName, String displayName, List<String> patchNames,
                                boolean batteryBackedSave) implements EmulatorGame {
         public SaveIdentity {
+            systemId = systemId == null ? "" : systemId.trim();
+            systemVariantId = systemVariantId == null ? "" : systemVariantId.trim();
+            systemVariantLabel = systemVariantLabel == null ? "" : systemVariantLabel.trim();
             patchNames = List.copyOf(patchNames == null ? List.of() : patchNames);
+        }
+
+        public SaveIdentity(String sourcePath, String sourceName, String displayName, List<String> patchNames,
+                            boolean batteryBackedSave) {
+            this("", "", "", sourcePath, sourceName, displayName, patchNames, batteryBackedSave);
         }
 
         public static SaveIdentity FromRom(GBRom rom) {
@@ -32,6 +42,9 @@ public final class SaveFileManager {
                 return null;
             }
             return new SaveIdentity(
+                    game.systemId(),
+                    game.systemVariantId(),
+                    game.systemVariantLabel(),
                     game.sourcePath(),
                     game.sourceName(),
                     game.displayName(),
@@ -541,7 +554,10 @@ public final class SaveFileManager {
         if (saveIdentity == null) {
             return SaveDirectory().resolve("unknown.sav");
         }
-        return SaveDirectory().resolve(BuildSaveFileName(ResolvePreferredBaseName(saveIdentity), saveIdentity.patchNames()));
+        return SaveDirectory().resolve(BuildSaveFileName(
+                ResolvePreferredBaseName(saveIdentity),
+                saveIdentity.patchNames(),
+                ResolveSystemSaveSuffix(saveIdentity)));
     }
 
     static Path BuildFallbackSavePath(GBRom rom) {
@@ -576,6 +592,10 @@ public final class SaveFileManager {
     }
 
     private static String BuildSaveFileName(String baseName, java.util.List<String> patchNames) {
+        return BuildSaveFileName(baseName, patchNames, "");
+    }
+
+    private static String BuildSaveFileName(String baseName, java.util.List<String> patchNames, String systemSuffix) {
         StringBuilder builder = new StringBuilder(SanitiseFileComponent(baseName));
         for (String patchName : patchNames) {
             String sanitisedPatch = SanitiseFileComponent(patchName);
@@ -583,8 +603,25 @@ public final class SaveFileManager {
                 builder.append(" [").append(sanitisedPatch).append("]");
             }
         }
+        String sanitisedSystemSuffix = SanitiseFileComponent(systemSuffix);
+        if (!sanitisedSystemSuffix.isBlank() && !"unknown".equalsIgnoreCase(sanitisedSystemSuffix)) {
+            builder.append(" [").append(sanitisedSystemSuffix).append("]");
+        }
         builder.append(".sav");
         return builder.toString();
+    }
+
+    private static String ResolveSystemSaveSuffix(SaveIdentity saveIdentity) {
+        if (saveIdentity == null || saveIdentity.systemId() == null || saveIdentity.systemId().isBlank()) {
+            return "";
+        }
+
+        var backend = BackendRegistry.FindByBackendId(saveIdentity.systemId());
+        if (backend != null && backend.Profile() != null && backend.Profile().displayName() != null
+                && !backend.Profile().displayName().isBlank()) {
+            return backend.Profile().displayName();
+        }
+        return saveIdentity.systemId();
     }
 
     private static String SanitiseFileComponent(String value) {

@@ -30,6 +30,7 @@ import com.blackaby.Misc.NonGbcColourMode;
 import com.blackaby.Misc.Settings;
 import com.blackaby.Misc.UiText;
 
+import java.io.Serializable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -452,7 +453,11 @@ public class GBRuntime implements Runnable, EmulatorRuntime {
         }
 
         synchronized (stateLock) {
-            QuickStateManager.Save(rom, slot, CaptureQuickState());
+            QuickStateManager.Save(
+                    QuickStateManager.QuickStateIdentity.FromGame(rom),
+                    profile.backendId(),
+                    slot,
+                    CaptureQuickStatePayload());
         }
         SetRuntimeStatus(UiText.GuiActions.SaveStateStatus(slot));
     }
@@ -479,8 +484,11 @@ public class GBRuntime implements Runnable, EmulatorRuntime {
         }
 
         synchronized (stateLock) {
-            QuickStateManager.QuickStateData quickState = QuickStateManager.Load(rom, slot);
-            RestoreQuickState(quickState);
+            Serializable quickState = QuickStateManager.LoadPayload(
+                    QuickStateManager.QuickStateIdentity.FromGame(rom),
+                    profile.backendId(),
+                    slot);
+            RestoreQuickStatePayload(quickState);
         }
         SetRuntimeStatus(UiText.GuiActions.LoadStateStatus(slot));
     }
@@ -530,6 +538,23 @@ public class GBRuntime implements Runnable, EmulatorRuntime {
             ApplyLiveCheats();
         }
         return storedCheats;
+    }
+
+    @Override
+    public Serializable CaptureQuickStatePayload() {
+        if (!HasLoadedRom() || cpu == null || memory == null || timer == null || ppu == null
+                || joypad == null || apu == null) {
+            throw new IllegalStateException("Load a ROM before saving a state.");
+        }
+        return CaptureQuickState();
+    }
+
+    @Override
+    public void RestoreQuickStatePayload(Serializable payload) {
+        if (!(payload instanceof QuickStateManager.QuickStateData quickStateData)) {
+            throw new IllegalArgumentException("The save state file is not compatible with the Game Boy core.");
+        }
+        RestoreQuickState(quickStateData);
     }
 
     private void InitialiseBootState() {

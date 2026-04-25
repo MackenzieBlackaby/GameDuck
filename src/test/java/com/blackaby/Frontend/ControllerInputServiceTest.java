@@ -51,11 +51,11 @@ class ControllerInputServiceTest {
         assertEquals(Optional.of(new ControllerInputService.ControllerDevice("controller-a", "controller-a")),
                 firstSnapshot.activeController());
         assertEquals(List.of(ControllerBinding.Button("0")), firstSnapshot.activeInputs());
-        assertTrue(firstSnapshot.boundButtons().contains(GBButton.A));
+        assertTrue(firstSnapshot.boundButtons().contains(GBButton.A.id()));
         assertFalse(firstSnapshot.pressedShortcuts().iterator().hasNext());
 
         now[0] = 10L;
-        assertTrue(service.PollBoundButtons().contains(GBButton.A));
+        assertTrue(service.PollBoundButtons().contains(GBButton.A.id()));
         assertIterableEquals(List.of(ControllerBinding.Button("0")), service.PollActiveInputs());
         assertEquals(1, pollCount.get());
         assertEquals(1, componentPollCount.get());
@@ -99,7 +99,7 @@ class ControllerInputServiceTest {
         assertEquals(1, scanCount.get());
         assertEquals(1, firstPollCount.get());
         assertEquals(1, secondPollCount.get());
-        assertTrue(snapshot.boundButtons().contains(GBButton.B));
+        assertTrue(snapshot.boundButtons().contains(GBButton.B.id()));
         assertEquals(Optional.of(new ControllerInputService.ControllerDevice("controller-b", "controller-b")),
                 service.GetActiveController());
     }

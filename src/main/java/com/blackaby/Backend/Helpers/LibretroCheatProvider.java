@@ -1,5 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
+import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.Platform.EmulatorCheat;
 import com.blackaby.Backend.Platform.EmulatorGame;
 
@@ -362,8 +363,7 @@ public final class LibretroCheatProvider {
 
     private static List<String> BuildPlaylistOrder(EmulatorGame game) {
         String lowerSourcePath = game == null || game.sourcePath() == null ? "" : game.sourcePath().toLowerCase(Locale.ROOT);
-        boolean preferColorDatabase = game != null && (game.cgbOnly()
-                || game.cgbCompatible()
+        boolean preferColorDatabase = game != null && (IsGbColorVariant(game)
                 || lowerSourcePath.endsWith(".gbc")
                 || lowerSourcePath.endsWith(".cgb"));
 
@@ -376,6 +376,12 @@ public final class LibretroCheatProvider {
             playlists.add("Nintendo - Game Boy Color");
         }
         return List.copyOf(playlists);
+    }
+
+    private static boolean IsGbColorVariant(EmulatorGame game) {
+        return game != null
+                && GBRom.systemId.equals(game.systemId())
+                && GBRom.variantIdGbc.equals(game.systemVariantId());
     }
 
     private static List<String> BuildCandidateNames(EmulatorGame game) {

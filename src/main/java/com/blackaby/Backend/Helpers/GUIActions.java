@@ -1,6 +1,6 @@
 package com.blackaby.Backend.Helpers;
 
-import com.blackaby.Backend.GB.Misc.GBRom;
+import com.blackaby.Backend.Platform.BackendRegistry;
 import com.blackaby.Backend.Platform.EmulatorRuntime;
 import com.blackaby.Frontend.AboutWindow;
 import com.blackaby.Frontend.LibraryWindow;
@@ -14,6 +14,7 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -44,7 +45,6 @@ public final class GUIActions implements ActionListener {
     }
 
     private final Action action;
-    private final EmulatorRuntime attachedEmulation;
     private final MainWindow mainWindow;
     private final Integer stateSlot;
 
@@ -53,10 +53,9 @@ public final class GUIActions implements ActionListener {
      *
      * @param mainWindow owning main window
      * @param action action to dispatch
-     * @param attachedEmulation emulator instance to control
      */
-    public GUIActions(MainWindow mainWindow, Action action, EmulatorRuntime attachedEmulation) {
-        this(mainWindow, action, attachedEmulation, null);
+    public GUIActions(MainWindow mainWindow, Action action) {
+        this(mainWindow, action, null);
     }
 
     /**
@@ -64,13 +63,11 @@ public final class GUIActions implements ActionListener {
      *
      * @param mainWindow owning main window
      * @param action save or load action
-     * @param attachedEmulation emulator instance to control
      * @param stateSlot save-state slot from 0 to 9
      */
-    public GUIActions(MainWindow mainWindow, Action action, EmulatorRuntime attachedEmulation, Integer stateSlot) {
+    public GUIActions(MainWindow mainWindow, Action action, Integer stateSlot) {
         this.mainWindow = mainWindow;
         this.action = action;
-        this.attachedEmulation = attachedEmulation;
         this.stateSlot = stateSlot;
     }
 
@@ -83,19 +80,19 @@ public final class GUIActions implements ActionListener {
                 HandleLoadRom();
                 break;
             case RESETGAME:
-                attachedEmulation.RestartEmulation();
+                emulation().RestartEmulation();
                 break;
             case LIBRARY:
-                new LibraryWindow(mainWindow, attachedEmulation);
+                new LibraryWindow(mainWindow);
                 break;
             case LOADIPS:
                 HandleLoadIpsPatch();
                 break;
             case PAUSEGAME:
-                attachedEmulation.PauseEmulation();
+                emulation().PauseEmulation();
                 break;
             case CLOSEGAME:
-                attachedEmulation.StopEmulation();
+                emulation().StopEmulation();
                 break;
             case SAVESTATE:
                 HandleSaveState();
@@ -150,7 +147,7 @@ public final class GUIActions implements ActionListener {
             if (IsIpsPatch(file)) {
                 OpenIpsPatch(file);
             } else {
-                attachedEmulation.StartEmulation(file.getAbsolutePath());
+                mainWindow.StartEmulation(file.toPath());
             }
         } catch (IOException | IllegalArgumentException exception) {
             JOptionPane.showMessageDialog(mainWindow, exception.getMessage(), UiText.GuiActions.LOAD_ROM_ERROR_TITLE,
@@ -185,8 +182,9 @@ public final class GUIActions implements ActionListener {
     }
 
     private void OpenIpsPatch(File patchFile) throws IOException {
-        if (attachedEmulation.HasLoadedGame()) {
-            attachedEmulation.ApplyPatch(patchFile.getAbsolutePath());
+        EmulatorRuntime emulation = emulation();
+        if (emulation.HasLoadedGame()) {
+            emulation.ApplyPatch(patchFile.getAbsolutePath());
             return;
         }
 
@@ -194,7 +192,7 @@ public final class GUIActions implements ActionListener {
         if (baseRom == null) {
             return;
         }
-        attachedEmulation.StartEmulation(GBRom.LoadPatched(baseRom.getAbsolutePath(), patchFile.getAbsolutePath()));
+        mainWindow.StartPatchedEmulation(baseRom.toPath(), patchFile.toPath());
     }
 
     private File PromptForBaseRom() {
@@ -207,17 +205,29 @@ public final class GUIActions implements ActionListener {
 
     private boolean HasSupportedGameFileExtension(String name) {
         String lowerName = name.toLowerCase();
-        return matchesExtension(lowerName, attachedEmulation.Profile().supportedGameFileExtensions())
-                || matchesExtension(lowerName, attachedEmulation.Profile().supportedPatchFileExtensions());
+        return BackendRegistry.All().stream()
+                .map(backend -> backend.Profile())
+                .anyMatch(profile -> matchesExtension(lowerName, profile.supportedGameFileExtensions())
+                        || matchesExtension(lowerName, profile.supportedPatchFileExtensions()));
     }
 
     private boolean HasRomExtension(String name) {
         String lowerName = name.toLowerCase();
-        return matchesExtension(lowerName, attachedEmulation.Profile().supportedGameFileExtensions());
+        return BackendRegistry.All().stream()
+                .map(backend -> backend.Profile())
+                .anyMatch(profile -> matchesExtension(lowerName, profile.supportedGameFileExtensions()));
     }
 
     private boolean IsIpsPatch(File file) {
-        return matchesExtension(file.getName().toLowerCase(), attachedEmulation.Profile().supportedPatchFileExtensions());
+        if (file == null) {
+            return false;
+        }
+
+        try {
+            return BackendRegistry.ResolveBackendForPatch(Path.of(file.getAbsolutePath())) != null;
+        } catch (RuntimeException exception) {
+            return false;
+        }
     }
 
     private boolean matchesExtension(String fileName, List<String> extensions) {
@@ -236,7 +246,7 @@ public final class GUIActions implements ActionListener {
         int result = JOptionPane.showConfirmDialog(mainWindow, UiText.GuiActions.EXIT_CONFIRM_MESSAGE, UiText.GuiActions.EXIT_CONFIRM_TITLE,
                 JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
         if (result == JOptionPane.YES_OPTION) {
-            attachedEmulation.StopEmulation();
+            emulation().StopEmulation();
             System.exit(0);
         }
     }
@@ -247,9 +257,9 @@ public final class GUIActions implements ActionListener {
     private void HandleSaveState() {
         try {
             if (stateSlot == null) {
-                attachedEmulation.SaveQuickState();
+                emulation().SaveQuickState();
             } else {
-                attachedEmulation.SaveStateSlot(stateSlot);
+                emulation().SaveStateSlot(stateSlot);
             }
         } catch (IOException | IllegalArgumentException | IllegalStateException exception) {
             JOptionPane.showMessageDialog(mainWindow, exception.getMessage(),
@@ -264,15 +274,19 @@ public final class GUIActions implements ActionListener {
     private void HandleLoadState() {
         try {
             if (stateSlot == null) {
-                attachedEmulation.LoadQuickState();
+                emulation().LoadQuickState();
             } else {
-                attachedEmulation.LoadStateSlot(stateSlot);
+                emulation().LoadStateSlot(stateSlot);
             }
         } catch (IOException | IllegalArgumentException | IllegalStateException exception) {
             JOptionPane.showMessageDialog(mainWindow, exception.getMessage(),
                     stateSlot == null ? UiText.GuiActions.QUICK_LOAD_ERROR_TITLE : UiText.GuiActions.LOAD_STATE_ERROR_TITLE,
                     JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private EmulatorRuntime emulation() {
+        return mainWindow.GetEmulation();
     }
 }
 

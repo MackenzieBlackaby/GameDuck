@@ -1,5 +1,6 @@
 package com.blackaby.Backend.Platform;
 
+import java.io.Serializable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -54,4 +55,8 @@ public interface EmulatorRuntime {
     List<EmulatorCheat> DescribeCurrentCheats();
 
     List<EmulatorCheat> UpdateCurrentCheats(List<EmulatorCheat> cheats);
+
+    Serializable CaptureQuickStatePayload();
+
+    void RestoreQuickStatePayload(Serializable payload);
 }

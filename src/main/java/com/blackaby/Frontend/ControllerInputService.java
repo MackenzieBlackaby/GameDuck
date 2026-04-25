@@ -1,6 +1,7 @@
 package com.blackaby.Frontend;
 
-import com.blackaby.Backend.GB.GBButton;
+import com.blackaby.Backend.Platform.BackendRegistry;
+import com.blackaby.Backend.Platform.EmulatorProfile;
 import com.blackaby.Misc.AppShortcut;
 import com.blackaby.Misc.ControllerBinding;
 import com.blackaby.Misc.Settings;
@@ -20,8 +21,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.EnumMap;
 import java.util.EnumSet;
+import java.util.Set;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -50,14 +51,14 @@ public final class ControllerInputService {
     public record ControllerDevice(String id, String displayName) {
     }
 
-    public record ControllerPollSnapshot(EnumSet<GBButton> boundButtons, EnumSet<AppShortcut> pressedShortcuts) {
+    public record ControllerPollSnapshot(Set<String> boundButtons, EnumSet<AppShortcut> pressedShortcuts) {
     }
 
     public record ControllerLiveSnapshot(Optional<ControllerDevice> activeController, List<ControllerBinding> activeInputs,
-            EnumSet<GBButton> boundButtons, EnumSet<AppShortcut> pressedShortcuts) {
+            Set<String> boundButtons, EnumSet<AppShortcut> pressedShortcuts) {
         static ControllerLiveSnapshot Empty(Optional<ControllerDevice> activeController) {
             return new ControllerLiveSnapshot(activeController, List.of(),
-                    EnumSet.noneOf(GBButton.class),
+                    Set.of(),
                     EnumSet.noneOf(AppShortcut.class));
         }
     }
@@ -198,8 +199,8 @@ public final class ControllerInputService {
     private final LongSupplier currentTimeMillis;
     private final ControllerScanner testScanner;
     private final Map<String, Float> polledComponentValues = new HashMap<>();
-    private final EnumMap<GBButton, ControllerBinding> cachedControllerBindings = new EnumMap<>(GBButton.class);
-    private final EnumMap<AppShortcut, ControllerBinding> cachedShortcutBindings = new EnumMap<>(AppShortcut.class);
+    private final Map<String, ControllerBinding> cachedControllerBindings = new HashMap<>();
+    private final Map<AppShortcut, ControllerBinding> cachedShortcutBindings = new HashMap<>();
     private final AtomicBoolean uiRescanQueued = new AtomicBoolean();
     private volatile long lastScanTimestamp;
     private volatile String initialisationError;
@@ -208,6 +209,7 @@ public final class ControllerInputService {
     private boolean initialScanComplete;
     private long cachedControllerBindingsVersion = -1L;
     private long cachedShortcutBindingsVersion = -1L;
+    private String cachedControllerBindingsBackendId = "";
     private List<ControllerHandle> controllerHandles = List.of();
     private ControllerHandle activeController;
     private CachedLiveSnapshot cachedLiveSnapshot;
@@ -280,29 +282,37 @@ public final class ControllerInputService {
     }
 
     /**
-     * Polls the active controller and returns the currently pressed Game Boy
-     * buttons.
+     * Polls the active controller and returns the currently pressed logical
+     * button ids for the default backend.
      *
-     * @return pressed emulated buttons
+     * @return pressed emulated button ids
      */
-    public EnumSet<GBButton> PollBoundButtons() {
+    public Set<String> PollBoundButtons() {
+        return PollBoundButtons(BackendRegistry.Default().Profile());
+    }
+
+    public Set<String> PollBoundButtons(EmulatorProfile profile) {
         synchronized (pollLock) {
             if (!Settings.controllerInputEnabled) {
-                return EnumSet.noneOf(GBButton.class);
+                return Set.of();
             }
-            return CopyButtons(GetLiveSnapshotLocked(uiSnapshotMaxAgeMillis).boundButtons());
+            return CopyButtons(GetLiveSnapshotLocked(uiSnapshotMaxAgeMillis, profile).boundButtons());
         }
     }
 
     public ControllerPollSnapshot PollInputSnapshot() {
+        return PollInputSnapshot(BackendRegistry.Default().Profile());
+    }
+
+    public ControllerPollSnapshot PollInputSnapshot(EmulatorProfile profile) {
         synchronized (pollLock) {
             if (!Settings.controllerInputEnabled) {
                 return new ControllerPollSnapshot(
-                        EnumSet.noneOf(GBButton.class),
+                        Set.of(),
                         EnumSet.noneOf(AppShortcut.class));
             }
 
-            ControllerLiveSnapshot liveSnapshot = GetLiveSnapshotLocked(0L);
+            ControllerLiveSnapshot liveSnapshot = GetLiveSnapshotLocked(0L, profile);
             return new ControllerPollSnapshot(
                     CopyButtons(liveSnapshot.boundButtons()),
                     CopyShortcuts(liveSnapshot.pressedShortcuts()));
@@ -310,8 +320,12 @@ public final class ControllerInputService {
     }
 
     public ControllerLiveSnapshot PollLiveSnapshot() {
+        return PollLiveSnapshot(BackendRegistry.Default().Profile());
+    }
+
+    public ControllerLiveSnapshot PollLiveSnapshot(EmulatorProfile profile) {
         synchronized (pollLock) {
-            return CopyLiveSnapshot(GetLiveSnapshotLocked(uiSnapshotMaxAgeMillis));
+            return CopyLiveSnapshot(GetLiveSnapshotLocked(uiSnapshotMaxAgeMillis, profile));
         }
     }
 
@@ -322,11 +336,11 @@ public final class ControllerInputService {
      */
     public List<ControllerBinding> PollActiveInputs() {
         synchronized (pollLock) {
-            return List.copyOf(GetLiveSnapshotLocked(mapperSnapshotMaxAgeMillis).activeInputs());
+            return List.copyOf(GetLiveSnapshotLocked(mapperSnapshotMaxAgeMillis, BackendRegistry.Default().Profile()).activeInputs());
         }
     }
 
-    private ControllerLiveSnapshot GetLiveSnapshotLocked(long maxAgeMillis) {
+    private ControllerLiveSnapshot GetLiveSnapshotLocked(long maxAgeMillis, EmulatorProfile profile) {
         EnsureInitialScanLocked();
         ControllerHandle selectedHandle = SelectActiveControllerLocked();
         Optional<ControllerDevice> selectedDevice = selectedHandle == null
@@ -337,7 +351,7 @@ public final class ControllerInputService {
             return ControllerLiveSnapshot.Empty(selectedDevice);
         }
 
-        RefreshBindingCachesIfNeededLocked();
+        RefreshBindingCachesIfNeededLocked(profile);
         long now = currentTimeMillis.getAsLong();
         if (cachedLiveSnapshot != null
                 && selectedHandle.device().id().equals(cachedLiveSnapshot.controllerId())
@@ -432,12 +446,15 @@ public final class ControllerInputService {
         return uiRescanExecutor;
     }
 
-    private void RefreshBindingCachesIfNeededLocked() {
+    private void RefreshBindingCachesIfNeededLocked(EmulatorProfile profile) {
+        String backendId = profile == null ? BackendRegistry.Default().Profile().backendId() : profile.backendId();
         long controllerBindingsVersion = Settings.controllerBindings.Version();
-        if (controllerBindingsVersion != cachedControllerBindingsVersion) {
+        if (controllerBindingsVersion != cachedControllerBindingsVersion
+                || !backendId.equals(cachedControllerBindingsBackendId)) {
             cachedControllerBindings.clear();
-            cachedControllerBindings.putAll(Settings.controllerBindings.SnapshotBindings());
+            cachedControllerBindings.putAll(Settings.controllerBindings.SnapshotBindings(backendId));
             cachedControllerBindingsVersion = controllerBindingsVersion;
+            cachedControllerBindingsBackendId = backendId;
             InvalidateLiveSnapshotLocked();
         }
 
@@ -450,16 +467,16 @@ public final class ControllerInputService {
         }
     }
 
-    private EnumSet<GBButton> ResolvePressedButtons(Map<String, Float> componentValues) {
+    private Set<String> ResolvePressedButtons(Map<String, Float> componentValues) {
         float deadzone = Settings.controllerDeadzonePercent / 100f;
-        EnumSet<GBButton> pressedButtons = EnumSet.noneOf(GBButton.class);
-        for (GBButton button : GBButton.values()) {
-            ControllerBinding binding = cachedControllerBindings.get(button);
+        Set<String> pressedButtons = new LinkedHashSet<>();
+        for (Map.Entry<String, ControllerBinding> entry : cachedControllerBindings.entrySet()) {
+            ControllerBinding binding = entry.getValue();
             if (binding != null && binding.Matches(componentValues, deadzone)) {
-                pressedButtons.add(button);
+                pressedButtons.add(entry.getKey());
             }
         }
-        return pressedButtons;
+        return Set.copyOf(pressedButtons);
     }
 
     private EnumSet<AppShortcut> ResolvePressedShortcuts(Map<String, Float> componentValues) {
@@ -1250,10 +1267,10 @@ public final class ControllerInputService {
         return values;
     }
 
-    private EnumSet<GBButton> CopyButtons(EnumSet<GBButton> buttons) {
+    private Set<String> CopyButtons(Set<String> buttons) {
         return buttons == null || buttons.isEmpty()
-                ? EnumSet.noneOf(GBButton.class)
-                : EnumSet.copyOf(buttons);
+                ? Set.of()
+                : Set.copyOf(buttons);
     }
 
     private EnumSet<AppShortcut> CopyShortcuts(EnumSet<AppShortcut> shortcuts) {

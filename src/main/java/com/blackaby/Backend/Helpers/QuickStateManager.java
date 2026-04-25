@@ -7,6 +7,8 @@ import com.blackaby.Backend.GB.Misc.GBRom;
 import com.blackaby.Backend.GB.Peripherals.GBAudioProcessingUnit;
 import com.blackaby.Backend.GB.Peripherals.GBGamepad;
 import com.blackaby.Backend.GB.Peripherals.GBTimerSet;
+import com.blackaby.Backend.Platform.BackendRegistry;
+import com.blackaby.Backend.Platform.EmulatorGame;
 import com.blackaby.Frontend.DuckDisplay;
 
 import java.io.BufferedInputStream;
@@ -14,6 +16,7 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -29,21 +32,35 @@ public final class QuickStateManager {
     public static final int quickSlot = 0;
     public static final int maxSlot = 9;
 
-    public record QuickStateIdentity(String sourcePath, String sourceName, String displayName,
-            List<String> patchNames) {
+    public record QuickStateIdentity(String systemId, String systemVariantId, String systemVariantLabel,
+            String sourcePath, String sourceName, String displayName, List<String> patchNames) {
         public QuickStateIdentity {
+            systemId = systemId == null ? "" : systemId.trim();
+            systemVariantId = systemVariantId == null ? "" : systemVariantId.trim();
+            systemVariantLabel = systemVariantLabel == null ? "" : systemVariantLabel.trim();
             patchNames = List.copyOf(patchNames == null ? List.of() : patchNames);
         }
 
+        public QuickStateIdentity(String sourcePath, String sourceName, String displayName, List<String> patchNames) {
+            this("", "", "", sourcePath, sourceName, displayName, patchNames);
+        }
+
         public static QuickStateIdentity FromRom(GBRom rom) {
-            if (rom == null) {
+            return FromGame(rom);
+        }
+
+        public static QuickStateIdentity FromGame(EmulatorGame game) {
+            if (game == null) {
                 return null;
             }
             return new QuickStateIdentity(
-                    rom.GetSourcePath(),
-                    rom.GetSourceName(),
-                    rom.GetName(),
-                    rom.GetPatchNames());
+                    game.systemId(),
+                    game.systemVariantId(),
+                    game.systemVariantLabel(),
+                    game.sourcePath(),
+                    game.sourceName(),
+                    game.displayName(),
+                    game.patchNames());
         }
     }
 
@@ -58,11 +75,18 @@ public final class QuickStateManager {
             int previousLy) implements java.io.Serializable {
     }
 
+    public record StoredQuickState(String backendId, Serializable payload) implements Serializable {
+        public StoredQuickState {
+            backendId = backendId == null ? "" : backendId.trim();
+        }
+    }
+
     public record StateSlotInfo(int slot, Path path, boolean exists, FileTime lastModified) {
     }
 
     private static final int fileMagic = 0x47515331;
-    private static final int fileVersion = 2;
+    private static final int fileVersion = 3;
+    private static final int legacyFileVersion = 2;
 
     private QuickStateManager() {
     }
@@ -87,21 +111,31 @@ public final class QuickStateManager {
      * @throws IOException when the state cannot be written
      */
     public static void Save(GBRom rom, int slot, QuickStateData quickStateData) throws IOException {
-        if (rom == null) {
+        Save(QuickStateIdentity.FromRom(rom), rom == null ? "" : rom.systemId(), slot, quickStateData);
+    }
+
+    public static void Save(QuickStateIdentity quickStateIdentity, String backendId, Serializable payload)
+            throws IOException {
+        Save(quickStateIdentity, backendId, quickSlot, payload);
+    }
+
+    public static void Save(QuickStateIdentity quickStateIdentity, String backendId, int slot, Serializable payload)
+            throws IOException {
+        if (quickStateIdentity == null) {
             throw new IOException("Load a ROM before saving a state.");
         }
-        if (quickStateData == null) {
+        if (payload == null) {
             throw new IOException("No save-state data is available to write.");
         }
 
         ValidateSlot(slot);
-        Path quickStatePath = QuickStatePath(rom, slot);
+        Path quickStatePath = QuickStatePath(quickStateIdentity, slot);
         Files.createDirectories(quickStatePath.getParent());
         try (ObjectOutputStream output = new ObjectOutputStream(
                 new BufferedOutputStream(Files.newOutputStream(quickStatePath)))) {
             output.writeInt(fileMagic);
             output.writeInt(fileVersion);
-            output.writeObject(quickStateData);
+            output.writeObject(new StoredQuickState(backendId, payload));
         }
     }
 
@@ -125,12 +159,25 @@ public final class QuickStateManager {
      * @throws IOException when the state cannot be found or read
      */
     public static QuickStateData Load(GBRom rom, int slot) throws IOException {
-        if (rom == null) {
+        Serializable payload = LoadPayload(QuickStateIdentity.FromRom(rom), rom == null ? "" : rom.systemId(), slot);
+        if (!(payload instanceof QuickStateData quickStateData)) {
+            throw new IOException("The save state file is not compatible with the Game Boy core.");
+        }
+        return quickStateData;
+    }
+
+    public static Serializable LoadPayload(QuickStateIdentity quickStateIdentity, String backendId) throws IOException {
+        return LoadPayload(quickStateIdentity, backendId, quickSlot);
+    }
+
+    public static Serializable LoadPayload(QuickStateIdentity quickStateIdentity, String backendId, int slot)
+            throws IOException {
+        if (quickStateIdentity == null) {
             throw new IOException("Load a ROM before trying to load a state.");
         }
 
         ValidateSlot(slot);
-        Path quickStatePath = QuickStatePath(rom, slot);
+        Path quickStatePath = QuickStatePath(quickStateIdentity, slot);
         if (!Files.exists(quickStatePath) || !Files.isRegularFile(quickStatePath)) {
             if (slot == quickSlot) {
                 throw new IOException("No quick save exists for the current game yet.");
@@ -142,15 +189,30 @@ public final class QuickStateManager {
                 new BufferedInputStream(Files.newInputStream(quickStatePath)))) {
             int magic = input.readInt();
             int version = input.readInt();
-            if (magic != fileMagic || version != fileVersion) {
+            if (magic != fileMagic || (version != fileVersion && version != legacyFileVersion)) {
                 throw new IOException("The save state format is not supported by this version of GameDuck.");
             }
 
             Object stateObject = input.readObject();
-            if (!(stateObject instanceof QuickStateData quickStateData)) {
+            if (version == legacyFileVersion) {
+                if (!(stateObject instanceof QuickStateData quickStateData)) {
+                    throw new IOException("The save state file is corrupted.");
+                }
+                if (backendId != null && !backendId.isBlank() && !GBRom.systemId.equals(backendId)) {
+                    throw new IOException("The save state file belongs to a different core.");
+                }
+                return quickStateData;
+            }
+
+            if (!(stateObject instanceof StoredQuickState storedQuickState) || storedQuickState.payload() == null) {
                 throw new IOException("The save state file is corrupted.");
             }
-            return quickStateData;
+            if (backendId != null && !backendId.isBlank()
+                    && !storedQuickState.backendId().isBlank()
+                    && !backendId.equals(storedQuickState.backendId())) {
+                throw new IOException("The save state file belongs to a different core.");
+            }
+            return storedQuickState.payload();
         } catch (ClassNotFoundException | ClassCastException exception) {
             throw new IOException("The save state file could not be read.", exception);
         }
@@ -359,6 +421,10 @@ public final class QuickStateManager {
                 fileName.append(" [").append(sanitisedPatch).append("]");
             }
         }
+        String systemSuffix = ResolveSystemStateSuffix(quickStateIdentity);
+        if (!systemSuffix.isBlank()) {
+            fileName.append(" [").append(systemSuffix).append("]");
+        }
 
         fileName.append(" [")
                 .append(String.format("%08X", IdentityHash(quickStateIdentity)))
@@ -371,9 +437,10 @@ public final class QuickStateManager {
     }
 
     private static int IdentityHash(QuickStateIdentity quickStateIdentity) {
+        String systemId = quickStateIdentity.systemId() == null ? "" : quickStateIdentity.systemId();
         String sourcePath = quickStateIdentity.sourcePath() == null ? "" : quickStateIdentity.sourcePath();
         String displayName = quickStateIdentity.displayName() == null ? "" : quickStateIdentity.displayName();
-        return (sourcePath + "|" + displayName + "|" + String.join("|", quickStateIdentity.patchNames())).hashCode();
+        return (systemId + "|" + sourcePath + "|" + displayName + "|" + String.join("|", quickStateIdentity.patchNames())).hashCode();
     }
 
     private static String SanitiseFileComponent(String value) {
@@ -395,6 +462,19 @@ public final class QuickStateManager {
             return Path.of(configuredPath);
         }
         return Path.of("quickstates");
+    }
+
+    private static String ResolveSystemStateSuffix(QuickStateIdentity quickStateIdentity) {
+        if (quickStateIdentity == null || quickStateIdentity.systemId() == null || quickStateIdentity.systemId().isBlank()) {
+            return "";
+        }
+
+        var backend = BackendRegistry.FindByBackendId(quickStateIdentity.systemId());
+        if (backend != null && backend.Profile() != null && backend.Profile().displayName() != null
+                && !backend.Profile().displayName().isBlank()) {
+            return SanitiseFileComponent(backend.Profile().displayName());
+        }
+        return SanitiseFileComponent(quickStateIdentity.systemId());
     }
 
     private static void ValidateSlot(int slot) {

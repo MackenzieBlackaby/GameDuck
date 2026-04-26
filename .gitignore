@@ -29,3 +29,5 @@ release
 .github
 releaseNotes.md
 docs/*.md
+src/main/java/com/blackaby/Backend/NES
+src/test/java/com/blackaby/Backend/NES

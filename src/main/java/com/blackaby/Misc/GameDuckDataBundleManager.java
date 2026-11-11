@@ -44,6 +44,9 @@ public final class GameDuckDataBundleManager {
             throw new IOException("Choose a destination .gdlib file first.");
         }
 
+        List<BundleSource> bundleSources = BundleSources();
+        ValidateBackupDestination(destinationPath, bundleSources);
+
         Path parent = destinationPath.getParent();
         if (parent != null) {
             Files.createDirectories(parent);
@@ -51,7 +54,6 @@ public final class GameDuckDataBundleManager {
 
         Path temporaryPath = destinationPath.resolveSibling(destinationPath.getFileName() + ".tmp");
         Files.deleteIfExists(temporaryPath);
-        List<BundleSource> bundleSources = BundleSources();
         BundleManifest manifest = new BundleManifest(
                 formatName,
                 formatVersion,
@@ -84,8 +86,16 @@ public final class GameDuckDataBundleManager {
         Path extractionDirectory = Files.createTempDirectory("gameduck-restore-");
         try {
             BundleManifest manifest = ExtractBackup(sourcePath, extractionDirectory);
-            if (manifest == null || manifest.format() == null || !manifest.format().equals(formatName)) {
+            if (manifest == null || !formatName.equals(manifest.format())) {
                 throw new IOException("The selected file is not a valid GameDuck .gdlib backup.");
+            }
+            if (manifest.version() != formatVersion) {
+                throw new IOException("This GameDuck backup version is not supported.");
+            }
+            List<String> expectedRoots = BundleSources().stream()
+                    .map(bundleSource -> ToBundleEntryName(bundleSource.bundlePath())).toList();
+            if (!expectedRoots.equals(manifest.roots())) {
+                throw new IOException("The GameDuck backup manifest is incomplete or invalid.");
             }
 
             DeleteEverything();
@@ -149,6 +159,17 @@ public final class GameDuckDataBundleManager {
         sources.add(new BundleSource(Path.of("profile", "dmg_boot.bin"), BootRomManager.DmgBootRomPath()));
         sources.add(new BundleSource(Path.of("profile", "cgb_boot.bin"), BootRomManager.CgbBootRomPath()));
         return List.copyOf(sources);
+    }
+
+    private static void ValidateBackupDestination(Path destinationPath, List<BundleSource> bundleSources)
+            throws IOException {
+        Path destination = destinationPath.toAbsolutePath().normalize();
+        for (BundleSource bundleSource : bundleSources) {
+            Path source = bundleSource.actualPath().toAbsolutePath().normalize();
+            if (destination.equals(source) || (Files.isDirectory(source) && destination.startsWith(source))) {
+                throw new IOException("Store the .gdlib backup outside the folders and files being backed up.");
+            }
+        }
     }
 
     private static void WriteBundleSource(ZipOutputStream outputStream, BundleSource bundleSource) throws IOException {

@@ -3,7 +3,6 @@ package com.blackaby.Backend.GB.Misc;
 import com.blackaby.Backend.GB.Memory.GBMapperTypes;
 import com.blackaby.Backend.Platform.EmulatorMedia;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -514,8 +513,10 @@ public class GBRom implements EmulatorMedia {
             return "";
         }
 
-        File file = new File(filename);
-        String name = file.getName();
+        // A stored ROM path may originate from Windows even when loaded on
+        // Linux or macOS. File.getName() only recognises the host separator.
+        String normalizedPath = filename.replace('\\', '/');
+        String name = normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);
         int dotIndex = name.lastIndexOf('.');
         if (dotIndex != -1) {
             name = name.substring(0, dotIndex);

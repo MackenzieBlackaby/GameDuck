@@ -13,11 +13,15 @@ import org.junit.jupiter.api.io.TempDir;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class GameDuckDataBundleManagerTest {
 
@@ -241,6 +245,48 @@ class GameDuckDataBundleManagerTest {
         assertEquals("none", Settings.displayShaderId);
         assertFalse(Files.exists(shaderFile));
         assertTrue(Files.exists(DisplayShaderManager.ShaderDirectory().resolve("README.txt")));
+    }
+
+    @Test
+    void backupInsideManagedCacheIsRejectedWithoutCreatingAnArchive() throws Exception {
+        Path cacheDirectory = Path.of(System.getProperty("gameduck.cache_dir"));
+        Files.createDirectories(cacheDirectory);
+        Path backupPath = cacheDirectory.resolve("nested.gdlib");
+
+        assertThrows(IOException.class, () -> GameDuckDataBundleManager.CreateBackup(backupPath));
+        assertFalse(Files.exists(backupPath));
+        assertFalse(Files.exists(cacheDirectory.resolve("nested.gdlib.tmp")));
+    }
+
+    @Test
+    void unsupportedBackupVersionDoesNotDeleteExistingSaveData() throws Exception {
+        assertInvalidBackupPreservesSaveData("""
+                {"format":"gameduck-library-bundle","version":2,"roots":[]}
+                """);
+    }
+
+    @Test
+    void incompleteBackupManifestDoesNotDeleteExistingSaveData() throws Exception {
+        assertInvalidBackupPreservesSaveData("""
+                {"format":"gameduck-library-bundle","version":1,"roots":[]}
+                """);
+    }
+
+    private void assertInvalidBackupPreservesSaveData(String manifest) throws Exception {
+        Path saveFile = Path.of(System.getProperty("gameduck.save_dir")).resolve("existing.sav");
+        Files.createDirectories(saveFile.getParent());
+        byte[] original = { 1, 2, 3, 4 };
+        Files.write(saveFile, original);
+
+        Path backupPath = tempDir.resolve("invalid.gdlib");
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(backupPath))) {
+            zip.putNextEntry(new ZipEntry("manifest.json"));
+            zip.write(manifest.getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+        }
+
+        assertThrows(IOException.class, () -> GameDuckDataBundleManager.RestoreBackup(backupPath));
+        assertArrayEquals(original, Files.readAllBytes(saveFile));
     }
 
     private byte[] createRomBytes(String filename, String displayName) {

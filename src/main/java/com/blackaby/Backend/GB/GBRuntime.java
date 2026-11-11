@@ -259,12 +259,16 @@ public class GBRuntime implements Runnable, EmulatorRuntime {
             synchronized (stateLock) {
                 ApplyLiveCheats();
                 while (running && !paused && cyclesToRun > 0) {
-                    if (!cpu.IsHalted()) {
-                        cpu.Fetch();
-                        cpu.Decode();
+                    // Accept pending interrupts before fetching another opcode.
+                    // The CPU must push the address of the *next* instruction.
+                    int tCycles = cpu.ServicePendingInterrupt();
+                    if (tCycles == 0) {
+                        if (!cpu.IsHalted()) {
+                            cpu.Fetch();
+                            cpu.Decode();
+                        }
+                        tCycles = cpu.Execute();
                     }
-
-                    int tCycles = cpu.Execute();
                     int masterCycles = StepHardware(tCycles);
 
                     executedCycles += masterCycles;

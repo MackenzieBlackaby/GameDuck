@@ -57,25 +57,49 @@ class DuckCpuIntegrationTest {
     }
 
     @Test
-    void servicesInterruptAfterInstructionCompletes() {
-        CpuHarness harness = EmulatorTestUtils.CreateCpuHarness(new byte[0]);
-        byte[] romBytes = harness.rom.ToByteArray();
-        romBytes[0x01FE] = 0x00;
-        harness = EmulatorTestUtils.CreateCpuHarness(new byte[0]);
-        harness.cpu.SetPC(0x01FE);
+    void servicesPendingInterruptBeforeFetchingTheNextOpcode() {
+        CpuHarness harness = EmulatorTestUtils.CreateCpuHarness(new byte[] {
+                (byte) 0x3E, 0x42
+        });
         harness.cpu.SetSP(0xFFFE);
         harness.memory.Write(GBMemAddresses.IE, GBProcessor.Interrupt.VBLANK.GetMask());
         harness.memory.Write(GBMemAddresses.INTERRUPT_FLAG, GBProcessor.Interrupt.VBLANK.GetMask());
         harness.cpu.EnableInterruptsImmediately();
 
-        harness.StepInstruction();
-
+        assertEquals(20, harness.StepInstruction());
         assertEquals(0x0040, harness.cpu.GetPC());
         assertEquals(0xFFFC, harness.cpu.GetSP());
-        assertEquals(0xFF, harness.memory.Read(0xFFFC));
+        assertEquals(0x00, harness.memory.Read(0xFFFC));
         assertEquals(0x01, harness.memory.Read(0xFFFD));
+        assertEquals(0x00, harness.cpu.GetAccumulator());
         assertEquals(0x00, harness.memory.Read(GBMemAddresses.INTERRUPT_FLAG) & 0x01);
         assertFalse(harness.cpu.IsInterruptMasterEnable());
+    }
+
+    @Test
+    void enableInterruptsWaitsUntilAfterTheFollowingInstruction() {
+        CpuHarness harness = EmulatorTestUtils.CreateCpuHarness(new byte[] {
+                (byte) 0xFB,
+                (byte) 0x3E, 0x42,
+                0x00
+        });
+        harness.cpu.SetSP(0xFFFE);
+        harness.memory.Write(GBMemAddresses.IE, GBProcessor.Interrupt.VBLANK.GetMask());
+        harness.memory.Write(GBMemAddresses.INTERRUPT_FLAG, GBProcessor.Interrupt.VBLANK.GetMask());
+
+        harness.StepInstruction();
+        assertEquals(0x0101, harness.cpu.GetPC());
+        assertFalse(harness.cpu.IsInterruptMasterEnable());
+
+        harness.StepInstruction();
+        assertEquals(0x42, harness.cpu.GetAccumulator());
+        assertEquals(0x0103, harness.cpu.GetPC());
+        assertTrue(harness.cpu.IsInterruptMasterEnable());
+
+        assertEquals(20, harness.StepInstruction());
+        assertEquals(0x0040, harness.cpu.GetPC());
+        assertEquals(0x03, harness.memory.Read(0xFFFC));
+        assertEquals(0x01, harness.memory.Read(0xFFFD));
     }
 
     @Test

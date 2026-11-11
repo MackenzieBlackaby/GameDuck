@@ -1,0 +1,22 @@
+name: Java regression tests
+
+on:
+  push:
+    branches:
+      - main
+      - 'audit/**'
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Java 22
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '22'
+          cache: maven
+      - name: Run Maven tests
+        run: mvn -B --no-transfer-progress test

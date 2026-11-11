@@ -220,11 +220,20 @@ public class GBProcessor {
     }
 
     /**
-     * Executes the current instruction and then services delayed IME and
-     * interrupt entry logic.
+     * Services a pending interrupt at an instruction boundary, before the
+     * next opcode is fetched.
      *
-     * @return T-cycles consumed by the instruction, plus interrupt entry if one
-     *         is taken
+     * @return 20 T-cycles when an interrupt is accepted, or zero otherwise
+     */
+    public int ServicePendingInterrupt() {
+        return HandleInterrupts() ? 20 : 0;
+    }
+
+    /**
+     * Executes the current instruction and advances delayed IME state.
+     * Interrupts are serviced by the execution loop before the next fetch.
+     *
+     * @return T-cycles consumed by the instruction
      */
     public int Execute() {
         int cycles = halted ? 4 : ExecuteLoadedInstruction();
@@ -234,10 +243,6 @@ public class GBProcessor {
             if (imeDelayCounter == 0) {
                 interruptMasterEnable = true;
             }
-        }
-
-        if (HandleInterrupts()) {
-            cycles += 20;
         }
 
         return cycles;

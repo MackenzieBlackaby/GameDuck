@@ -60,6 +60,10 @@ public final class EmulatorTestUtils {
         }
 
         public int StepInstruction() {
+            int interruptCycles = cpu.ServicePendingInterrupt();
+            if (interruptCycles > 0) {
+                return interruptCycles;
+            }
             if (!cpu.IsHalted()) {
                 cpu.Fetch();
                 cpu.Decode();

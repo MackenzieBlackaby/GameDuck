@@ -70,6 +70,32 @@ class SaveFileManagerTest {
             assertArrayEquals(rtcData, loaded.supplementalData());
             assertTrue(loaded.supplementalLastModifiedEpochSeconds() > 0L);
             assertTrue(Files.exists(SaveFileManager.PreferredSavePath(rom)));
+
+            Path exportedRtcOnlySave = tempDir.resolve("rtc-only-export.sav");
+            SaveFileManager.ExportSave(null, rtcData, exportedRtcOnlySave);
+            assertArrayEquals(new byte[0], Files.readAllBytes(exportedRtcOnlySave));
+            assertArrayEquals(rtcData, Files.readAllBytes(tempDir.resolve("rtc-only-export.rtc")));
+        } finally {
+            RestoreSaveProperty(previous);
+        }
+    }
+
+    @Test
+    void repeatedSavesReplaceContentsWithoutLeavingTemporaryFiles() throws IOException {
+        String previous = System.getProperty("gameduck.save_dir");
+        System.setProperty("gameduck.save_dir", tempDir.toString());
+        try {
+            var rom = EmulatorTestUtils.CreateBlankRom(0x10, 4, 0x03, 0x00, "repeat.gb", "repeat");
+
+            SaveFileManager.Save(rom, new byte[] { 1, 2, 3 }, new byte[] { 4, 5, 6 });
+            SaveFileManager.Save(rom, new byte[] { 7, 8 }, new byte[] { 9 });
+            var bundle = SaveFileManager.LoadSaveBundle(rom).orElseThrow();
+
+            assertArrayEquals(new byte[] { 7, 8 }, bundle.primaryData());
+            assertArrayEquals(new byte[] { 9 }, bundle.supplementalData());
+            try (var files = Files.list(tempDir)) {
+                assertTrue(files.noneMatch(path -> path.getFileName().toString().startsWith(".gameduck-save-")));
+            }
         } finally {
             RestoreSaveProperty(previous);
         }

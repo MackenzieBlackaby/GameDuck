@@ -7,6 +7,8 @@ import com.blackaby.Backend.Platform.EmulatorGame;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.AtomicMoveNotSupportedException;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.FileTime;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -200,9 +202,9 @@ public final class SaveFileManager {
         Path preferredRtcPath = BuildRtcPath(preferredPath);
         try {
             Files.createDirectories(preferredPath.getParent());
-            Files.write(preferredPath, primaryData);
+            WriteAtomically(preferredPath, primaryData);
             if (rtcData.length > 0) {
-                Files.write(preferredRtcPath, rtcData);
+                WriteAtomically(preferredRtcPath, rtcData);
             } else {
                 Files.deleteIfExists(preferredRtcPath);
             }
@@ -401,10 +403,10 @@ public final class SaveFileManager {
 
         Path preferredPath = PreferredSavePath(saveIdentity);
         Files.createDirectories(preferredPath.getParent());
-        Files.write(preferredPath, saveData);
+        WriteAtomically(preferredPath, saveData);
         Path preferredRtcPath = BuildRtcPath(preferredPath);
         if (rtcData.length > 0) {
-            Files.write(preferredRtcPath, rtcData);
+            WriteAtomically(preferredRtcPath, rtcData);
         } else {
             Files.deleteIfExists(preferredRtcPath);
         }
@@ -455,10 +457,10 @@ public final class SaveFileManager {
         if (parent != null) {
             Files.createDirectories(parent);
         }
-        Files.write(destinationPath, saveData);
+        WriteAtomically(destinationPath, saveData == null ? new byte[0] : saveData);
         Path rtcPath = BuildRtcPath(destinationPath);
         if (supplementalData != null && supplementalData.length > 0) {
-            Files.write(rtcPath, supplementalData);
+            WriteAtomically(rtcPath, supplementalData);
         } else {
             Files.deleteIfExists(rtcPath);
         }
@@ -520,6 +522,29 @@ public final class SaveFileManager {
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * Replaces a save file only after the complete new contents have been written.
+     * Keeping the temporary file beside the destination enables atomic renames on
+     * filesystems that support them.
+     */
+    private static void WriteAtomically(Path destination, byte[] data) throws IOException {
+        Path absoluteDestination = destination.toAbsolutePath().normalize();
+        Path parent = absoluteDestination.getParent();
+        Files.createDirectories(parent);
+        Path temporary = Files.createTempFile(parent, ".gameduck-save-", ".tmp");
+        try {
+            Files.write(temporary, data);
+            try {
+                Files.move(temporary, absoluteDestination,
+                        StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+            } catch (AtomicMoveNotSupportedException exception) {
+                Files.move(temporary, absoluteDestination, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            Files.deleteIfExists(temporary);
+        }
     }
 
     private static void MoveFallbackFilesToPreferred(Path preferredPath, Path fallbackPath) {

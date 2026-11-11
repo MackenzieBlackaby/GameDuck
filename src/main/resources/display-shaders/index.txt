@@ -1,0 +1,6 @@
+# Bundled display shader presets
+off.json
+amber_monitor.json
+classic_lcd.json
+ice_blue.json
+pocket_mono.json

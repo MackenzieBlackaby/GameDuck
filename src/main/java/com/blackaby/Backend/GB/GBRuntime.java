@@ -64,6 +64,7 @@ public class GBRuntime implements Runnable, EmulatorRuntime {
     private final EmulatorHost host;
     private final EmulatorProfile profile;
     private Thread emulationThread;
+    private volatile double emulationSpeedPercent = Double.NaN;
     private volatile boolean running;
     private volatile boolean paused;
     private final String defaultRomName = "NO ROM LOADED";
@@ -230,12 +231,18 @@ public class GBRuntime implements Runnable, EmulatorRuntime {
         ApplyLiveCheats();
         long previousTime = System.nanoTime();
         double timeAccumulator = 0.0;
+        long speedWindowStart = previousTime;
+        long speedWindowCycles = 0;
+        emulationSpeedPercent = Double.NaN;
 
         while (running) {
             if (paused) {
+                emulationSpeedPercent = Double.NaN;
+                speedWindowCycles = 0;
                 try {
                     Thread.sleep(100);
                     previousTime = System.nanoTime();
+                    speedWindowStart = previousTime;
                 } catch (InterruptedException exception) {
                     Thread.currentThread().interrupt();
                 }
@@ -274,7 +281,19 @@ public class GBRuntime implements Runnable, EmulatorRuntime {
             }
 
             timeAccumulator -= executedCycles * GBConstants.nanosecondsPerCycle;
+            speedWindowCycles += executedCycles;
+            long now = System.nanoTime();
+            if (now - speedWindowStart >= 500_000_000L) {
+                emulationSpeedPercent = 100.0 * speedWindowCycles * GBConstants.nanosecondsPerCycle / (now - speedWindowStart);
+                speedWindowStart = now;
+                speedWindowCycles = 0;
+            }
         }
+    }
+
+    @Override
+    public double EmulationSpeedPercent() {
+        return running && !paused ? emulationSpeedPercent : Double.NaN;
     }
 
     private void WaitForRunSlice(double timeAccumulator) {

@@ -150,7 +150,6 @@ public final class LibraryWindow extends DuckWindow {
     private final LargeIconGridState largeIconGridState = new LargeIconGridState();
     private final Timer searchRefreshTimer;
     private final Timer gridResizeTimer;
-    private final LibraryControllerNavigation controllerNavigation;
     private boolean refreshingEntries;
     private final Font detailPreviewPlaceholderFont = Styling.menuFont.deriveFont(Font.PLAIN, 12f);
     private final Font largePlaceholderFont = Styling.menuFont.deriveFont(Font.BOLD, 11f);
@@ -199,9 +198,7 @@ public final class LibraryWindow extends DuckWindow {
         add(buildBody(), BorderLayout.CENTER);
 
         refreshEntryList();
-        controllerNavigation = new LibraryControllerNavigation(this, this::handleControllerAction);
         setVisible(true);
-        controllerNavigation.start();
     }
 
     private JComponent buildHeader() {
@@ -358,6 +355,7 @@ public final class LibraryWindow extends DuckWindow {
         entryList.setCellRenderer(entryRenderer);
         bindKey(entryList, java.awt.event.KeyEvent.VK_ENTER, "launch", () -> loadSelectedEntry(selectedEntry()));
         largeIconWrapperPanel.setFocusable(true);
+        largeIconWrapperPanel.putClientProperty("gameduck.controller.surface", true);
         bindKey(largeIconWrapperPanel, java.awt.event.KeyEvent.VK_ENTER, "launch", () -> loadSelectedEntry(selectedEntry()));
         bindKey(largeIconWrapperPanel, java.awt.event.KeyEvent.VK_LEFT, "left", () -> moveGridSelection(-1, 0));
         bindKey(largeIconWrapperPanel, java.awt.event.KeyEvent.VK_RIGHT, "right", () -> moveGridSelection(1, 0));
@@ -996,29 +994,45 @@ public final class LibraryWindow extends DuckWindow {
         });
     }
 
-    private void handleControllerAction(String action) {
-        if (!isActive()) {
-            return;
+    JComponent controllerGameSurface() {
+        return viewMode == ViewMode.LARGE_ICONS ? largeIconWrapperPanel : entryList;
+    }
+
+    void launchControllerGame() { loadSelectedEntry(selectedEntry()); }
+
+    void openControllerOptions() {
+        ControllerNavigation.MenuDialog menu = new ControllerNavigation.MenuDialog(this, "Library options");
+        if (selectedEntry() != null) {
+            menu.addButton("Launch game", () -> { menu.dispose(); launchControllerGame(); });
+            menu.addButton("Toggle favourite", () -> { menu.dispose(); toggleFavourite(selectedEntry()); });
+            menu.addButton("Game information", () -> { menu.dispose(); openInfoWindow(selectedEntry()); });
         }
-        switch (action) {
-            case "A", "START" -> loadSelectedEntry(selectedEntry());
-            case "B" -> dispose();
-            case "SELECT" -> toggleFavourite(selectedEntry());
-            case "UP", "DOWN", "LEFT", "RIGHT" -> {
-                int horizontal = "LEFT".equals(action) ? -1 : "RIGHT".equals(action) ? 1 : 0;
-                int vertical = "UP".equals(action) ? -1 : "DOWN".equals(action) ? 1 : 0;
-                if (viewMode == ViewMode.LARGE_ICONS) {
-                    largeIconWrapperPanel.requestFocusInWindow();
-                    moveGridSelection(horizontal, vertical);
-                } else if (!entryListModel.isEmpty()) {
-                    entryList.requestFocusInWindow();
-                    int index = Math.max(0, entryList.getSelectedIndex());
-                    int next = Math.max(0, Math.min(entryListModel.size() - 1, index + horizontal + vertical));
-                    selectEntry(entryListModel.get(next));
-                }
-            }
-            default -> { }
+        menu.addButton("Refresh library", () -> { menu.dispose(); refreshButton.doClick(); });
+        menu.addButton("Back", menu::dispose);
+        menu.open();
+    }
+
+    boolean moveControllerGameSelection(String direction) {
+        if (entryListModel.isEmpty()) return false;
+        int index = 0;
+        for (int i = 0; i < entryListModel.size(); i++) {
+            if (entryListModel.get(i).key().equals(selectedEntryKey)) { index = i; break; }
         }
+        int horizontal = "LEFT".equals(direction) ? -1 : "RIGHT".equals(direction) ? 1 : 0;
+        int vertical = "UP".equals(direction) ? -1 : "DOWN".equals(direction) ? 1 : 0;
+        if (viewMode == ViewMode.LARGE_ICONS) {
+            int columns = resolveLargeIconColumnCount(Math.max(1, listViewportWidth()));
+            int next = index + horizontal + vertical * columns;
+            if (next < 0 || next >= entryListModel.size()
+                    || horizontal != 0 && index / columns != next / columns) return false;
+            moveGridSelection(horizontal, vertical);
+            return true;
+        }
+        if (horizontal != 0 && viewMode == ViewMode.LIST) return false;
+        int next = index + horizontal + vertical;
+        if (next < 0 || next >= entryListModel.size()) return false;
+        selectEntry(entryListModel.get(next));
+        return true;
     }
 
     private void moveGridSelection(int horizontal, int vertical) {
@@ -1475,8 +1489,8 @@ public final class LibraryWindow extends DuckWindow {
         private final JLabel placeholderLabel = new JLabel("", SwingConstants.CENTER);
         private final JPanel contentPanel = new JPanel(new BorderLayout()) {
             @Override
-            protected void paintComponent(Graphics graphics) {
-                super.paintComponent(graphics);
+            protected void paintChildren(Graphics graphics) {
+                super.paintChildren(graphics);
                 Graphics2D graphics2d = (Graphics2D) graphics.create();
                 boolean selectedState = isSelectedEntry(entry);
                 if (hovered) {
@@ -1485,7 +1499,7 @@ public final class LibraryWindow extends DuckWindow {
                 }
                 if (selectedState || hovered) {
                     graphics2d.setColor(
-                            selectedState ? Styling.sectionHighlightBorderColour : new Color(255, 255, 255, 90));
+                            selectedState ? Styling.accentColour : new Color(255, 255, 255, 90));
                     graphics2d.setStroke(new BasicStroke(selectedState ? 3f : 1.5f));
                     int inset = selectedState ? 2 : 1;
                     int width = Math.max(0, getWidth() - (inset * 2) - 1);
@@ -1692,9 +1706,6 @@ public final class LibraryWindow extends DuckWindow {
     public void dispose() {
         searchRefreshTimer.stop();
         gridResizeTimer.stop();
-        if (controllerNavigation != null) {
-            controllerNavigation.close();
-        }
         rememberLibraryBrowserState(true);
         super.dispose();
     }

@@ -76,12 +76,15 @@ public final class AudioEnhancementChain {
      * @return processed frame reference
      */
     public StereoFrame Process(double left, double right) {
-        UpdateSilenceState(left, right);
-
         workingFrame.left = left;
         workingFrame.right = right;
 
-        if (processors.isEmpty() || processorsAtRest || wetPathMix <= wetMixFloor) {
+        if (processors.isEmpty()) {
+            return workingFrame;
+        }
+
+        UpdateSilenceState(left, right);
+        if (processorsAtRest || wetPathMix <= wetMixFloor) {
             return workingFrame;
         }
 

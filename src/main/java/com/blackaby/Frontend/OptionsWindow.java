@@ -187,6 +187,8 @@ public class OptionsWindow extends DuckWindow {
     private final MainWindow mainWindow;
     private final int initialTabIndex;
     private JTabbedPane tabs;
+    private final Map<JScrollPane, Supplier<JComponent>> pendingTabs = new java.util.LinkedHashMap<>();
+    private final Timer settingsSaveTimer = new Timer(250, event -> Config.Save());
     private JComboBox<DmgPaletteModeOption> dmgPaletteModeSelector;
     private JComboBox<GbcCompatiblePaletteModeOption> gbcCompatiblePaletteModeSelector;
     private JComboBox<ControllerChoice> controllerSelector;
@@ -218,7 +220,9 @@ public class OptionsWindow extends DuckWindow {
         this.cardBorder = Styling.surfaceBorderColour;
         this.accentColour = Styling.accentColour;
         this.mutedText = Styling.mutedTextColour;
-        setMinimumSize(new Dimension(760, 620));
+        setMinimumSize(new Dimension(600, 440));
+        settingsSaveTimer.setRepeats(false);
+        tabs = null;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout());
         getContentPane().setBackground(panelBackground);
@@ -267,29 +271,29 @@ public class OptionsWindow extends DuckWindow {
         tabs.setBorder(BorderFactory.createEmptyBorder(0, 20, 0, 20));
 
         if (backendProfile().capabilities().supportsPaletteConfiguration()) {
-            tabs.addTab(UiText.OptionsWindow.TAB_PALETTE, buildTabScrollPane(buildPaletteTab()));
+            addLazyTab(UiText.OptionsWindow.TAB_PALETTE, this::buildPaletteTab);
         }
-        tabs.addTab(UiText.OptionsWindow.TAB_CONTROLS, buildTabScrollPane(buildControlsTab()));
-        tabs.addTab(UiText.OptionsWindow.TAB_SOUND, buildTabScrollPane(buildSoundTab()));
+        addLazyTab(UiText.OptionsWindow.TAB_CONTROLS, this::buildControlsTab);
+        addLazyTab(UiText.OptionsWindow.TAB_SOUND, this::buildSoundTab);
         if (backendProfile().capabilities().supportsSaveDataManagement()
                 || backendProfile().capabilities().supportsBootRomConfiguration()
                 || backendProfile().capabilities().supportsSaveStates()) {
-            tabs.addTab(UiText.OptionsWindow.TAB_EMULATION, buildTabScrollPane(buildEmulationTab()));
+            addLazyTab(UiText.OptionsWindow.TAB_EMULATION, this::buildEmulationTab);
         }
-        tabs.addTab(UiText.OptionsWindow.TAB_WINDOW, buildTabScrollPane(buildWindowTab()));
-        tabs.addTab(UiText.OptionsWindow.TAB_LIBRARY, buildTabScrollPane(buildLibraryTab()));
-        tabs.addTab(UiText.OptionsWindow.TAB_THEME, buildTabScrollPane(buildThemeTab()));
+        addLazyTab(UiText.OptionsWindow.TAB_WINDOW, this::buildWindowTab);
+        addLazyTab(UiText.OptionsWindow.TAB_LIBRARY, this::buildLibraryTab);
+        addLazyTab(UiText.OptionsWindow.TAB_THEME, this::buildThemeTab);
         tabs.addChangeListener(event -> {
+            initializeSelectedTab();
             if (isControlsTabSelected()) {
                 refreshControllerStatus();
             }
-            resetSelectedTabScrollPosition();
         });
         if (initialTabIndex >= 0 && initialTabIndex < tabs.getTabCount()) {
             tabs.setSelectedIndex(initialTabIndex);
         }
+        initializeSelectedTab();
         WindowUiSupport.applyComponentTheme(tabs);
-        SwingUtilities.invokeLater(() -> SwingUtilities.invokeLater(this::resetSelectedTabScrollPosition));
         return tabs;
     }
 
@@ -302,20 +306,38 @@ public class OptionsWindow extends DuckWindow {
         return scrollPane;
     }
 
-    private void resetSelectedTabScrollPosition() {
-        if (tabs == null) {
+    private void addLazyTab(String title, Supplier<JComponent> builder) {
+        JScrollPane scrollPane = buildTabScrollPane(new JPanel());
+        pendingTabs.put(scrollPane, builder);
+        tabs.addTab(title, scrollPane);
+    }
+
+    private void initializeSelectedTab() {
+        if (tabs == null || !(tabs.getSelectedComponent() instanceof JScrollPane scrollPane)) {
             return;
         }
-
-        Component selectedComponent = tabs.getSelectedComponent();
-        if (!(selectedComponent instanceof JScrollPane scrollPane)) {
-            return;
+        Supplier<JComponent> builder = pendingTabs.remove(scrollPane);
+        if (builder != null) {
+            JComponent content = builder.get();
+            scrollPane.setViewportView(content);
+            WindowUiSupport.applyComponentTheme(scrollPane);
         }
+    }
 
-        SwingUtilities.invokeLater(() -> {
-            scrollPane.getViewport().setViewPosition(new Point(0, 0));
-            scrollPane.getVerticalScrollBar().setValue(0);
-        });
+    private void scheduleSettingsSave() {
+        settingsSaveTimer.restart();
+    }
+
+    @Override
+    public void dispose() {
+        if (settingsSaveTimer != null && settingsSaveTimer.isRunning()) {
+            settingsSaveTimer.stop();
+            Config.Save();
+        }
+        if (controllerRefreshTimer != null) {
+            controllerRefreshTimer.stop();
+        }
+        super.dispose();
     }
 
     private JComponent buildPaletteTab() {
@@ -1385,7 +1407,7 @@ public class OptionsWindow extends DuckWindow {
                 (newValue, adjusting) -> {
                     Settings.masterVolume = newValue;
                     if (!adjusting) {
-                        Config.Save();
+                        scheduleSettingsSave();
                     }
                 },
                 masterVolumeKnobHolder,
@@ -1900,7 +1922,7 @@ public class OptionsWindow extends DuckWindow {
                 (newValue, adjusting) -> {
                     Settings.SetChannelVolume(channelIndex, newValue);
                     if (!adjusting) {
-                        Config.Save();
+                        scheduleSettingsSave();
                     }
                 },
                 channelVolumeKnobs,

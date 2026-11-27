@@ -1,0 +1,33 @@
+{
+  "id": "gbc_authentic_lcd",
+  "name": "Game Boy Color - Authentic LCD",
+  "description": "High-resolution reflective LCD simulation.",
+  "passes": [
+    {
+      "type": "color_grade",
+      "brightness": 0.04,
+      "contrast": 0.92,
+      "saturation": 0.78,
+      "warmth": 0.08
+    },
+    {
+      "type": "render_scale",
+      "scale": 6
+    },
+    {
+      "type": "dot_matrix",
+      "intensity": 0.32,
+      "cellWidth": 6,
+      "cellHeight": 6,
+      "roundness": 2.4
+    },
+    {
+      "type": "pixel_grid",
+      "intensity": 0.45,
+      "rowSpacing": 6,
+      "columnSpacing": 6,
+      "rowLineWidth": 1,
+      "columnLineWidth": 1
+    }
+  ]
+}

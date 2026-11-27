@@ -1790,22 +1790,21 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
         }
 
         String nextText = UiText.MainWindow.DISPLAY_HINT;
-        if (Settings.showDisplayFps) {
+        String overlayText = "";
+        if (Settings.showDisplayFps && currentLoadedGame != null) {
             DuckDisplay.PresentationStats stats = display.SnapshotPresentationStats();
-            if (stats != null && stats.paintedFps() > 0.0) {
-                nextText = String.format("%s  %.1f fps  %.2f ms",
-                        UiText.MainWindow.DISPLAY_HINT,
-                        stats.paintedFps(),
-                        stats.averageFrameTimeMs());
-            }
+            double speed = emulation == null ? Double.NaN : emulation.EmulationSpeedPercent();
+            String speedText = Double.isFinite(speed) ? String.format("%.0f%%", speed) : "--";
+            overlayText = String.format("EMU %s | PAINT %.1f FPS | SHADER %.2f ms | DRAW %.2f ms",
+                    speedText, stats.paintedFps(), stats.shaderTimeMs(), stats.paintTimeMs());
+            nextText = overlayText;
         }
 
         if (!nextText.equals(lastDisplayStatsText)) {
             lastDisplayStatsText = nextText;
-            if (!Settings.fillWindowOutput) {
-                displayHintLabel.setText(nextText);
-            }
+            displayHintLabel.setText(nextText);
         }
+        display.SetPerformanceOverlayText(Settings.fillWindowOutput && Settings.showDisplayFps ? overlayText : "");
     }
 
     private boolean shouldUpdateSerialOutputUi() {

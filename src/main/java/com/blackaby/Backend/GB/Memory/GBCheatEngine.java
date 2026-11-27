@@ -60,11 +60,11 @@ public final class GBCheatEngine {
         compiledCheats.ApplyWriteCheats(memory);
     }
 
-    private record CompiledCheats(Map<Integer, List<EmulatorCheat>> cheatsByAddress,
+    private record CompiledCheats(List<EmulatorCheat>[] cheatsByAddress,
             List<EmulatorCheat> liveWriteCheats) {
 
         private static CompiledCheats Empty() {
-            return new CompiledCheats(Map.of(), List.of());
+            return new CompiledCheats(null, List.of());
         }
 
         private static CompiledCheats Compile(List<EmulatorCheat> cheats) {
@@ -86,15 +86,20 @@ public final class GBCheatEngine {
                 }
             }
 
-            Map<Integer, List<EmulatorCheat>> frozenMap = new LinkedHashMap<>();
-            for (Map.Entry<Integer, List<EmulatorCheat>> entry : cheatsByAddress.entrySet()) {
-                frozenMap.put(entry.getKey(), List.copyOf(entry.getValue()));
+            if (cheatsByAddress.isEmpty()) {
+                return Empty();
             }
-            return new CompiledCheats(Map.copyOf(frozenMap), List.copyOf(writeCheats));
+
+            @SuppressWarnings("unchecked")
+            List<EmulatorCheat>[] indexedCheats = (List<EmulatorCheat>[]) new List<?>[0x10000];
+            for (Map.Entry<Integer, List<EmulatorCheat>> entry : cheatsByAddress.entrySet()) {
+                indexedCheats[entry.getKey()] = List.copyOf(entry.getValue());
+            }
+            return new CompiledCheats(indexedCheats, List.copyOf(writeCheats));
         }
 
         private int ApplyReadOverride(int address, int originalValue) {
-            List<EmulatorCheat> cheats = cheatsByAddress.get(address & 0xFFFF);
+            List<EmulatorCheat> cheats = cheatsByAddress == null ? null : cheatsByAddress[address & 0xFFFF];
             if (cheats == null || cheats.isEmpty()) {
                 return originalValue & 0xFF;
             }
@@ -109,7 +114,7 @@ public final class GBCheatEngine {
         }
 
         private boolean HasReadOverrides() {
-            return !cheatsByAddress.isEmpty();
+            return cheatsByAddress != null;
         }
 
         private boolean HasLiveWriteCheats() {

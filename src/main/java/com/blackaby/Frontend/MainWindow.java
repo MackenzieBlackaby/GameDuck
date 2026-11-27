@@ -236,6 +236,7 @@ public class MainWindow extends DuckWindow implements EmulatorHost {
             }
         });
         setVisible(true);
+        ControllerNavigation.install();
         updateDisplayStage();
     }
 

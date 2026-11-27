@@ -91,6 +91,25 @@ class DisplayShaderManagerTest {
     }
 
     @Test
+    void authenticGbcLcdIsBundledAndRendersAtSixTimesScale() {
+        DisplayShaderManager.Reload();
+        LoadedDisplayShader shader = DisplayShaderManager.Resolve("gbc_authentic_lcd").createRenderInstance();
+
+        assertEquals("Game Boy Color - Authentic LCD", shader.displayName());
+        assertEquals("Built-in JSON", shader.sourceLabel());
+        assertEquals(6, shader.renderScale());
+        assertEquals(1, shader.sourceRenderScale());
+        assertTrue(shader.prefersAsyncRendering());
+
+        int[] source = new int[36];
+        int[] target = new int[36];
+        int[] scratch = new int[36];
+        source[0] = 0xB0C080;
+        shader.apply(source, target, scratch, 1, 1);
+        assertNotEquals(target[3 * 6 + 3], target[5 * 6 + 5]);
+    }
+
+    @Test
     void removedHeavyBundledShadersFallBackToOff() {
         DisplayShaderManager.Reload();
 

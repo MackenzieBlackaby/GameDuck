@@ -283,7 +283,16 @@ public final class DisplayShaderManager {
                   ]
                 }
 
-                Supported lightweight pass types:
+                Supported pass types (render_scale can be placed before pixel effects):
+                - render_scale (scale: 1-6, combined maximum 6x)
+                - dot_matrix
+                - pixel_outline
+                - sprite_interpolation
+                - scale2x
+                - scale3x
+                - xbrz
+                - bloom
+                - rgb_shift
                 - color_grade
                 - pixel_grid
                 - scanlines

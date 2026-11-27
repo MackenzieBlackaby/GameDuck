@@ -70,7 +70,7 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
     private final JLabel selectedPassDescriptionLabel = new JLabel(UiText.ShaderEditorWindow.PASS_PARAMETERS_EMPTY);
     private final JList<PresetFileEntry> presetList = new JList<>(presetListModel);
     private final JList<ShaderPassConfig> passChainList = new JList<>(passChainModel);
-    private final JComboBox<ShaderPassType> addPassSelector = new JComboBox<>(ShaderPassType.lightweightValues());
+    private final JComboBox<ShaderPassType> addPassSelector = new JComboBox<>(ShaderPassType.values());
     private final JLabel addPassDescriptionLabel = new JLabel();
     private final JPanel passParameterPanel = new JPanel(new GridBagLayout());
     private final AtomicInteger previewRequestVersion = new AtomicInteger();
@@ -1102,7 +1102,11 @@ public final class ShaderPresetEditorWindow extends DuckWindow {
         int renderScale = 1;
         for (int index = 0; index < passChainModel.size(); index++) {
             if (passChainModel.get(index).type() == ShaderPassType.RENDER_SCALE) {
-                renderScale *= passChainModel.get(index).intValue("scale");
+                int factor = passChainModel.get(index).intValue("scale");
+                if (renderScale > ShaderPresetDocument.MAX_RENDER_SCALE / factor) {
+                    return ShaderPresetDocument.MAX_RENDER_SCALE + 1;
+                }
+                renderScale *= factor;
             }
         }
         return renderScale;

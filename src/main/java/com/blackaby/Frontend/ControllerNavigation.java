@@ -42,7 +42,7 @@ final class ControllerNavigation {
     private boolean eligible(Window w) {
         if (!Settings.controllerInputEnabled || w == null || !w.isShowing()) return false;
         // Native dialogs and binding-capture dialogs retain their own input handling.
-        if (w instanceof MainWindow main) return !main.GetEmulation().HasLoadedGame();
+        if (w instanceof MainWindow main) return main.GetEmulation() != null && !main.GetEmulation().HasLoadedGame();
         return w instanceof DuckWindow || w instanceof MenuDialog;
     }
 
@@ -85,6 +85,17 @@ final class ControllerNavigation {
     }
 
     private void dispatch(String key) {
+        if (selected instanceof JComboBox<?> combo && combo.isPopupVisible()) {
+            switch (key) {
+                case "B", "A", "START" -> combo.hidePopup();
+                case "UP", "DOWN" -> {
+                    int i = combo.getSelectedIndex() + (key.equals("DOWN") ? 1 : -1);
+                    if (i >= 0 && i < combo.getItemCount()) combo.setSelectedIndex(i);
+                }
+                default -> { }
+            }
+            return;
+        }
         MenuElement[] path = MenuSelectionManager.defaultManager().getSelectedPath();
         if (path.length > 0) {
             if (key.equals("B")) { MenuSelectionManager.defaultManager().clearSelectedPath(); return; }
@@ -152,7 +163,7 @@ final class ControllerNavigation {
     }
 
     private void collect(Component c, List<JComponent> out) {
-        if (!c.isVisible() || !c.isEnabled()) return;
+        if (c == null || !c.isVisible() || !c.isEnabled()) return;
         if (c instanceof JComponent j && (j instanceof AbstractButton && !(j instanceof JMenuItem && !(j instanceof JMenu))
                 || j instanceof JComboBox<?> || j instanceof JSlider || j instanceof JSpinner
                 || j instanceof JList<?> || j instanceof JTable || j instanceof JTree
@@ -205,7 +216,10 @@ final class ControllerNavigation {
         if (active instanceof LibraryWindow library && c == library.controllerGameSurface()) { library.launchControllerGame(); return; }
         if (c instanceof JMenu menu) {
             menu.doClick();
-            MenuSelectionManager.defaultManager().setSelectedPath(new MenuElement[]{menu,menu.getPopupMenu()});
+            MenuElement[] menuPath = menu.getParent() instanceof JMenuBar bar
+                    ? new MenuElement[]{bar,menu,menu.getPopupMenu()}
+                    : new MenuElement[]{menu,menu.getPopupMenu()};
+            MenuSelectionManager.defaultManager().setSelectedPath(menuPath);
         } else if (c instanceof AbstractButton button) button.doClick();
         else if (c instanceof JComboBox<?> combo) combo.setPopupVisible(!combo.isPopupVisible());
         else if (c instanceof JSpinner spinner) { Object next=spinner.getNextValue(); if(next!=null) spinner.setValue(next); }
@@ -215,7 +229,8 @@ final class ControllerNavigation {
             collect(tabs.getSelectedComponent(),children);
             if (!children.isEmpty()) select(children.getFirst());
         } else {
-            javax.swing.Action action=c.getActionMap().get(c.getInputMap().get(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER,0)));
+            Object binding = c.getInputMap().get(KeyStroke.getKeyStroke(KeyEvent.VK_ENTER,0));
+            javax.swing.Action action = binding == null ? null : c.getActionMap().get(binding);
             if(action!=null) action.actionPerformed(new ActionEvent(c,ActionEvent.ACTION_PERFORMED,"controller"));
         }
     }

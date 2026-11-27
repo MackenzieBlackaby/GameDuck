@@ -150,6 +150,7 @@ public final class LibraryWindow extends DuckWindow {
     private final LargeIconGridState largeIconGridState = new LargeIconGridState();
     private final Timer searchRefreshTimer;
     private final Timer gridResizeTimer;
+    private final LibraryControllerNavigation controllerNavigation;
     private boolean refreshingEntries;
     private final Font detailPreviewPlaceholderFont = Styling.menuFont.deriveFont(Font.PLAIN, 12f);
     private final Font largePlaceholderFont = Styling.menuFont.deriveFont(Font.BOLD, 11f);
@@ -198,7 +199,9 @@ public final class LibraryWindow extends DuckWindow {
         add(buildBody(), BorderLayout.CENTER);
 
         refreshEntryList();
+        controllerNavigation = new LibraryControllerNavigation(this, this::handleControllerAction);
         setVisible(true);
+        controllerNavigation.start();
     }
 
     private JComponent buildHeader() {
@@ -993,6 +996,31 @@ public final class LibraryWindow extends DuckWindow {
         });
     }
 
+    private void handleControllerAction(String action) {
+        if (!isActive()) {
+            return;
+        }
+        switch (action) {
+            case "A", "START" -> loadSelectedEntry(selectedEntry());
+            case "B" -> dispose();
+            case "SELECT" -> toggleFavourite(selectedEntry());
+            case "UP", "DOWN", "LEFT", "RIGHT" -> {
+                int horizontal = "LEFT".equals(action) ? -1 : "RIGHT".equals(action) ? 1 : 0;
+                int vertical = "UP".equals(action) ? -1 : "DOWN".equals(action) ? 1 : 0;
+                if (viewMode == ViewMode.LARGE_ICONS) {
+                    largeIconWrapperPanel.requestFocusInWindow();
+                    moveGridSelection(horizontal, vertical);
+                } else if (!entryListModel.isEmpty()) {
+                    entryList.requestFocusInWindow();
+                    int index = Math.max(0, entryList.getSelectedIndex());
+                    int next = Math.max(0, Math.min(entryListModel.size() - 1, index + horizontal + vertical));
+                    selectEntry(entryListModel.get(next));
+                }
+            }
+            default -> { }
+        }
+    }
+
     private void moveGridSelection(int horizontal, int vertical) {
         if (viewMode != ViewMode.LARGE_ICONS || entryListModel.isEmpty()) {
             return;
@@ -1664,6 +1692,9 @@ public final class LibraryWindow extends DuckWindow {
     public void dispose() {
         searchRefreshTimer.stop();
         gridResizeTimer.stop();
+        if (controllerNavigation != null) {
+            controllerNavigation.close();
+        }
         rememberLibraryBrowserState(true);
         super.dispose();
     }

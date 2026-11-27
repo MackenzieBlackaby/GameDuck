@@ -341,68 +341,31 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent buildPaletteTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_PALETTE_TITLE,
-                UiText.OptionsWindow.SECTION_PALETTE_DESCRIPTION,
-                createUnifiedPalettePanel()));
-        content.add(Box.createVerticalGlue());
-        return content;
+        return OptionsTabSections.palette(this::createVerticalContentPanel, this::createSectionCard, this::createUnifiedPalettePanel);
     }
 
     private JComponent buildControlsTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_CONTROLS_TITLE,
-                UiText.OptionsWindow.SECTION_CONTROLS_DESCRIPTION,
-                createControlsPanel()));
-        content.add(Box.createVerticalGlue());
-        return content;
+        return OptionsTabSections.controls(this::createVerticalContentPanel, this::createSectionCard, this::createControlsPanel);
     }
 
     private JComponent buildSoundTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_SOUND_TITLE,
-                UiText.OptionsWindow.SECTION_SOUND_DESCRIPTION,
-                createSoundPanel()));
-        return content;
+        return OptionsTabSections.sound(this::createVerticalContentPanel, this::createSectionCard, this::createSoundPanel);
     }
 
     private JComponent buildEmulationTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_EMULATION_TITLE,
-                UiText.OptionsWindow.SECTION_EMULATION_DESCRIPTION,
-                createEmulationPanel()));
-        return content;
+        return OptionsTabSections.emulation(this::createVerticalContentPanel, this::createSectionCard, this::createEmulationPanel);
     }
 
     private JComponent buildWindowTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_WINDOW_TITLE,
-                UiText.OptionsWindow.SECTION_WINDOW_DESCRIPTION,
-                createWindowPanel()));
-        return content;
+        return OptionsTabSections.window(this::createVerticalContentPanel, this::createSectionCard, this::createWindowPanel);
     }
 
     private JComponent buildLibraryTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_LIBRARY_TITLE,
-                UiText.OptionsWindow.SECTION_LIBRARY_DESCRIPTION,
-                createLibraryPanel()));
-        return content;
+        return OptionsTabSections.library(this::createVerticalContentPanel, this::createSectionCard, this::createLibraryPanel);
     }
 
     private JComponent buildThemeTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_THEME_LIBRARY_TITLE,
-                UiText.OptionsWindow.SECTION_THEME_LIBRARY_DESCRIPTION,
-                createUnifiedThemePanel()));
-        return content;
+        return OptionsTabSections.theme(this::createVerticalContentPanel, this::createSectionCard, this::createUnifiedThemePanel);
     }
 
     private JPanel createVerticalContentPanel() {

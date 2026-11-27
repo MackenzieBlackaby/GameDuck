@@ -39,7 +39,11 @@ public class DuckDisplay extends JPanel {
     public record FrameState(int[] frontBuffer, int[] backBuffer) implements java.io.Serializable {
     }
 
-    public record PresentationStats(double paintedFps, double averageFrameTimeMs) {
+    public record PresentationStats(double paintedFps, double averageFrameTimeMs,
+            double shaderTimeMs, double paintTimeMs) {
+        public PresentationStats(double paintedFps, double averageFrameTimeMs) {
+            this(paintedFps, averageFrameTimeMs, 0.0, 0.0);
+        }
     }
 
     record PresentationCompositeKey(long frameVersion, int width, int height, String borderId,
@@ -86,6 +90,10 @@ public class DuckDisplay extends JPanel {
     private transient int statsWindowPaintCount;
     private transient long lastPaintNanos;
     private transient double smoothedFrameIntervalNanos;
+    private transient double smoothedPaintNanos;
+    private volatile double shaderTimeMs;
+    private volatile long lastPaintCompletedNanos;
+    private String performanceOverlayText = "";
     private volatile PresentationStats presentationStats = new PresentationStats(0.0, 0.0);
     private volatile long visibleFrameVersion;
     private int pendingShaderFrameVersion;
@@ -337,6 +345,7 @@ public class DuckDisplay extends JPanel {
      */
     @Override
     protected void paintComponent(Graphics g) {
+        long paintStarted = System.nanoTime();
         BufferedImage currentImage = image;
         if (currentImage == null) {
             if (isOpaque()) {
@@ -353,11 +362,44 @@ public class DuckDisplay extends JPanel {
         if (presentationComposite != null) {
             g2d.drawImage(presentationComposite, 0, 0, null);
         }
-        recordPaintPresentation();
+        recordPaintPresentation(paintStarted);
+        paintPerformanceOverlay(g);
     }
 
     public PresentationStats SnapshotPresentationStats() {
-        return presentationStats;
+        PresentationStats stats = presentationStats;
+        if (System.nanoTime() - lastPaintCompletedNanos > 1_000_000_000L) {
+            return new PresentationStats(0.0, 0.0, shaderTimeMs, 0.0);
+        }
+        return stats;
+    }
+
+    /** Updates the optional on-display diagnostics; called from the EDT. */
+    public void SetPerformanceOverlayText(String text) {
+        String next = text == null ? "" : text;
+        if (!next.equals(performanceOverlayText)) {
+            performanceOverlayText = next;
+            repaint();
+        }
+    }
+
+    private void paintPerformanceOverlay(Graphics graphics) {
+        if (performanceOverlayText.isEmpty()) {
+            return;
+        }
+        Graphics2D overlay = (Graphics2D) graphics.create();
+        try {
+            overlay.setFont(new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 12));
+            java.awt.FontMetrics metrics = overlay.getFontMetrics();
+            int width = metrics.stringWidth(performanceOverlayText) + 16;
+            int height = metrics.getHeight() + 10;
+            overlay.setColor(new Color(0, 0, 0, 190));
+            overlay.fillRoundRect(8, 8, width, height, 8, 8);
+            overlay.setColor(Color.WHITE);
+            overlay.drawString(performanceOverlayText, 16, 13 + metrics.getAscent());
+        } finally {
+            overlay.dispose();
+        }
     }
 
     /**
@@ -377,6 +419,7 @@ public class DuckDisplay extends JPanel {
     public void RefreshShader() {
         LoadedDisplayShader resolvedShader = DisplayShaderManager.Resolve(Settings.displayShaderId);
         activeShader = resolvedShader == null ? null : resolvedShader.createRenderInstance();
+        shaderTimeMs = 0.0;
         InvalidateAsyncShaderFrames();
         invalidatePresentationComposite();
         boolean repaintNow = false;
@@ -806,7 +849,9 @@ public class DuckDisplay extends JPanel {
 
     private void ApplyShader(LoadedDisplayShader shader, int[] source, int[] target, int[] scratch, int width, int height) {
         synchronized (shaderExecutionLock) {
+            long start = System.nanoTime();
             shader.apply(source, target, scratch, width, height);
+            shaderTimeMs = (System.nanoTime() - start) / 1_000_000.0;
         }
     }
 
@@ -944,8 +989,11 @@ public class DuckDisplay extends JPanel {
         presentationCompositeKey = null;
     }
 
-    private void recordPaintPresentation() {
+    private void recordPaintPresentation(long paintStarted) {
         long now = System.nanoTime();
+        lastPaintCompletedNanos = now;
+        double paintNanos = now - paintStarted;
+        smoothedPaintNanos = smoothedPaintNanos <= 0.0 ? paintNanos : smoothedPaintNanos * 0.85 + paintNanos * 0.15;
         if (lastPaintNanos > 0L) {
             long frameIntervalNanos = now - lastPaintNanos;
             smoothedFrameIntervalNanos = smoothedFrameIntervalNanos <= 0.0
@@ -966,7 +1014,7 @@ public class DuckDisplay extends JPanel {
 
         double fps = (statsWindowPaintCount * 1_000_000_000.0) / elapsedNanos;
         double averageFrameTimeMs = smoothedFrameIntervalNanos / 1_000_000.0;
-        presentationStats = new PresentationStats(fps, averageFrameTimeMs);
+        presentationStats = new PresentationStats(fps, averageFrameTimeMs, shaderTimeMs, smoothedPaintNanos / 1_000_000.0);
         statsWindowStartNanos = now;
         statsWindowPaintCount = 0;
     }

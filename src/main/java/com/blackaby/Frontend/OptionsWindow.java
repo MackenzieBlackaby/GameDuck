@@ -2774,69 +2774,9 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createLibraryPanel() {
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setOpaque(false);
-
-        JComboBox<GameNameBracketDisplayMode> modeSelector = new JComboBox<>(GameNameBracketDisplayMode.values());
-        modeSelector.setSelectedItem(Settings.gameNameBracketDisplayMode);
-        modeSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-        JTextArea helperLabel = createBodyTextArea(Settings.gameNameBracketDisplayMode.Description(), 12f);
-
-        modeSelector.addActionListener(event -> {
-            Object selectedItem = modeSelector.getSelectedItem();
-            if (selectedItem instanceof GameNameBracketDisplayMode selectedMode) {
-                helperLabel.setText(selectedMode.Description());
-                Settings.gameNameBracketDisplayMode = selectedMode;
-                Config.Save();
-                if (mainWindow != null) {
-                    mainWindow.RefreshLoadedRomDisplay();
-                }
-            }
-        });
-
-        JSpinner recentMenuLimitSpinner = new JSpinner(new SpinnerNumberModel(Settings.loadRecentMenuLimit, 1, 25, 1));
-        recentMenuLimitSpinner.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-        recentMenuLimitSpinner.addChangeListener(event -> {
-            Object value = recentMenuLimitSpinner.getValue();
-            if (!(value instanceof Number numberValue)) {
-                return;
-            }
-
-            Settings.loadRecentMenuLimit = Math.max(1, Math.min(25, numberValue.intValue()));
-            Config.Save();
-        });
-        JTextArea recentMenuHelperLabel = createBodyTextArea(UiText.OptionsWindow.RECENT_MENU_LIMIT_HELPER, 12f);
-
-        JPanel modeCard = new JPanel(new BorderLayout(0, 10));
-        modeCard.setOpaque(false);
-        modeCard.add(createFieldCard(UiText.OptionsWindow.LIBRARY_MODE_LABEL, modeSelector), BorderLayout.NORTH);
-        modeCard.add(helperLabel, BorderLayout.CENTER);
-        panel.add(createSimpleWindowOptionCard(modeCard));
-        panel.add(Box.createVerticalStrut(10));
-
-        JPanel recentMenuCard = new JPanel(new BorderLayout(0, 10));
-        recentMenuCard.setOpaque(false);
-        recentMenuCard.add(createFieldCard(UiText.OptionsWindow.RECENT_MENU_LIMIT_LABEL, recentMenuLimitSpinner),
-                BorderLayout.NORTH);
-        recentMenuCard.add(recentMenuHelperLabel, BorderLayout.CENTER);
-        panel.add(createSimpleWindowOptionCard(recentMenuCard));
-        panel.add(Box.createVerticalStrut(10));
-
-        JButton resetLibraryButton = createSecondaryButton(UiText.OptionsWindow.RESET_LIBRARY_BUTTON);
-        resetLibraryButton.addActionListener(event -> {
-            Settings.ResetLibrary();
-            modeSelector.setSelectedItem(Settings.gameNameBracketDisplayMode);
-            helperLabel.setText(Settings.gameNameBracketDisplayMode.Description());
-            recentMenuLimitSpinner.setValue(Settings.loadRecentMenuLimit);
-            Config.Save();
-            if (mainWindow != null) {
-                mainWindow.RefreshLoadedRomDisplay();
-            }
-        });
-        panel.add(createResponsiveGroup(180, 1, resetLibraryButton));
-
-        return panel;
+        return LibraryOptionsPanel.create(mainWindow, this::createBodyTextArea, this::createFieldCard,
+                this::createSimpleWindowOptionCard, this::createSecondaryButton,
+                button -> createResponsiveGroup(180, 1, button));
     }
 
     private JComponent createEmulationPanel() {

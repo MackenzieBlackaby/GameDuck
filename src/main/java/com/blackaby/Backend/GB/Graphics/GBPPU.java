@@ -279,8 +279,9 @@ public class GBPPU {
     private void SetMode(PpuMode newMode) {
         mode = newMode;
         int stat = memory.ReadRegisterDirect(regStat);
-        memory.WriteDirect(regStat, (stat & 0xFC) | newMode.flag);
-        UpdateStatInterruptLine();
+        int updatedStat = (stat & 0xFC) | newMode.flag;
+        memory.WriteDirect(regStat, updatedStat);
+        UpdateStatInterruptLine(updatedStat);
     }
 
     private void UpdateLycCompare() {
@@ -288,18 +289,14 @@ public class GBPPU {
         int lyc = memory.ReadRegisterDirect(regLyc);
         int stat = memory.ReadRegisterDirect(regStat);
 
-        if (ly == lyc) {
-            stat |= 0x04;
-        } else {
-            stat &= ~0x04;
+        int updatedStat = ly == lyc ? stat | 0x04 : stat & ~0x04;
+        if (updatedStat != stat) {
+            memory.WriteDirect(regStat, updatedStat);
         }
-
-        memory.WriteDirect(regStat, stat);
-        UpdateStatInterruptLine();
+        UpdateStatInterruptLine(updatedStat);
     }
 
-    private void UpdateStatInterruptLine() {
-        int stat = memory.ReadRegisterDirect(regStat);
+    private void UpdateStatInterruptLine(int stat) {
         boolean coincidence = (stat & 0x04) != 0;
         boolean lineHigh = (mode == PpuMode.HBLANK && (stat & 0x08) != 0)
                 || (mode == PpuMode.VBLANK && (stat & 0x10) != 0)
@@ -351,12 +348,8 @@ public class GBPPU {
         boolean cgbMode = memory.IsCgbMode() && !dmgCompatibilityMode;
 
         int backgroundColour = ResolveBackgroundPixel(x, lcdControl, cgbMode, dmgCompatibilityMode);
-        display.setPixel(x, scanline, backgroundColour, false);
-
         int spriteColour = ResolveSpritePixel(x, lcdControl, cgbMode, dmgCompatibilityMode);
-        if (spriteColour != noSpritePixel) {
-            display.setPixel(x, scanline, spriteColour, false);
-        }
+        display.setPixel(x, scanline, spriteColour != noSpritePixel ? spriteColour : backgroundColour, false);
 
         pixelTransferX++;
     }
@@ -440,12 +433,12 @@ public class GBPPU {
 
     private int ResolveSpritePixelFromEntry(int screenX, int spriteIndex, boolean cgbMode,
             boolean dmgCompatibilityMode, boolean bgMasterPriority) {
-        int attributes = visibleSpriteAttributes[spriteIndex];
         int spriteStartX = visibleSpriteX[spriteIndex];
         if (screenX < spriteStartX || screenX >= spriteStartX + 8) {
             return noSpritePixel;
         }
 
+        int attributes = visibleSpriteAttributes[spriteIndex];
         int localX = screenX - spriteStartX;
         int bit = (attributes & 0x20) != 0 ? localX : 7 - localX;
         int high = (visibleSpriteRowHigh[spriteIndex] >> bit) & 1;
@@ -488,11 +481,10 @@ public class GBPPU {
         for (int index = 0; index < 40; index++) {
             int address = 0xFE00 + (index * 4);
             int y = memory.ReadOamByte(address) - 16;
-            int x = memory.ReadOamByte(address + 1) - 8;
-            int tile = memory.ReadOamByte(address + 2);
-            int attributes = memory.ReadOamByte(address + 3);
-
             if (scanline >= y && scanline < (y + spriteHeight)) {
+                int x = memory.ReadOamByte(address + 1) - 8;
+                int tile = memory.ReadOamByte(address + 2);
+                int attributes = memory.ReadOamByte(address + 3);
                 visibleSpriteY[visibleSpriteCount] = y;
                 visibleSpriteX[visibleSpriteCount] = x;
                 visibleSpriteTile[visibleSpriteCount] = tile;

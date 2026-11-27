@@ -17,57 +17,37 @@ import org.junit.jupiter.api.Test;
 class ShaderPresetDocumentTest {
 
     @Test
-    void fromJsonStripsLegacyRgbShiftDistanceInLightweightMode() {
+    void legacyRenderScaleRestoresRgbShift() {
         ShaderPresetDocument document = ShaderPresetDocument.fromJson("""
-                {
-                  "id": "legacy_shift",
-                  "name": "Legacy Shift",
-                  "renderScale": 3,
-                  "passes": [
-                    { "type": "rgb_shift", "distance": 2, "mix": 0.35 }
-                  ]
-                }
+                {"id":"shift","name":"Shift","renderScale":3,
+                 "passes":[{"type":"rgb_shift","mix":0.35}]}
                 """);
-
-        assertEquals("legacy_shift", document.id());
-        assertEquals(1, document.renderScale());
-        assertEquals(0, document.passes().size());
-        assertEquals(0, document.toJsonObject().getAsJsonArray("passes").size());
-        assertEquals(false, document.toJsonObject().has("renderScale"));
+        assertEquals(3, document.renderScale());
+        assertEquals(2, document.passes().size());
+        assertEquals(ShaderPassType.RENDER_SCALE, document.passes().get(0).type());
+        assertEquals(ShaderPassType.RGB_SHIFT, document.passes().get(1).type());
+        assertEquals(3, ShaderPresetDocument.fromJson(document.toPrettyJson()).renderScale());
     }
 
     @Test
-    void fromJsonStripsUnsupportedSpriteInterpolationPass() {
+    void restoresSpriteInterpolation() {
         ShaderPresetDocument document = ShaderPresetDocument.fromJson("""
-                {
-                  "id": "sharp_pixels",
-                  "name": "Sharp Pixels",
-                  "renderScale": 3,
-                  "passes": [
-                    { "type": "sprite_interpolation", "strength": 0.85, "cellWidth": 3, "cellHeight": 3, "sharpness": 2.4 }
-                  ]
-                }
+                {"id":"smooth","name":"Smooth","renderScale":3,
+                 "passes":[{"type":"sprite_interpolation","cellWidth":3,"cellHeight":3}]}
                 """);
-
-        assertEquals(1, document.renderScale());
-        assertEquals(0, document.passes().size());
+        assertEquals(3, document.renderScale());
+        assertEquals(ShaderPassType.SPRITE_INTERPOLATION, document.passes().get(1).type());
+        assertEquals(480, ShaderPreviewRenderer.render(document).previewImage().getWidth());
     }
 
     @Test
-    void fromJsonStripsUnsupportedXbrzPassWithoutParameters() {
+    void restoresXbrz() {
         ShaderPresetDocument document = ShaderPresetDocument.fromJson("""
-                {
-                  "id": "smooth_diagonals",
-                  "name": "Smooth Diagonals",
-                  "renderScale": 4,
-                  "passes": [
-                    { "type": "xbrz" }
-                  ]
-                }
+                {"id":"xbrz_test","name":"xBRZ","renderScale":4,"passes":[{"type":"xbrz"}]}
                 """);
-
-        assertEquals(1, document.renderScale());
-        assertEquals(0, document.passes().size());
+        assertEquals(4, document.renderScale());
+        assertEquals(ShaderPassType.XBRZ, document.passes().get(1).type());
+        assertEquals(640, ShaderPreviewRenderer.render(document).previewImage().getWidth());
     }
 
     @Test
@@ -100,46 +80,35 @@ class ShaderPresetDocumentTest {
     }
 
     @Test
-    void unsupportedRenderScalePassIsRemovedFromChain() {
+    void orderedRenderScaleAndGridArePreserved() {
         ShaderPresetDocument document = ShaderPresetDocument.fromJson("""
-                {
-                  "id": "chain_scale",
-                  "name": "Chain Scale",
-                  "passes": [
-                    { "type": "color_grade", "warmth": 0.20 },
-                    { "type": "render_scale", "scale": 3 },
-                    { "type": "pixel_grid", "rowSpacing": 3, "columnSpacing": 3 }
-                  ]
-                }
+                {"id":"chain","name":"Chain","renderScale":3,"passes":[
+                 {"type":"color_grade"},{"type":"render_scale","scale":3},
+                 {"type":"pixel_grid","rowSpacing":3,"columnSpacing":3}]}
                 """);
-
-        assertEquals(2, document.passes().size());
-        assertEquals(ShaderPassType.COLOR_GRADE, document.passes().get(0).type());
-        assertEquals(ShaderPassType.PIXEL_GRID, document.passes().get(1).type());
-        assertEquals(1, document.renderScale());
+        assertEquals(3, document.passes().size());
+        assertEquals(ShaderPassType.RENDER_SCALE, document.passes().get(1).type());
+        assertEquals(3, document.renderScale());
+        assertEquals(480, ShaderPreviewRenderer.render(document).previewImage().getWidth());
+        assertEquals(3, ShaderPresetDocument.fromJson(document.toPrettyJson()).renderScale());
     }
 
     @Test
-    void unsupportedPassesAreDroppedWhileSupportedPassOrderStaysIntact() {
+    void advancedPassesRemainInOrderAndScaleIsBounded() {
         ShaderPresetDocument document = ShaderPresetDocument.fromJson("""
-                {
-                  "id": "mixed_chain",
-                  "name": "Mixed Chain",
-                  "passes": [
-                    { "type": "render_scale", "scale": 2 },
-                    { "type": "color_grade", "warmth": 0.20 },
-                    { "type": "bloom", "radius": 1, "strength": 0.10, "threshold": 0.45 },
-                    { "type": "pixel_grid", "intensity": 1.0, "rowSpacing": 2, "columnSpacing": 99 },
-                    { "type": "vignette", "strength": 0.10, "roundness": 1.50 }
-                  ]
-                }
+                {"id":"matrix","name":"Matrix","passes":[
+                 {"type":"render_scale","scale":2},{"type":"render_scale","scale":3},
+                 {"type":"dot_matrix","cellWidth":6,"cellHeight":6},
+                 {"type":"pixel_outline","cellWidth":6,"cellHeight":6},{"type":"bloom"}]}
                 """);
-
-        assertEquals(1, document.renderScale());
-        assertEquals(3, document.passes().size());
-        assertEquals(ShaderPassType.COLOR_GRADE, document.passes().get(0).type());
-        assertEquals(ShaderPassType.PIXEL_GRID, document.passes().get(1).type());
-        assertEquals(ShaderPassType.VIGNETTE, document.passes().get(2).type());
+        assertEquals(6, document.renderScale());
+        assertEquals(5, document.passes().size());
+        assertEquals(ShaderPassType.DOT_MATRIX, document.passes().get(2).type());
+        assertEquals(960, ShaderPreviewRenderer.render(document).previewImage().getWidth());
+        assertThrows(IllegalArgumentException.class, () -> ShaderPresetDocument.fromJson("""
+                {"id":"oversize","name":"Oversize","passes":[
+                 {"type":"render_scale","scale":6},{"type":"render_scale","scale":6}]}
+                """));
     }
 
     @Test
@@ -214,7 +183,6 @@ class ShaderPresetDocumentTest {
                   "id": "warm_test",
                   "name": "Warm Test",
                   "description": "Preview document test",
-                  "renderScale": 2,
                   "passes": [
                     { "type": "color_grade", "warmth": 0.40, "contrast": 1.10, "saturation": 0.75 }
                   ]

@@ -12,6 +12,9 @@ public interface EmulatorRuntime {
 
     EmulatorProfile Profile();
 
+    /** Recent measured emulation speed; NaN if unavailable or inactive. */
+    default double EmulationSpeedPercent() { return Double.NaN; }
+
     void StartEmulation(String gameFilePath);
 
     void StartEmulation(EmulatorMedia media);

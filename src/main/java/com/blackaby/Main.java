@@ -28,9 +28,16 @@ public class Main {
     private static void configureJava2dPipeline() {
         String osName = System.getProperty("os.name", "").toLowerCase();
         if (osName.contains("win")) {
-            setJava2dPropertyIfAbsent("sun.java2d.d3d", "true");
-            setJava2dPropertyIfAbsent("sun.java2d.ddforcevram", "true");
-            setJava2dPropertyIfAbsent("sun.java2d.translaccel", "true");
+            // Prefer OpenGL: the Direct3D pipeline can halve presentation FPS at large window sizes.
+            // Explicit backend options take precedence; disabling OpenGL alone restores the Windows default.
+            String d3d = System.getProperty("sun.java2d.d3d");
+            String opengl = System.getProperty("sun.java2d.opengl");
+            if (d3d == null && opengl == null) {
+                System.setProperty("sun.java2d.d3d", "false");
+                System.setProperty("sun.java2d.opengl", "true");
+            } else if (d3d == null && "true".equalsIgnoreCase(opengl)) {
+                System.setProperty("sun.java2d.d3d", "false");
+            }
             return;
         }
 

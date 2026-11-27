@@ -65,6 +65,7 @@ public final class InputRouter implements KeyEventDispatcher {
         @Override
         public void windowLostFocus(WindowEvent event) {
             windowFocused = false;
+            controllerNeutralRequired = true;
             RefreshControllerPollingState();
         }
 
@@ -86,6 +87,8 @@ public final class InputRouter implements KeyEventDispatcher {
     private volatile boolean uninstalled;
     private volatile boolean windowFocused;
     private volatile boolean keyboardInputEnabled = true;
+    private boolean controllerMenuChordLatched;
+    private volatile boolean controllerNeutralRequired;
 
     /**
      * Creates an input router bound to the main window and emulator instance.
@@ -302,7 +305,27 @@ public final class InputRouter implements KeyEventDispatcher {
 
         routedInputActive = true;
         ControllerInputService.ControllerPollSnapshot controllerPollSnapshot = controllerInputService.PollInputSnapshot(profile);
-        ApplyControllerState(controllerPollSnapshot.boundButtons());
+        Set<String> buttons = controllerPollSnapshot.boundButtons();
+        if (!emulation.HasLoadedGame()) {
+            ClearControllerInputStates();
+            controllerNeutralRequired = true;
+            return;
+        }
+        if (buttons.contains("START") && buttons.contains("SELECT")) {
+            ClearControllerInputStates();
+            controllerNeutralRequired = true;
+            if (!controllerMenuChordLatched) {
+                controllerMenuChordLatched = true;
+                SwingUtilities.invokeLater(() -> ControllerNavigation.showMainMenu(mainWindow));
+            }
+            return;
+        }
+        controllerMenuChordLatched = false;
+        if (controllerNeutralRequired) {
+            if (!buttons.isEmpty() || !controllerPollSnapshot.pressedShortcuts().isEmpty()) return;
+            controllerNeutralRequired = false;
+        }
+        ApplyControllerState(buttons);
         ApplyControllerShortcutState(controllerPollSnapshot.pressedShortcuts());
     }
 

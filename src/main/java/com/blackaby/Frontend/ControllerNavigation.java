@@ -246,7 +246,7 @@ final class ControllerNavigation {
             if(selected==null || !selected.isShowing()) return;
             Graphics2D p=(Graphics2D)g.create();
             try {
-                Rectangle r=bounds(selected,this);
+                Rectangle r=ControllerNavigation.bounds(selected,this);
                 Rectangle visible=SwingUtilities.convertRectangle(selected, selected.getVisibleRect(), this);
                 r=r.intersection(visible);
                 p.setColor(Styling.accentColour);

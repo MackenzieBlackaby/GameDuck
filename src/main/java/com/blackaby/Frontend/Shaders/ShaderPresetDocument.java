@@ -31,11 +31,16 @@ public final class ShaderPresetDocument {
         this.description = description == null ? "" : description.trim();
         if (passes != null) {
             for (ShaderPassConfig pass : passes) {
-                if (pass != null && pass.type().isLightweightRuntimePass()) {
-                    this.passes.add(pass);
+                if (pass != null) {
+                    this.passes.add(pass.type().fromJson(pass.toJsonObject()));
                 }
             }
         }
+        if (this.passes.stream().noneMatch(pass -> pass.type() == ShaderPassType.RENDER_SCALE)
+                && renderScale != 1) {
+            setRenderScale(renderScale);
+        }
+        renderScale(); // validate cumulative scale before allocating render buffers
     }
 
     public static ShaderPresetDocument createDefault(String suggestedFileName) {
@@ -77,7 +82,7 @@ public final class ShaderPresetDocument {
         String id = requiredString(root, "id");
         String name = requiredString(root, "name");
         String description = optionalString(root, "description", "");
-        optionalInt(root, "renderScale", 1);
+        int legacyRenderScale = optionalInt(root, "renderScale", 1);
         List<ShaderPassConfig> passes = new ArrayList<>();
         JsonArray passArray = root.getAsJsonArray("passes");
         if (passArray != null) {
@@ -87,13 +92,11 @@ public final class ShaderPresetDocument {
                 }
                 JsonObject passObject = passElement.getAsJsonObject();
                 ShaderPassType passType = ShaderPassType.fromId(requiredString(passObject, "type"));
-                if (passType.isLightweightRuntimePass()) {
-                    passes.add(passType.fromJson(passObject));
-                }
+                passes.add(passType.fromJson(passObject));
             }
         }
 
-        return new ShaderPresetDocument(id, name, description, 1, passes);
+        return new ShaderPresetDocument(id, name, description, legacyRenderScale, passes);
     }
 
     public JsonObject toJsonObject() {
@@ -102,9 +105,10 @@ public final class ShaderPresetDocument {
         root.addProperty("name", requireNonBlank(name, "name"));
         root.addProperty("description", description == null ? "" : description);
 
+        renderScale();
         JsonArray passArray = new JsonArray();
         for (ShaderPassConfig pass : passes) {
-            if (pass != null && pass.type().isLightweightRuntimePass()) {
+            if (pass != null) {
                 passArray.add(pass.toJsonObject());
             }
         }
@@ -117,9 +121,10 @@ public final class ShaderPresetDocument {
     }
 
     public PipelineDisplayShader toShader() {
+        renderScale();
         List<PipelineDisplayShader.ShaderPass> runtimePasses = new ArrayList<>(passes.size());
         for (ShaderPassConfig pass : passes) {
-            if (pass != null && pass.type().isLightweightRuntimePass()) {
+            if (pass != null) {
                 runtimePasses.add(pass.type().toRuntimePass(pass));
             }
         }
@@ -160,12 +165,32 @@ public final class ShaderPresetDocument {
         this.description = description == null ? "" : description.trim();
     }
 
+    public static final int MAX_RENDER_SCALE = 6;
+
     public int renderScale() {
-        return 1;
+        int scale = 1;
+        for (ShaderPassConfig pass : passes) {
+            if (pass != null && pass.type() == ShaderPassType.RENDER_SCALE) {
+                int factor = pass.intValue("scale");
+                if (factor < 1 || scale > MAX_RENDER_SCALE / factor) {
+                    throw new IllegalArgumentException("Combined shader render scale cannot exceed " + MAX_RENDER_SCALE + "x.");
+                }
+                scale *= factor;
+            }
+        }
+        return scale;
     }
 
     public void setRenderScale(int renderScale) {
+        if (renderScale < 1 || renderScale > MAX_RENDER_SCALE) {
+            throw new IllegalArgumentException("Shader render scale must be between 1x and " + MAX_RENDER_SCALE + "x.");
+        }
         passes.removeIf(pass -> pass != null && pass.type() == ShaderPassType.RENDER_SCALE);
+        if (renderScale > 1) {
+            ShaderPassConfig scale = ShaderPassType.RENDER_SCALE.createDefaultPass();
+            scale.setValue("scale", renderScale);
+            passes.add(0, scale);
+        }
     }
 
     public List<ShaderPassConfig> passes() {

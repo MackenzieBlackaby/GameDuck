@@ -149,6 +149,9 @@ public final class LibraryWindow extends DuckWindow {
     private final Map<String, LargeIconTile> largeIconTilesByKey = new LinkedHashMap<>();
     private final LargeIconGridState largeIconGridState = new LargeIconGridState();
     private final Timer searchRefreshTimer;
+    private final Timer gridResizeTimer;
+    private final LibraryControllerNavigation controllerNavigation;
+    private boolean refreshingEntries;
     private final Font detailPreviewPlaceholderFont = Styling.menuFont.deriveFont(Font.PLAIN, 12f);
     private final Font largePlaceholderFont = Styling.menuFont.deriveFont(Font.BOLD, 11f);
 
@@ -182,6 +185,8 @@ public final class LibraryWindow extends DuckWindow {
         entryRenderer = new LibraryEntryRenderer();
         searchRefreshTimer = new Timer(searchRefreshDelayMillis, event -> refreshEntryList());
         searchRefreshTimer.setRepeats(false);
+        gridResizeTimer = new Timer(90, event -> refreshLargeIconGrid());
+        gridResizeTimer.setRepeats(false);
         largeIconWrapperPanel.setBackground(Styling.cardTintColour);
         largeIconWrapperPanel.add(largeIconGridPanel, BorderLayout.NORTH);
         largeIconGridPanel.setBackground(Styling.cardTintColour);
@@ -194,7 +199,9 @@ public final class LibraryWindow extends DuckWindow {
         add(buildBody(), BorderLayout.CENTER);
 
         refreshEntryList();
+        controllerNavigation = new LibraryControllerNavigation(this, this::handleControllerAction);
         setVisible(true);
+        controllerNavigation.start();
     }
 
     private JComponent buildHeader() {
@@ -349,9 +356,16 @@ public final class LibraryWindow extends DuckWindow {
         entryList.setSelectionBackground(Styling.listSelectionColour);
         entryList.setSelectionForeground(accentColour);
         entryList.setCellRenderer(entryRenderer);
+        bindKey(entryList, java.awt.event.KeyEvent.VK_ENTER, "launch", () -> loadSelectedEntry(selectedEntry()));
+        largeIconWrapperPanel.setFocusable(true);
+        bindKey(largeIconWrapperPanel, java.awt.event.KeyEvent.VK_ENTER, "launch", () -> loadSelectedEntry(selectedEntry()));
+        bindKey(largeIconWrapperPanel, java.awt.event.KeyEvent.VK_LEFT, "left", () -> moveGridSelection(-1, 0));
+        bindKey(largeIconWrapperPanel, java.awt.event.KeyEvent.VK_RIGHT, "right", () -> moveGridSelection(1, 0));
+        bindKey(largeIconWrapperPanel, java.awt.event.KeyEvent.VK_UP, "up", () -> moveGridSelection(0, -1));
+        bindKey(largeIconWrapperPanel, java.awt.event.KeyEvent.VK_DOWN, "down", () -> moveGridSelection(0, 1));
 
         entryList.addListSelectionListener(event -> {
-            if (!event.getValueIsAdjusting()) {
+            if (!refreshingEntries && !event.getValueIsAdjusting()) {
                 LibraryEntry selectedEntry = entryList.getSelectedValue();
                 selectedEntryKey = selectedEntry == null ? "" : selectedEntry.key();
                 updateSelectionDetails(selectedEntry);
@@ -371,7 +385,7 @@ public final class LibraryWindow extends DuckWindow {
             @Override
             public void componentResized(ComponentEvent event) {
                 if (viewMode == ViewMode.LARGE_ICONS) {
-                    refreshLargeIconGrid();
+                    gridResizeTimer.restart();
                 }
             }
         });
@@ -466,8 +480,6 @@ public final class LibraryWindow extends DuckWindow {
     private void refreshEntryList() {
         searchRefreshTimer.stop();
         String previousSelectedKey = selectedEntryKey;
-        entryListModel.clear();
-
         List<LibraryEntry> entries = GameLibraryStore.GetEntries().stream()
                 .filter(this::matchesFilterMode)
                 .filter(this::matchesConsoleFilter)
@@ -475,8 +487,26 @@ public final class LibraryWindow extends DuckWindow {
                 .sorted(resolveSortComparator())
                 .toList();
 
+        refreshingEntries = true;
+        try {
+            entryListModel.clear();
+            entryListModel.addAll(entries);
+        } finally {
+            refreshingEntries = false;
+        }
+        int first = entryList == null ? -1 : entryList.getFirstVisibleIndex();
+        int last = entryList == null ? -1 : entryList.getLastVisibleIndex();
+        if (viewMode == ViewMode.LARGE_ICONS && listScrollPane != null) {
+            Rectangle visible = listScrollPane.getViewport().getViewRect();
+            int columns = resolveLargeIconColumnCount(Math.max(1, listViewportWidth()));
+            int size = largeTileSize(Math.max(1, listViewportWidth() / columns));
+            first = (visible.y / Math.max(1, size)) * columns;
+            last = ((visible.y + visible.height) / Math.max(1, size) + 1) * columns - 1;
+        }
+        for (int index = Math.max(0, first); index <= last && index < entries.size(); index++) {
+            requestArt(entries.get(index));
+        }
         for (LibraryEntry entry : entries) {
-            entryListModel.addElement(entry);
             requestArt(entry);
         }
 
@@ -505,13 +535,21 @@ public final class LibraryWindow extends DuckWindow {
 
         if (viewMode == ViewMode.LARGE_ICONS) {
             if (entryList != null) {
-                entryList.clearSelection();
+                refreshingEntries = true;
+                try {
+                    entryList.clearSelection();
+                } finally {
+                    refreshingEntries = false;
+                }
             }
             refreshLargeIconGrid();
             updateSelectionDetails(selectedEntry);
         } else if (entryList != null) {
             entryList.setSelectedIndex(selectedIndex);
-            entryList.ensureIndexIsVisible(selectedIndex);
+            if (!selectedEntry.key().equals(previousSelectedKey)) {
+                entryList.ensureIndexIsVisible(selectedIndex);
+            }
+            updateSelectionDetails(selectedEntry);
         } else {
             updateSelectionDetails(selectedEntry);
         }
@@ -909,6 +947,7 @@ public final class LibraryWindow extends DuckWindow {
         int cellWidth = Math.max(1, availableWidth / columns);
         int tileSize = largeTileSize(cellWidth);
         currentLargeIconContentSize = Math.max(80, tileSize - 16);
+        scaledArtIconCache.keySet().removeIf(key -> !isCurrentArtSize(key));
 
         List<LibraryEntry> entries = currentEntries();
         List<String> entryKeys = entries.stream().map(LibraryEntry::key).toList();
@@ -944,6 +983,62 @@ public final class LibraryWindow extends DuckWindow {
                 listScrollPane.revalidate();
                 listScrollPane.repaint();
             }
+        }
+    }
+
+    private void bindKey(JComponent component, int key, String name, Runnable action) {
+        component.getInputMap(JComponent.WHEN_FOCUSED).put(javax.swing.KeyStroke.getKeyStroke(key, 0), name);
+        component.getActionMap().put(name, new javax.swing.AbstractAction() {
+            @Override
+            public void actionPerformed(java.awt.event.ActionEvent event) {
+                action.run();
+            }
+        });
+    }
+
+    private void handleControllerAction(String action) {
+        if (!isActive()) {
+            return;
+        }
+        switch (action) {
+            case "A", "START" -> loadSelectedEntry(selectedEntry());
+            case "B" -> dispose();
+            case "SELECT" -> toggleFavourite(selectedEntry());
+            case "UP", "DOWN", "LEFT", "RIGHT" -> {
+                int horizontal = "LEFT".equals(action) ? -1 : "RIGHT".equals(action) ? 1 : 0;
+                int vertical = "UP".equals(action) ? -1 : "DOWN".equals(action) ? 1 : 0;
+                if (viewMode == ViewMode.LARGE_ICONS) {
+                    largeIconWrapperPanel.requestFocusInWindow();
+                    moveGridSelection(horizontal, vertical);
+                } else if (!entryListModel.isEmpty()) {
+                    entryList.requestFocusInWindow();
+                    int index = Math.max(0, entryList.getSelectedIndex());
+                    int next = Math.max(0, Math.min(entryListModel.size() - 1, index + horizontal + vertical));
+                    selectEntry(entryListModel.get(next));
+                }
+            }
+            default -> { }
+        }
+    }
+
+    private void moveGridSelection(int horizontal, int vertical) {
+        if (viewMode != ViewMode.LARGE_ICONS || entryListModel.isEmpty()) {
+            return;
+        }
+        int index = 0;
+        for (int i = 0; i < entryListModel.size(); i++) {
+            if (entryListModel.get(i).key().equals(selectedEntryKey)) {
+                index = i;
+                break;
+            }
+        }
+        int columns = resolveLargeIconColumnCount(Math.max(1, listViewportWidth()));
+        int next = Math.max(0, Math.min(entryListModel.size() - 1, index + horizontal + vertical * columns));
+        LibraryEntry entry = entryListModel.get(next);
+        selectEntry(entry);
+        LargeIconTile tile = largeIconTilesByKey.get(entry.key());
+        if (tile != null) {
+            tile.scrollRectToVisible(new Rectangle(0, 0, tile.getWidth(), tile.getHeight()));
         }
     }
 
@@ -1208,7 +1303,9 @@ public final class LibraryWindow extends DuckWindow {
 
         BufferedImage scaledImage = GameArtScaler.ScaleToFit(image, maxWidth, maxHeight, true);
         if (scaledImage != null) {
-            scaledArtIconCache.put(cacheKey, new ImageIcon(scaledImage));
+            if (isCurrentArtSize(cacheKey)) {
+                scaledArtIconCache.put(cacheKey, new ImageIcon(scaledImage));
+            }
         }
     }
 
@@ -1234,6 +1331,13 @@ public final class LibraryWindow extends DuckWindow {
                     scaledArtLoadingKeys.remove(cacheKey);
                     SwingUtilities.invokeLater(() -> refreshArtPresentation(entry.key()));
                 });
+    }
+
+    private boolean isCurrentArtSize(String key) {
+        int size = currentLargeIconContentSize;
+        return key.endsWith("|" + smallArtSize + "x" + smallArtSize)
+                || key.endsWith("|" + largeArtSize + "x" + largeArtSize)
+                || key.endsWith("|" + size + "x" + size);
     }
 
     private String scaledArtCacheKey(String entryKey, int maxWidth, int maxHeight) {
@@ -1427,6 +1531,7 @@ public final class LibraryWindow extends DuckWindow {
             MouseAdapter tileInteractionHandler = new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent event) {
+                    largeIconWrapperPanel.requestFocusInWindow();
                     selectEntry(LargeIconTile.this.entry);
                     if (event.getClickCount() == 2) {
                         loadSelectedEntry(LargeIconTile.this.entry);
@@ -1586,6 +1691,10 @@ public final class LibraryWindow extends DuckWindow {
     @Override
     public void dispose() {
         searchRefreshTimer.stop();
+        gridResizeTimer.stop();
+        if (controllerNavigation != null) {
+            controllerNavigation.close();
+        }
         rememberLibraryBrowserState(true);
         super.dispose();
     }

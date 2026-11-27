@@ -187,6 +187,8 @@ public class OptionsWindow extends DuckWindow {
     private final MainWindow mainWindow;
     private final int initialTabIndex;
     private JTabbedPane tabs;
+    private final Map<JScrollPane, Supplier<JComponent>> pendingTabs = new java.util.LinkedHashMap<>();
+    private final Timer settingsSaveTimer = new Timer(250, event -> Config.Save());
     private JComboBox<DmgPaletteModeOption> dmgPaletteModeSelector;
     private JComboBox<GbcCompatiblePaletteModeOption> gbcCompatiblePaletteModeSelector;
     private JComboBox<ControllerChoice> controllerSelector;
@@ -218,7 +220,9 @@ public class OptionsWindow extends DuckWindow {
         this.cardBorder = Styling.surfaceBorderColour;
         this.accentColour = Styling.accentColour;
         this.mutedText = Styling.mutedTextColour;
-        setMinimumSize(new Dimension(760, 620));
+        setMinimumSize(new Dimension(600, 440));
+        settingsSaveTimer.setRepeats(false);
+        tabs = null;
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setLayout(new BorderLayout());
         getContentPane().setBackground(panelBackground);
@@ -267,29 +271,29 @@ public class OptionsWindow extends DuckWindow {
         tabs.setBorder(BorderFactory.createEmptyBorder(0, 20, 0, 20));
 
         if (backendProfile().capabilities().supportsPaletteConfiguration()) {
-            tabs.addTab(UiText.OptionsWindow.TAB_PALETTE, buildTabScrollPane(buildPaletteTab()));
+            addLazyTab(UiText.OptionsWindow.TAB_PALETTE, this::buildPaletteTab);
         }
-        tabs.addTab(UiText.OptionsWindow.TAB_CONTROLS, buildTabScrollPane(buildControlsTab()));
-        tabs.addTab(UiText.OptionsWindow.TAB_SOUND, buildTabScrollPane(buildSoundTab()));
+        addLazyTab(UiText.OptionsWindow.TAB_CONTROLS, this::buildControlsTab);
+        addLazyTab(UiText.OptionsWindow.TAB_SOUND, this::buildSoundTab);
         if (backendProfile().capabilities().supportsSaveDataManagement()
                 || backendProfile().capabilities().supportsBootRomConfiguration()
                 || backendProfile().capabilities().supportsSaveStates()) {
-            tabs.addTab(UiText.OptionsWindow.TAB_EMULATION, buildTabScrollPane(buildEmulationTab()));
+            addLazyTab(UiText.OptionsWindow.TAB_EMULATION, this::buildEmulationTab);
         }
-        tabs.addTab(UiText.OptionsWindow.TAB_WINDOW, buildTabScrollPane(buildWindowTab()));
-        tabs.addTab(UiText.OptionsWindow.TAB_LIBRARY, buildTabScrollPane(buildLibraryTab()));
-        tabs.addTab(UiText.OptionsWindow.TAB_THEME, buildTabScrollPane(buildThemeTab()));
+        addLazyTab(UiText.OptionsWindow.TAB_WINDOW, this::buildWindowTab);
+        addLazyTab(UiText.OptionsWindow.TAB_LIBRARY, this::buildLibraryTab);
+        addLazyTab(UiText.OptionsWindow.TAB_THEME, this::buildThemeTab);
         tabs.addChangeListener(event -> {
+            initializeSelectedTab();
             if (isControlsTabSelected()) {
                 refreshControllerStatus();
             }
-            resetSelectedTabScrollPosition();
         });
         if (initialTabIndex >= 0 && initialTabIndex < tabs.getTabCount()) {
             tabs.setSelectedIndex(initialTabIndex);
         }
+        initializeSelectedTab();
         WindowUiSupport.applyComponentTheme(tabs);
-        SwingUtilities.invokeLater(() -> SwingUtilities.invokeLater(this::resetSelectedTabScrollPosition));
         return tabs;
     }
 
@@ -302,85 +306,66 @@ public class OptionsWindow extends DuckWindow {
         return scrollPane;
     }
 
-    private void resetSelectedTabScrollPosition() {
-        if (tabs == null) {
+    private void addLazyTab(String title, Supplier<JComponent> builder) {
+        JScrollPane scrollPane = buildTabScrollPane(new JPanel());
+        pendingTabs.put(scrollPane, builder);
+        tabs.addTab(title, scrollPane);
+    }
+
+    private void initializeSelectedTab() {
+        if (tabs == null || !(tabs.getSelectedComponent() instanceof JScrollPane scrollPane)) {
             return;
         }
-
-        Component selectedComponent = tabs.getSelectedComponent();
-        if (!(selectedComponent instanceof JScrollPane scrollPane)) {
-            return;
+        Supplier<JComponent> builder = pendingTabs.remove(scrollPane);
+        if (builder != null) {
+            JComponent content = builder.get();
+            scrollPane.setViewportView(content);
+            WindowUiSupport.applyComponentTheme(scrollPane);
         }
+    }
 
-        SwingUtilities.invokeLater(() -> {
-            scrollPane.getViewport().setViewPosition(new Point(0, 0));
-            scrollPane.getVerticalScrollBar().setValue(0);
-        });
+    private void scheduleSettingsSave() {
+        settingsSaveTimer.restart();
+    }
+
+    @Override
+    public void dispose() {
+        if (settingsSaveTimer != null && settingsSaveTimer.isRunning()) {
+            settingsSaveTimer.stop();
+            Config.Save();
+        }
+        if (controllerRefreshTimer != null) {
+            controllerRefreshTimer.stop();
+        }
+        super.dispose();
     }
 
     private JComponent buildPaletteTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_PALETTE_TITLE,
-                UiText.OptionsWindow.SECTION_PALETTE_DESCRIPTION,
-                createUnifiedPalettePanel()));
-        content.add(Box.createVerticalGlue());
-        return content;
+        return OptionsTabSections.palette(this::createVerticalContentPanel, this::createSectionCard, this::createUnifiedPalettePanel);
     }
 
     private JComponent buildControlsTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_CONTROLS_TITLE,
-                UiText.OptionsWindow.SECTION_CONTROLS_DESCRIPTION,
-                createControlsPanel()));
-        content.add(Box.createVerticalGlue());
-        return content;
+        return OptionsTabSections.controls(this::createVerticalContentPanel, this::createSectionCard, this::createControlsPanel);
     }
 
     private JComponent buildSoundTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_SOUND_TITLE,
-                UiText.OptionsWindow.SECTION_SOUND_DESCRIPTION,
-                createSoundPanel()));
-        return content;
+        return OptionsTabSections.sound(this::createVerticalContentPanel, this::createSectionCard, this::createSoundPanel);
     }
 
     private JComponent buildEmulationTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_EMULATION_TITLE,
-                UiText.OptionsWindow.SECTION_EMULATION_DESCRIPTION,
-                createEmulationPanel()));
-        return content;
+        return OptionsTabSections.emulation(this::createVerticalContentPanel, this::createSectionCard, this::createEmulationPanel);
     }
 
     private JComponent buildWindowTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_WINDOW_TITLE,
-                UiText.OptionsWindow.SECTION_WINDOW_DESCRIPTION,
-                createWindowPanel()));
-        return content;
+        return OptionsTabSections.window(this::createVerticalContentPanel, this::createSectionCard, this::createWindowPanel);
     }
 
     private JComponent buildLibraryTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_LIBRARY_TITLE,
-                UiText.OptionsWindow.SECTION_LIBRARY_DESCRIPTION,
-                createLibraryPanel()));
-        return content;
+        return OptionsTabSections.library(this::createVerticalContentPanel, this::createSectionCard, this::createLibraryPanel);
     }
 
     private JComponent buildThemeTab() {
-        JPanel content = createVerticalContentPanel();
-        content.add(createSectionCard(
-                UiText.OptionsWindow.SECTION_THEME_LIBRARY_TITLE,
-                UiText.OptionsWindow.SECTION_THEME_LIBRARY_DESCRIPTION,
-                createUnifiedThemePanel()));
-        return content;
+        return OptionsTabSections.theme(this::createVerticalContentPanel, this::createSectionCard, this::createUnifiedThemePanel);
     }
 
     private JPanel createVerticalContentPanel() {
@@ -1385,7 +1370,7 @@ public class OptionsWindow extends DuckWindow {
                 (newValue, adjusting) -> {
                     Settings.masterVolume = newValue;
                     if (!adjusting) {
-                        Config.Save();
+                        scheduleSettingsSave();
                     }
                 },
                 masterVolumeKnobHolder,
@@ -1900,7 +1885,7 @@ public class OptionsWindow extends DuckWindow {
                 (newValue, adjusting) -> {
                     Settings.SetChannelVolume(channelIndex, newValue);
                     if (!adjusting) {
-                        Config.Save();
+                        scheduleSettingsSave();
                     }
                 },
                 channelVolumeKnobs,
@@ -2789,69 +2774,9 @@ public class OptionsWindow extends DuckWindow {
     }
 
     private JComponent createLibraryPanel() {
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
-        panel.setOpaque(false);
-
-        JComboBox<GameNameBracketDisplayMode> modeSelector = new JComboBox<>(GameNameBracketDisplayMode.values());
-        modeSelector.setSelectedItem(Settings.gameNameBracketDisplayMode);
-        modeSelector.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-        JTextArea helperLabel = createBodyTextArea(Settings.gameNameBracketDisplayMode.Description(), 12f);
-
-        modeSelector.addActionListener(event -> {
-            Object selectedItem = modeSelector.getSelectedItem();
-            if (selectedItem instanceof GameNameBracketDisplayMode selectedMode) {
-                helperLabel.setText(selectedMode.Description());
-                Settings.gameNameBracketDisplayMode = selectedMode;
-                Config.Save();
-                if (mainWindow != null) {
-                    mainWindow.RefreshLoadedRomDisplay();
-                }
-            }
-        });
-
-        JSpinner recentMenuLimitSpinner = new JSpinner(new SpinnerNumberModel(Settings.loadRecentMenuLimit, 1, 25, 1));
-        recentMenuLimitSpinner.setFont(Styling.menuFont.deriveFont(Font.PLAIN, 13f));
-        recentMenuLimitSpinner.addChangeListener(event -> {
-            Object value = recentMenuLimitSpinner.getValue();
-            if (!(value instanceof Number numberValue)) {
-                return;
-            }
-
-            Settings.loadRecentMenuLimit = Math.max(1, Math.min(25, numberValue.intValue()));
-            Config.Save();
-        });
-        JTextArea recentMenuHelperLabel = createBodyTextArea(UiText.OptionsWindow.RECENT_MENU_LIMIT_HELPER, 12f);
-
-        JPanel modeCard = new JPanel(new BorderLayout(0, 10));
-        modeCard.setOpaque(false);
-        modeCard.add(createFieldCard(UiText.OptionsWindow.LIBRARY_MODE_LABEL, modeSelector), BorderLayout.NORTH);
-        modeCard.add(helperLabel, BorderLayout.CENTER);
-        panel.add(createSimpleWindowOptionCard(modeCard));
-        panel.add(Box.createVerticalStrut(10));
-
-        JPanel recentMenuCard = new JPanel(new BorderLayout(0, 10));
-        recentMenuCard.setOpaque(false);
-        recentMenuCard.add(createFieldCard(UiText.OptionsWindow.RECENT_MENU_LIMIT_LABEL, recentMenuLimitSpinner),
-                BorderLayout.NORTH);
-        recentMenuCard.add(recentMenuHelperLabel, BorderLayout.CENTER);
-        panel.add(createSimpleWindowOptionCard(recentMenuCard));
-        panel.add(Box.createVerticalStrut(10));
-
-        JButton resetLibraryButton = createSecondaryButton(UiText.OptionsWindow.RESET_LIBRARY_BUTTON);
-        resetLibraryButton.addActionListener(event -> {
-            Settings.ResetLibrary();
-            modeSelector.setSelectedItem(Settings.gameNameBracketDisplayMode);
-            helperLabel.setText(Settings.gameNameBracketDisplayMode.Description());
-            recentMenuLimitSpinner.setValue(Settings.loadRecentMenuLimit);
-            Config.Save();
-            if (mainWindow != null) {
-                mainWindow.RefreshLoadedRomDisplay();
-            }
-        });
-        panel.add(createResponsiveGroup(180, 1, resetLibraryButton));
-
-        return panel;
+        return LibraryOptionsPanel.create(mainWindow, this::createBodyTextArea, this::createFieldCard,
+                this::createSimpleWindowOptionCard, this::createSecondaryButton,
+                button -> createResponsiveGroup(180, 1, button));
     }
 
     private JComponent createEmulationPanel() {
